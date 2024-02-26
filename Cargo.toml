@@ -1,0 +1,26 @@
+[package]
+name = "bevy_stat_engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+doctest = false
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy_ecs = { version = "^0.13" }
+bevy_hierarchy = { version = "^0.13" }
+bevy_app = { version = "^0.13" }
+bevy_reflect = { version = "^0.13" }
+rustc-hash = "^1.1"
+downcast-rs = "^1.2"
+dyn-hash = "^0.1.2"
+serde = { version = "^1", features = ["derive"] }
+ref-cast = "^1"
+thiserror = "^1"
+num-integer = { version = "^0.1", default-features = false }
+num-rational = { version = "^0.4.1", default-features = false, features = ["serde"] }
+num-traits = { version = "0.2.18", default-features = false }
+
+[dev-dependencies]
+bevy_asset = "0.13.0"
