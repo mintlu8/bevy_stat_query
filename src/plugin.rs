@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use bevy_app::{App, Plugin};
 use bevy_ecs::{entity::Entity, system::{Resource, SystemId}, world::World};
 
-use crate::{calc::StatDefaults, querier::ErasedQuerier, traits::Stat, QualifierFlag, QualifierQuery, StatComponents, StatOperation};
+use crate::{calc::StatDefaults, querier::ErasedQuerier, Stat, QualifierFlag, QualifierQuery, StatComponents, StatOperation};
 
 /// [`Plugin`] for the stat engine.
 #[derive(Debug, Default)]

@@ -2,7 +2,7 @@ use std::slice::Iter;
 use bevy_ecs::{entity::Entity, query::{QueryData, With}, system::{In, Query, Res, StaticSystemParam, SystemParam}};
 use bevy_hierarchy::Children;
 use rustc_hash::FxHashMap;
-use crate::{sealed::Sealed, Data, DefaultStatLogic, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, StatMapInner, StatParam};
+use crate::{sealed::Sealed, Data, DefaultStatLogic, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, StatMap, StatParam};
 use crate::{FromIntrinsics, StatQuerier, StatComponents};
 use crate::{StatCache, StatEntity};
 
@@ -13,7 +13,7 @@ struct QuerierInner<'w, 's,
     Components: StatParam<Qualifier, Intrinsic> + 'static
 > {
     defaults: Res<'w, StatDefaults>,
-    units: Query<'w, 's, (Option<&'static StatMapInner<Qualifier>>, Option<&'static Children>), With<StatEntity>>,
+    units: Query<'w, 's, (Option<&'static StatMap<Qualifier>>, Option<&'static Children>), With<StatEntity>>,
     distance: Query<'w, 's, Intrinsic>,
     singleton: Query<'w, 's, &'static Children, With<DefaultStatLogic<Qualifier>>>,
     items: StaticSystemParam<'w, 's, Components>,
@@ -75,7 +75,7 @@ impl<Q: QualifierFlag, D: QueryData + 'static, A: StatParam<Q, D> + 'static> Sta
         }.chain(self.default_logic.clone());
         let mut stat_value = self.querier.defaults.get(stat);
         if let Some(stat_map) = stat_map {
-            for (q, v) in stat_map.iter_stat(stat) {
+            for (q, v) in stat_map.iter(stat) {
                 if q.qualifies_as(qualifier) {
                     <S::Data as StatComponents>::from_out(v.clone()).write_to(&mut stat_value);
                 }

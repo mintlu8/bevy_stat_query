@@ -1,9 +1,8 @@
-use std::{any::{Any, TypeId}, borrow::Cow, cmp::Ordering, fmt::Debug, hash::Hash, ops::{BitAnd, BitOr}};
+use std::{borrow::Cow, fmt::Debug, hash::Hash, ops::{BitAnd, BitOr}};
 use bevy_reflect::Reflect;
-use dyn_hash::DynHash;
-use downcast_rs::{impl_downcast, Downcast};
+use serde::{Deserialize, Serialize};
 
-use crate::{sealed::SealedAll, types::StatComponents, Data, Shareable, TYPE_ERROR};
+use crate::Shareable;
 
 /// A flags like [`Qualifier`] for stats, normally bitflags or a set.
 ///
@@ -62,7 +61,7 @@ impl<T> QualifierFlag for T where T: BitOr<Self, Output=Self> + Ord + Hash + Bit
 /// let elemental_piercing = QualifierFlags::any_of(Fire | Water | Earth | Air)
 ///     .and_all_of(Piercing);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect, Serialize, Deserialize)]
 pub struct Qualifier<Q: QualifierFlag> {
     pub any_of: Q,
     pub all_of: Q,
@@ -192,178 +191,5 @@ pub enum QualifierQuery<Q: QualifierFlag> {
 impl<Q: QualifierFlag> Default for QualifierQuery<Q> {
     fn default() -> Self {
         Self::Aggregate(Q::none())
-    }
-}
-
-/// Implement this on your types to qualify them as a [`Stat`].
-///
-/// Similar to bevy's labels, you can either use one instance per stat,
-/// or use one type per [`StatComponents`].
-///
-/// # Example
-/// ```
-/// struct Attack;
-/// struct Defense;
-/// impl Stat for Attack { .. }
-/// impl Stat for Defense { .. }
-/// ```
-/// or
-/// ```
-/// enum MyStat{
-///     Attack,
-///     Defense
-/// }
-/// impl Stat for MyStat { .. }
-/// ```
-pub trait Stat: Any + Clone + Hash + Debug + Eq + Ord + Send + Sync + 'static {
-    type Data: StatComponents;
-
-    /// Equality comparison between all stat implementors.
-    fn is<S: Stat + SealedAll>(&self, other: &S) -> bool{
-        self as &dyn DynStat == other as &dyn DynStat
-    }
-
-    /// If a generic stat is a concrete stat, cast associated `Data`
-    /// as the concrete stat's associated `Data`.
-    fn is_then<S: Stat + SealedAll>(&self,
-        other: &S,
-        data: &Self::Data,
-        f: impl FnOnce(&S::Data)
-    ) -> bool {
-        if self as &dyn DynStat == other as &dyn DynStat {
-            f(data.as_any().downcast_ref().expect(TYPE_ERROR));
-            true
-        } else {
-            false
-        }
-    }
-
-    /// If a generic stat is a concrete stat, cast associated `Data`
-    /// as the concrete stat's associated `Data`.
-    fn is_then_mut<S: Stat + SealedAll>(&self,
-        other: &S,
-        mut_ref: &mut Self::Data,
-        f: impl FnOnce(&mut S::Data)
-    ) -> bool {
-        if self as &dyn DynStat == other as &dyn DynStat {
-            f(mut_ref.as_any_mut().downcast_mut().expect(TYPE_ERROR));
-            true
-        } else {
-            false
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! match_stat {
-    ($stat: expr, ref $mut_ref: expr => {
-        $(,)?
-    }) => {
-        ()
-    };
-    ($stat: expr, mut $mut_ref: expr => {
-        $(,)?
-    }) => {
-        ()
-    };
-    ($stat: expr, ref $mut_ref: expr => {
-        $first_arm: expr => $first_out: expr
-        $(,$arm: expr => $out: expr)* $(,)?
-    }) => {
-        if !$stat.is_then(&$first_arm, $mut_ref, $first_out) {
-            $crate::match_stat!($stat, ref $mut_ref => {$($arm => $out),*})
-        }
-    };
-    ($stat: expr, mut $mut_ref: expr => {
-        $first_arm: expr => $first_out: expr
-        $(,$arm: expr => $out: expr)* $(,)?
-    }) => {
-        if !$stat.is_then_mut(&$first_arm, $mut_ref, $first_out) {
-            $crate::match_stat!($stat, mut $mut_ref => {$($arm => $out),*})
-        }
-    };
-
-}
-
-/// Object safe version of [`Stat`].
-pub(crate) trait DynStat: Downcast + DynHash + Debug + Send + Sync {
-    fn type_id(&self) -> TypeId;
-    fn dyn_eq(&self, other: &dyn DynStat) -> bool;
-    fn dyn_ord(&self, other: &dyn DynStat) -> Ordering;
-    fn boxed_clone(&self) -> Box<dyn DynStat>;
-    fn default_value(&self) -> Box<dyn Data>;
-    fn compose_stat(&self, from: &mut dyn Data, with: &dyn Data);
-}
-
-impl_downcast!(DynStat);
-dyn_hash::hash_trait_object!(DynStat);
-
-impl PartialEq for dyn DynStat {
-    fn eq(&self, other: &Self) -> bool {
-        self.dyn_eq(other)
-    }
-}
-
-impl<S: DynStat> PartialEq<S> for Box<dyn DynStat>  {
-    fn eq(&self, other: &S) -> bool {
-        self.dyn_eq(other)
-    }
-}
-
-impl Eq for dyn DynStat {}
-
-impl PartialOrd for dyn DynStat {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for dyn DynStat {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.dyn_ord(other)
-    }
-}
-
-impl Clone for Box<dyn DynStat> {
-    fn clone(&self) -> Self {
-        self.boxed_clone()
-    }
-}
-
-impl<T> From<T> for Box<dyn DynStat> where T: Stat {
-    fn from(value: T) -> Self {
-        Box::new(value)
-    }
-}
-
-impl<T> DynStat for T where T:Stat {
-    fn type_id(&self) -> TypeId {
-        TypeId::of::<Self>()
-    }
-
-    fn dyn_eq(&self, other: &dyn DynStat) -> bool {
-        other.downcast_ref::<Self>()
-            .map(|x| x == self)
-            .unwrap_or(false)
-    }
-
-    fn dyn_ord(&self, other: &dyn DynStat) -> Ordering {
-        other.downcast_ref::<Self>()
-            .map(|x| x.cmp(self))
-            .unwrap_or(self.type_id().cmp(&DynStat::type_id(other)))
-    }
-
-    fn boxed_clone(&self) -> Box<dyn DynStat> {
-        Box::new(self.clone())
-    }
-
-    fn default_value(&self) -> Box<dyn Data> {
-        Box::<<T as Stat>::Data>::default()
-    }
-
-    fn compose_stat(&self, from: &mut dyn Data, with: &dyn Data) {
-        let from = from.downcast_mut::<T::Data>().expect("Wrong data type in compose.");
-        let with = with.downcast_ref::<T::Data>().expect("Wrong data type in compose.");
-        from.join(with.clone());
     }
 }

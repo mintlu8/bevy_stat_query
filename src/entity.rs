@@ -3,7 +3,7 @@ use std::{fmt::Debug, hash::Hash};
 use bevy_ecs::component::Component;
 use rustc_hash::FxHashMap;
 use crate::{Data, Stat, TYPE_ERROR};
-use crate::traits::{QualifierFlag, QualifierQuery, DynStat};
+use crate::{QualifierFlag, QualifierQuery, DynStat};
 
 pub type StatQuery<Q> = (QualifierQuery<Q>, Box<dyn DynStat>);
 
@@ -13,7 +13,8 @@ pub struct StatEntity;
 
 /// This component acts as a stat cache to stats.
 ///
-/// If using this you must manually invalidate the cache if something has changed.
+/// If using this component
+/// the user must manually invalidate the cache if something has changed.
 #[derive(Debug, Component)]
 pub struct StatCache<Q: QualifierFlag>{
     pub(crate) cache: FxHashMap<StatQuery<Q>, Box<dyn Data>>

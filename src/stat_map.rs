@@ -2,10 +2,15 @@ use std::any::Any;
 use std::{borrow::Borrow, collections::BTreeMap, hash::Hash};
 use std::ops::{Bound, Deref, DerefMut, RangeBounds};
 use bevy_ecs::component::Component;
-use bevy_reflect::{Reflect, TypePath};
+use bevy_reflect::TypePath;
+use bevy_serde_project::typetagged::TypeTagged;
+use bevy_serde_project::{Error, SerdeProject};
 use ref_cast::RefCast;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use bevy_ecs::change_detection::Mut;
 use crate::{Data, Stat, Qualifier, QualifierFlag, DynStat, StatComponents, StatOperation, TYPE_ERROR};
-
+use crate::StatInstances;
 /// A map-like, type erased storage for stats.
 /// When present on an entity with [`StatEntity`](crate::StatEntity)
 /// will be used as the base stats of the unit.
@@ -31,6 +36,7 @@ impl<Q: QualifierFlag, D> Default for StatMapInner<Q, D> {
 }
 
 type SOut<T> = <<T as Stat>::Data as StatComponents>::Out;
+type SOp<T> = StatOperation<<T as Stat>::Data>;
 
 impl<Q: QualifierFlag, D> StatMapInner<Q, D> {
     pub fn new() -> Self {
@@ -108,7 +114,7 @@ impl<T> DerefMut for Unqualified<T> {
 }
 
 macro_rules! impl_stat_map {
-    ($name: ident, $concrete: ident, $stat: ident, $value: ty) => {
+    ($name: ident, $stat: ident, $value: ty) => {
         #[derive(Debug, Clone, Default, Component, TypePath)]
         #[type_path = "bse"]
         pub struct $name<Q: QualifierFlag>(StatMapInner<Q, Box<dyn Data>>);
@@ -164,34 +170,77 @@ macro_rules! impl_stat_map {
                     .map(|(q, v)| (q, v.downcast_mut().expect(TYPE_ERROR)))
             }
         }
+
+        impl<Q: QualifierFlag> Unqualified<$name<Q>> {
+            pub fn insert<S: Stat>(&mut self, stat: S, value: SOut<S>) {
+                self.0.0.inner.insert((Box::new(stat), Qualifier::default()), Box::new(value));
+            }
+
+            pub fn get<S: Stat>(&self, stat: &S) -> Option<&SOut<S>> {
+                self.0.0.inner
+                    .get(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
+                    .map(|x| x.downcast_ref::<SOut<S>>().expect(TYPE_ERROR))
+            }
+
+            pub fn get_mut<S: Stat>(&mut self, stat: &S) -> Option<&mut SOut<S>> {
+                self.0.0.inner
+                    .get_mut(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
+                    .map(|x| x.downcast_mut::<SOut<S>>().expect(TYPE_ERROR))
+            }
+
+            pub fn remove<S: Stat>(&mut self, stat: &S) -> Option<SOut<S>> {
+                self.0.0.inner
+                    .remove(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
+                    .map(|x| *x.downcast::<SOut<S>>().expect(TYPE_ERROR))
+            }
+        }
+
+        impl<Q: QualifierFlag + Serialize + DeserializeOwned> SerdeProject for $name<Q> {
+            type Ctx = StatInstances;
+
+            type Ser<'t> = Vec<SerEntry<'t, Q>>;
+            type De<'de> = Vec<DeEntry<'de, Q>>;
+
+            fn to_ser<'t>(&'t self, ctx: &&'t StatInstances) -> Result<Self::Ser<'t>, Box<Error>> {
+                self.0.inner.iter().map(|((s, q), d)|{
+                    Ok(SerEntry {
+                        qualifier: q,
+                        stat: s.to_ser(ctx)?,
+                        data: TypeTagged::ref_cast(d).to_ser(&())?,
+                    })
+                }).collect()
+            }
+
+            fn from_de(ctx: &mut Mut<StatInstances>, de: Self::De<'_>) -> Result<Self, Box<Error>> {
+                use bevy_serde_project::Convert;
+                Ok(Self(StatMapInner{
+                    inner: de.into_iter().map(|DeEntry { qualifier, stat, data }| {
+                        Ok(((Box::<dyn DynStat>::from_de(ctx, stat)?, qualifier),
+                            TypeTagged::from_de(&mut (), data)?.de()))
+                    }).collect::<Result<_, Box<Error>>>()?
+                }))
+            }
+        }
     };
 }
 
-impl_stat_map!(StatMap, TypedStatMap, S, SOut<S>);
+impl_stat_map!(StatMap, S, SOut<S>);
+impl_stat_map!(StatOperationsMap, S, SOp<S>);
 
-// impl<Q: QualifierFlag> Unqualified<StatMapInner<Q>> {
-//     pub fn insert<S: Stat>(&mut self, stat: S, value: SOut<S>) {
-//         self.inner.insert((Box::new(stat), Qualifier::default()), Box::new(value));
-//     }
+#[derive(Serialize)]
+pub struct SerEntry<'t, Q: QualifierFlag + Serialize + DeserializeOwned> {
+    qualifier: &'t Qualifier<Q>,
+    stat: <Box<dyn DynStat> as SerdeProject>::Ser<'t>,
+    data: <TypeTagged<Box<dyn Data>> as SerdeProject>::Ser<'t>,
+}
 
-//     pub fn get<S: Stat>(&self, stat: &S) -> Option<&SOut<S>> {
-//         self.inner
-//             .get(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
-//             .map(|x| x.downcast_ref::<SOut<S>>().expect(TYPE_ERROR))
-//     }
-
-//     pub fn get_mut<S: Stat>(&mut self, stat: &S) -> Option<&mut SOut<S>> {
-//         self.inner
-//             .get_mut(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
-//             .map(|x| x.downcast_mut::<SOut<S>>().expect(TYPE_ERROR))
-//     }
-
-//     pub fn remove<S: Stat>(&mut self, stat: &S) -> Option<SOut<S>> {
-//         self.inner
-//             .remove(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
-//             .map(|x| *x.downcast::<SOut<S>>().expect(TYPE_ERROR))
-//     }
-// }
+#[derive(Deserialize)]
+#[serde(bound = "'t: 'de")]
+pub struct DeEntry<'t, Q: QualifierFlag + Serialize + DeserializeOwned> {
+    qualifier: Qualifier<Q>,
+    stat: <Box<dyn DynStat> as SerdeProject>::De<'t>,
+    data: <TypeTagged<Box<dyn Data>> as SerdeProject>::De<'t>,
+}
 
 trait QueryStatEntry<Q: QualifierFlag> {
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>>;
@@ -317,144 +366,3 @@ impl<'a, Q: QualifierFlag> RangeBounds<dyn QueryStatEntry<Q> + 'a> for &'a dyn D
         Bound::Excluded(End::ref_cast(self))
     }
 }
-
-// /// A map-like, type erased storage for [`StatOperation`]s.
-// ///
-// /// The map is optimized for looking up all qualifiers with a specific [`Stat`].
-// ///
-// /// Although the implementation is type erased,
-// /// the public interface is completely type safe.
-// #[derive(Debug, Clone, Default, Component)]
-// pub struct StatOperationsMap<Q: QualifierFlag>(StatMapInner<Q>);
-
-// type SOp<T> = StatOperation<<T as Stat>::Data>;
-
-// impl<Q: QualifierFlag> StatOperationsMap<Q> {
-//     pub fn new() -> Self {
-//         Self(StatMapInner::new())
-//     }
-
-//     /// Obtain an unqualified view of a [`StatMap`].
-//     pub fn unqualified(&self) -> &Unqualified<Self> {
-//         Unqualified::ref_cast(self)
-//     }
-
-//     /// Obtain an mutable unqualified view of a [`StatMap`].
-//     pub fn unqualified_mut(&mut self) -> &mut Unqualified<Self> {
-//         Unqualified::ref_cast_mut(self)
-//     }
-
-//     pub fn clear(&mut self) {
-//         self.0.clear()
-//     }
-
-//     pub fn insert<S: Stat>(&mut self, qualifier: Qualifier<Q>, stat: S, value: SOp<S>) {
-//         self.0.inner.insert((Box::new(stat), qualifier), Box::new(value));
-//     }
-
-//     pub fn get<S: Stat>(&self, qualifier: &Qualifier<Q>, stat: &S) -> Option<&SOp<S>> {
-//         self.0.inner
-//             .get(&(stat as &dyn DynStat, qualifier) as &dyn QueryStatEntry<Q>)
-//             .map(|x| x.downcast_ref::<SOp<S>>().expect(TYPE_ERROR))
-//     }
-
-//     pub fn get_mut<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S) -> Option<&mut SOp<S>> {
-//         self.0.inner
-//             .get_mut(&(stat as &dyn DynStat, qualifier) as &dyn QueryStatEntry<Q>)
-//             .map(|x| x.downcast_mut::<SOp<S>>().expect(TYPE_ERROR))
-//     }
-
-//     pub fn remove<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S) -> Option<SOp<S>> {
-//         self.0.inner
-//             .remove(&(stat as &dyn DynStat, qualifier) as &dyn QueryStatEntry<Q>)
-//             .map(|x| *x.downcast::<SOp<S>>().expect(TYPE_ERROR))
-//     }
-
-//     pub fn retain(&mut self, mut f: impl FnMut(&Qualifier<Q>, &dyn Any) -> bool) {
-//         self.0.inner.retain(|(s, q), _| f(q, s.as_any()));
-//     }
-
-//     /// Iterate over a particulat stat.
-//     pub fn iter_stat<S: Stat>(&self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &SOp<S>)> {
-//         self.0.inner
-//             .range(stat as &dyn DynStat)
-//             .map(|((_, q), v)| (q, v.downcast_ref().expect(TYPE_ERROR)))
-//     }
-
-//     /// Iterate over a particulat stat.
-//     pub fn iter_stat_mut<S: Stat>(&mut self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &mut SOp<S>)> {
-//         self.0.inner
-//             .range_mut(stat as &dyn DynStat)
-//             .map(|((_, q), v)| (q, v.downcast_mut().expect(TYPE_ERROR)))
-//     }
-// }
-
-// impl<Q: QualifierFlag> Unqualified<StatOperationsMap<Q>> {
-//     pub fn insert<S: Stat>(&mut self, stat: S, value: SOp<S>) {
-//         self.0.0.inner.insert((Box::new(stat), Qualifier::default()), Box::new(value));
-//     }
-
-//     pub fn get<S: Stat>(&self, stat: &S) -> Option<&SOp<S>> {
-//         self.0.0.inner
-//             .get(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
-//             .map(|x| x.downcast_ref::<SOp<S>>().expect(TYPE_ERROR))
-//     }
-
-//     pub fn get_mut<S: Stat>(&mut self, stat: &S) -> Option<&mut SOp<S>> {
-//         self.0.0.inner
-//             .get_mut(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
-//             .map(|x| x.downcast_mut::<SOp<S>>().expect(TYPE_ERROR))
-//     }
-
-//     pub fn remove<S: Stat>(&mut self, stat: &S) -> Option<SOp<S>> {
-//         self.0.0.inner
-//             .remove(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
-//             .map(|x| *x.downcast::<SOp<S>>().expect(TYPE_ERROR))
-//     }
-// }
-
-// impl<Q: QualifierFlag + TypePath + Reflect> bevy_reflect::Map for StatMapInner<Q> {
-//     fn get(&self, key: &dyn Reflect) -> Option<&dyn Reflect> {
-//         todo!()
-//     }
-
-//     fn get_mut(&mut self, key: &dyn Reflect) -> Option<&mut dyn Reflect> {
-//         todo!()
-//     }
-
-//     fn get_at(&self, index: usize) -> Option<(&dyn Reflect, &dyn Reflect)> {
-//         todo!()
-//     }
-
-//     fn get_at_mut(&mut self, index: usize) -> Option<(&dyn Reflect, &mut dyn Reflect)> {
-//         todo!()
-//     }
-
-//     fn len(&self) -> usize {
-//         todo!()
-//     }
-
-//     fn iter(&self) -> bevy_reflect::MapIter {
-//         todo!()
-//     }
-
-//     fn drain(self: Box<Self>) -> Vec<(Box<dyn Reflect>, Box<dyn Reflect>)> {
-//         todo!()
-//     }
-
-//     fn clone_dynamic(&self) -> bevy_reflect::DynamicMap {
-//         todo!()
-//     }
-
-//     fn insert_boxed(
-//         &mut self,
-//         key: Box<dyn Reflect>,
-//         value: Box<dyn Reflect>,
-//     ) -> Option<Box<dyn Reflect>> {
-//         todo!()
-//     }
-
-//     fn remove(&mut self, key: &dyn Reflect) -> Option<Box<dyn Reflect>> {
-//         todo!()
-//     }
-// }

@@ -3,7 +3,7 @@ use bevy_ecs::{component::Component, system::Resource};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{traits::{Stat, QualifierFlag, DynStat}, types::StatComponents, Data, TYPE_ERROR};
+use crate::{Stat, QualifierFlag, DynStat, types::StatComponents, Data, TYPE_ERROR};
 
 /// An single step calculation on a [`StatComponents`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]

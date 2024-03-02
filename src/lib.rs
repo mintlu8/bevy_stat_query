@@ -132,6 +132,7 @@ use bevy_ecs::{query::QueryData, component::Component, system::SystemParam, worl
 pub(crate) static TYPE_ERROR: &str = "Error: a stat does not have the approprate type. \
 This is almost certainly a bug since we do not provide a type erased api.";
 
+use bevy_serde_project::typetagged::BevyTypeTagged;
 use downcast_rs::Downcast;
 mod stream;
 mod num_traits;
@@ -140,9 +141,11 @@ pub use num_rational::Ratio;
 pub use stream::{StatStream, FromIntrinsics, StatQuerier};
 pub mod types;
 pub use types::StatComponents;
-mod traits;
-pub use traits::{Qualifier, QualifierFlag, QualifierQuery, Stat};
-use traits::DynStat;
+mod qualifier;
+pub use qualifier::{Qualifier, QualifierFlag, QualifierQuery};
+mod stat;
+pub use stat::Stat;
+pub(crate) use stat::{StatInstances, DynStat};
 mod calc;
 pub use calc::{StatOperation, StatDefaults, DefaultStatLogic};
 mod entity;
@@ -156,8 +159,7 @@ mod param;
 #[doc(hidden)]
 pub use param::{ChildStatParam, StatParam};
 mod stat_map;
-pub use stat_map::{StatMapInner, Unqualified, StatOperationsMap};
-mod reflect;
+pub use stat_map::{StatMap, Unqualified, StatOperationsMap};
 
 use std::fmt::Debug;
 
@@ -181,6 +183,16 @@ pub(crate) trait Data: Send + Sync + Downcast + Debug {
 impl<T> Data for T where T: Send + Sync + Downcast + Debug + Clone{
     fn dyn_clone(&self) -> Box<dyn Data> {
         Box::new(self.clone())
+    }
+}
+
+impl BevyTypeTagged for Box<dyn Data> {
+    fn name(&self) -> &'static str {
+        todo!()
+    }
+
+    fn as_serialize(&self) -> &dyn bevy_reflect::erased_serde::Serialize {
+        todo!()
     }
 }
 

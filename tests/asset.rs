@@ -3,21 +3,14 @@ use bevy_asset::{Asset, AssetApp, AssetPlugin, AssetServer, Assets, Handle};
 use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, With}, system::{Commands, Query, Res}};
 use bevy_hierarchy::BuildChildren;
 use bevy_reflect::TypePath;
-use bevy_stat_engine::{match_stat, querier, types::StatFloat, QualifierQuery, Stat, StatCache, StatComponents, StatEnginePlugin, StatEntity, StatStream};
+use bevy_stat_engine::{match_stat, querier, stats, types::StatFloat, QualifierQuery, Stat, StatCache, StatComponents, StatEnginePlugin, StatEntity, StatStream};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Damage;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Defense;
-
-impl Stat for Damage {
-    type Data = StatFloat<f32>;
-}
-
-impl Stat for Defense {
-    type Data = StatFloat<f32>;
-}
+stats!(
+    StatFloat<f32> {
+        Damage,
+        Defense,
+    }
+);
 
 #[derive(Asset, TypePath)]
 pub struct Weapon {

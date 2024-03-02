@@ -21,6 +21,10 @@ thiserror = "^1"
 num-integer = { version = "^0.1", default-features = false }
 num-rational = { version = "^0.4.1", default-features = false, features = ["serde"] }
 num-traits = { version = "0.2.18", default-features = false }
+#bevy_serde_project = { path = "../bevy_serde_project/main" }
+bevy_serde_project = { version = "^0.1.1" }
+
+erased-serde = "0.4.3"
 
 [dev-dependencies]
 bevy_asset = "0.13.0"

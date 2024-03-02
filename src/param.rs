@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, marker::PhantomData};
 use bevy_ecs::{entity::Entity, query::{QueryData, Without}, system::{Query, StaticSystemParam, SystemParam}};
-use crate::{stream::{StatQuerier, StatStream}, traits::QualifierFlag, Stat, QualifierQuery, StatCache};
+use crate::{stream::{StatQuerier, StatStream}, QualifierFlag, Stat, QualifierQuery, StatCache};
 
 
 /// [`SystemParam`] that can be aggregated as stat components.

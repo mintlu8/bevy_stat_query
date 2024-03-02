@@ -64,7 +64,7 @@ impl<Q: QualifierFlag, D: QueryData> StatStream<Q, D> for StatOperationsMap<Q> {
         stat: &S,
         _: &mut impl StatQuerier<Q, D>
     ){
-        this.iter_stat(stat)
+        this.iter(stat)
             .filter(|(q, _)| q.qualifies_as(qualifier))
             .for_each(|(_, v)| v.write_to(write))
     }
