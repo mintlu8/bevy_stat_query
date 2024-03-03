@@ -4,9 +4,7 @@ use bevy_ecs::system::Resource;
 use bevy_serde_project::{Error, FromWorldAccess, SerdeProject};
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_hash::DynHash;
-use erased_serde::Serialize;
 use rustc_hash::FxHashMap;
-use serde::de::DeserializeOwned;
 
 use crate::{sealed::SealedAll, Data, Shareable, StatComponents, TYPE_ERROR};
 
@@ -34,7 +32,7 @@ use crate::{sealed::SealedAll, Data, Shareable, StatComponents, TYPE_ERROR};
 pub trait Stat: Shareable + Hash + Debug + Eq + Ord {
     type Data: StatComponents;
 
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
 
     fn values() -> impl IntoIterator<Item = Self>;
 
@@ -107,11 +105,12 @@ macro_rules! match_stat {
 
 /// Object safe version of [`Stat`].
 pub(crate) trait DynStat: Downcast + DynHash + Debug + Send + Sync {
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
     fn dyn_eq(&self, other: &dyn DynStat) -> bool;
     fn dyn_ord(&self, other: &dyn DynStat) -> Ordering;
     fn boxed_clone(&self) -> Box<dyn DynStat>;
     fn default_value(&self) -> Box<dyn Data>;
+    fn from_out(&self, out: &dyn Data) -> Box<dyn Data>;
     fn compose_stat(&self, from: &mut dyn Data, with: &dyn Data);
 }
 
@@ -157,7 +156,7 @@ impl<T> From<T> for Box<dyn DynStat> where T: Stat {
 }
 
 impl<T> DynStat for T where T:Stat {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         self.name()
     }
 
@@ -180,6 +179,14 @@ impl<T> DynStat for T where T:Stat {
 
     fn default_value(&self) -> Box<dyn Data> {
         Box::<<T as Stat>::Data>::default()
+    }
+
+    fn from_out(&self, out: &dyn Data) -> Box<dyn Data> {
+        Box::new(
+            <<T as Stat>::Data>::from_out(
+                out.downcast_ref::<<<T as Stat>::Data as StatComponents>::Out>()
+                    .expect(TYPE_ERROR).clone())
+        )
     }
 
     fn compose_stat(&self, from: &mut dyn Data, with: &dyn Data) {
@@ -236,7 +243,7 @@ macro_rules! stats {
         impl $crate::Stat for $ident {
             type Data = $data;
 
-            fn name(&self) -> &'static str {
+            fn name(&self) -> &str {
                 $crate::stats!(@name $ident $(as $name)?)
             }
 
@@ -246,19 +253,19 @@ macro_rules! stats {
         }
     };
 
-    (@single $data: ty, $ty: ident {
+    (@single $data: ty, $ty: ident $(as $_: literal)? {
         $($ident:ident $(as $name: literal)?),*
         $(,)?
     }) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub enum $ty{
+        pub enum $ty {
             $($ident),*
         }
 
         impl $crate::Stat for $ty {
             type Data = $data;
 
-            fn name(&self) -> &'static str {
+            fn name(&self) -> &str {
                 match self {
                     $(Self::$ident => $crate::stats!(@name $ident $(as $name)?),)*
                 }
@@ -270,14 +277,29 @@ macro_rules! stats {
         }
     };
 
-    ($data: ty {$($name: ident $(as $ty_name: literal)? $({
-        $($variant: ident $(as $variant_name: literal)?),* $(,)?
-    })?),* $(,)?}) => {
-        $(
+    ($plugin: ident {
+        $($data: ty {
+            $($name: ident $(as $ty_name: literal)? $({
+                $($variant: ident $(as $variant_name: literal)?),* $(,)?
+            })?),*
+            $(,)?
+        }),* $(,)?
+    }) => {
+        $($(
             $crate::stats!(@single $data, $name $(as $ty_name)?
             $({
-                $($variant: ident $(as $variant_name: literal)?),*
+                $($variant $(as $variant_name)?),*
             })?);
-        )*
+        )*)*
+
+        #[derive(Debug, Default)]
+        pub struct $plugin;
+
+        impl $crate::Plugin for $plugin {
+            fn build(&self, world: &mut $crate::App) {
+                use $crate::WorldExtension as _;
+                $($(world.register_stat::<$name>();)*)*
+            }
+        }
     };
 }

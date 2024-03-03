@@ -1,38 +1,41 @@
 use bevy_ecs::{entity::Entity, query::{QueryData, ReadOnlyQueryData, WorldQuery}, system::SystemParam};
-use crate::{sealed::Sealed, QualifierFlag, QualifierQuery, Stat, StatOperationsMap};
+use crate::{sealed::{SealToken, Sealed}, Data, DynStat, QualifierFlag, QualifierQuery, Stat, StatMap, StatOperationsMap, TYPE_ERROR};
 
-/// A stat that is obtainable from intrinsic properties of a unit.
-/// Implementing this enables the `query_intrinsic` and `query_distance`
-/// functions on [`StatQuerier`]
-///
-/// # Note
-///
-/// This is separate from the regulat stat evaluation routine,
-/// so the stat is either not directly evaluatable, aka a dummy stat,
-/// or you have to manually implement its fetching routine based on this.
-pub trait FromIntrinsics: Stat {
-    type IntrisicQuery: ReadOnlyQueryData;
+pub trait StatValuePair {
+    fn as_dyn(&mut self, sealed: SealToken) -> (&dyn DynStat, &mut dyn Data);
+}
 
-    /// Obtain an intrinsic value from the current unit.
-    #[allow(clippy::wrong_self_convention)]
-    fn from_intrinsic(&self,
-        unit: &<<Self::IntrisicQuery as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
-    ) -> <Self as Stat>::Data;
+impl dyn StatValuePair {
+    fn is_then<S: Stat>(&mut self, is: &S, then: impl FnOnce(&mut S::Data)) {
+        let (stat, data) = self.as_dyn(SealToken);
+        if stat == is as &dyn DynStat {
+            then(data.downcast_mut::<S::Data>().expect(TYPE_ERROR))
+        }
+    }
+}
 
-    /// Obtain a "distance" value from 2 units. Can be used for other relations like allegiance.
-    #[allow(clippy::wrong_self_convention)]
-    fn from_distance(&self,
-        this: &<<Self::IntrisicQuery as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
-        other: &<<Self::IntrisicQuery as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
-    ) -> <Self as Stat>::Data;
+pub struct StatValueMut<'t, S: Stat> {
+    pub stat: &'t S,
+    pub write: &'t mut S::Data,
+}
+
+impl StatValuePair for (&dyn DynStat, &mut dyn Data) {
+    fn as_dyn(&mut self, sealed: SealToken) -> (&dyn DynStat, &mut dyn Data) {
+        *self
+    }
+}
+
+impl<T: Stat> StatValuePair for StatValueMut<'_, T> {
+    fn as_dyn(&mut self, sealed: SealToken) -> (&dyn DynStat, &mut dyn Data) {
+        (self.stat, self.write)
+    }
 }
 
 /// A trait that can be used to obtain stat relations from other stats or other entities.
-pub trait StatQuerier<Q: QualifierFlag, D: QueryData>: Sealed {
+pub trait StatQuerier<Q: QualifierFlag>: Sealed {
     fn query<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data>;
     fn query_other<S: Stat>(&mut self, entity: Entity, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data>;
-    fn query_intrinsic<S: Stat + FromIntrinsics<IntrisicQuery = D>>(&mut self, stat: &S) -> Option<S::Data>;
-    fn query_distance<S: Stat + FromIntrinsics<IntrisicQuery = D>>(&mut self, entity: Entity, stat: &S) -> Option<S::Data>;
+    fn query_distance<S: Stat>(&mut self, entity: Entity, stat: &S) -> Option<S::Data>;
 }
 
 /// An item that can be used to generate stats when its associated component
@@ -40,32 +43,64 @@ pub trait StatQuerier<Q: QualifierFlag, D: QueryData>: Sealed {
 ///
 /// The item is generated from the [`QueryData`] and a [`SystemParam`] context,
 /// For example an `Asset` can be generated from a `Handle` and context `Assets`.
-pub trait StatStream<Qualifier: QualifierFlag, Intrinsic: QueryData>: 'static {
+pub trait StatStream<Q: QualifierFlag>: 'static {
     type Ctx: SystemParam;
     type QueryData: ReadOnlyQueryData;
-    fn stream<S: Stat>(
+    fn stream (
         ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
         component: <Self::QueryData as WorldQuery>::Item<'_>,
-        write: &mut S::Data,
-        qualifier: &QualifierQuery<Qualifier>,
-        stat: &S,
-        querier: &mut impl StatQuerier<Qualifier, Intrinsic>
+        qualifier: &QualifierQuery<Q>,
+        stat: &mut dyn StatValuePair,
+        querier: &mut impl StatQuerier<Q>
     );
 }
 
-impl<Q: QualifierFlag, D: QueryData> StatStream<Q, D> for StatOperationsMap<Q> {
+impl<Q: QualifierFlag> StatMap<Q> {
+    pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut dyn StatValuePair) {
+        let (stat, value) = pair.as_dyn(SealToken);
+        self.iter_dyn(stat)
+            .filter(|(q, _)| q.qualifies_as(qualifier))
+            .for_each(|_|())
+            //.for_each(|(_, v)| v.write_to(write))
+    }
+}
+
+impl<Q: QualifierFlag> StatOperationsMap<Q> {
+    pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut dyn StatValuePair) {
+        let (stat, value) = pair.as_dyn(SealToken);
+        self.iter_dyn(stat)
+            .filter(|(q, _)| q.qualifies_as(qualifier))
+            .for_each(|_|())
+            //.for_each(|(_, v)| v.write_to(write))
+    }
+}
+
+impl<Q: QualifierFlag> StatStream<Q> for StatOperationsMap<Q> {
     type Ctx = ();
     type QueryData = &'static Self;
 
-    fn stream<S: Stat>(
+    fn stream (
         _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
         this: <Self::QueryData as WorldQuery>::Item<'_>,
-        write: &mut S::Data, qualifier: &QualifierQuery<Q>,
-        stat: &S,
-        _: &mut impl StatQuerier<Q, D>
+        qualifier: &QualifierQuery<Q>,
+        pair: &mut dyn StatValuePair,
+        _: &mut impl StatQuerier<Q>
     ){
-        this.iter(stat)
-            .filter(|(q, _)| q.qualifies_as(qualifier))
-            .for_each(|(_, v)| v.write_to(write))
+        this.iter_write(qualifier, pair);
     }
+}
+
+
+/// An item that can be used to generate stats when directly added to `Entity`.
+///
+/// The item also allows querying for "distance" or other relation between two entities.
+pub trait ContextStream<Qualifier: QualifierFlag>: StatStream<Qualifier> {
+    fn distance<S: Stat>(
+        ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
+        this: <Self::QueryData as WorldQuery>::Item<'_>,
+        other: <Self::QueryData as WorldQuery>::Item<'_>,
+        qualifier: &QualifierQuery<Qualifier>,
+        stat: &mut dyn StatValuePair,
+        querier: &mut impl StatQuerier<Qualifier>
+    );
 }

@@ -1,64 +1,59 @@
 use std::{borrow::Borrow, marker::PhantomData};
-use bevy_ecs::{entity::Entity, query::{QueryData, Without}, system::{Query, StaticSystemParam, SystemParam}};
-use crate::{stream::{StatQuerier, StatStream}, QualifierFlag, Stat, QualifierQuery, StatCache};
-
+use bevy_ecs::{entity::Entity, query::Without, system::{Query, StaticSystemParam, SystemParam}};
+use crate::{stream::{StatQuerier, StatStream}, QualifierFlag, QualifierQuery, StatCache, StatValuePair};
 
 /// [`SystemParam`] that can be aggregated as stat components.
-pub trait StatParam<Q: QualifierFlag, D: QueryData>: SystemParam {
-    fn stream<S: Stat, E: Borrow<Entity>>(
+pub trait StatParam<Q: QualifierFlag>: SystemParam {
+    fn stream<E: Borrow<Entity>>(
         this: &Self::Item<'_, '_>,
         entities: impl IntoIterator<Item = E> + Clone,
-        write: &mut S::Data,
         qualifier: &QualifierQuery<Q>,
-        stat: &S,
-        querier: &mut impl StatQuerier<Q, D>,
+        stat: &mut dyn StatValuePair,
+        querier: &mut impl StatQuerier<Q>,
     );
 }
 
 /// [`SystemParam`] that queries for a specific [`StatStream`] in an entity.
 #[derive(SystemParam)]
-pub struct ChildStatParam<'w, 's, T: StatStream<Q, D>, Q: QualifierFlag, D: QueryData + 'static> {
-    pub ctx: StaticSystemParam<'w, 's, <T as StatStream<Q, D>>::Ctx>,
-    pub query: Query<'w, 's, <T as StatStream<Q, D>>::QueryData, Without<StatCache<Q>>>,
+pub struct ChildStatParam<'w, 's, T: StatStream<Q>, Q: QualifierFlag> {
+    pub ctx: StaticSystemParam<'w, 's, <T as StatStream<Q>>::Ctx>,
+    pub query: Query<'w, 's, <T as StatStream<Q>>::QueryData, Without<StatCache<Q>>>,
     p: PhantomData<Q>,
 }
 
-impl<T: StatStream<Q, D>, Q: QualifierFlag, D: QueryData + 'static> StatParam<Q, D> for ChildStatParam<'_, '_, T, Q, D> {
-    fn stream<S: Stat, E: Borrow<Entity>>(
+impl<T: StatStream<Q>, Q: QualifierFlag> StatParam<Q> for ChildStatParam<'_, '_, T, Q> {
+    fn stream<E: Borrow<Entity>>(
         this: &Self::Item<'_, '_>,
-        entities: impl IntoIterator<Item = E>,
-        write: &mut S::Data,
+        entities: impl IntoIterator<Item = E> + Clone,
         qualifier: &QualifierQuery<Q>,
-        stat: &S,
-        querier: &mut impl StatQuerier<Q, D>,
+        stat: &mut dyn StatValuePair,
+        querier: &mut impl StatQuerier<Q>,
     ) {
         for handle in this.query.iter_many(entities) {
-            T::stream(&*this.ctx, handle, write, qualifier, stat, querier);
+            T::stream(&*this.ctx, handle, qualifier, stat, querier);
         }
     }
 }
 
-impl<Q: QualifierFlag, D: QueryData> StatParam<Q, D> for () {
-    fn stream<S: Stat, E: Borrow<Entity>>(
-        _: &Self::Item<'_, '_>,
-        _: impl IntoIterator<Item = E>,
-        _: &mut S::Data,
-        _: &QualifierQuery<Q>,
-        _: &S,
-        _: &mut impl StatQuerier<Q, D>,
+impl<Q: QualifierFlag> StatParam<Q> for () {
+    fn stream<E: Borrow<Entity>>(
+        this: &Self::Item<'_, '_>,
+        entities: impl IntoIterator<Item = E> + Clone,
+        qualifier: &QualifierQuery<Q>,
+        stat: &mut dyn StatValuePair,
+        querier: &mut impl StatQuerier<Q>,
     ) {}
 }
 
-impl<A, B, Q: QualifierFlag, D: QueryData> StatParam<Q, D> for (A, B) where A: StatParam<Q, D>, B: StatParam<Q, D> {
-    fn stream<S: Stat, E: Borrow<Entity>>(
+impl<A, B, Q: QualifierFlag> StatParam<Q> for (A, B) where A: StatParam<Q>, B: StatParam<Q> {
+    fn stream<E: Borrow<Entity>>(
         this: &Self::Item<'_, '_>,
         entities: impl IntoIterator<Item = E> + Clone,
-        write: &mut S::Data,
         qualifier: &QualifierQuery<Q>,
-        stat: &S,
-        querier: &mut impl StatQuerier<Q, D>,
+        stat: &mut dyn StatValuePair,
+        querier: &mut impl StatQuerier<Q>,
     ) {
-        A::stream(&this.0, entities.clone(), write, qualifier, stat, querier);
-        B::stream(&this.1, entities, write, qualifier, stat, querier);
+        A::stream(&this.0, entities.clone(), qualifier, stat, querier);
+        B::stream(&this.1, entities, qualifier, stat, querier);
     }
 }

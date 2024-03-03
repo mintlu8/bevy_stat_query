@@ -80,16 +80,16 @@ impl<Q: QualifierFlag, D> StatMapInner<Q, D> {
     }
 
     /// Iterate over a particulat stat.
-    pub fn iter<S: Stat>(&self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &D)> {
+    pub fn iter(&self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &D)> {
         self.inner
-            .range(stat as &dyn DynStat)
+            .range(stat)
             .map(|((_, q), v)| (q, v))
     }
 
     /// Iterate over a particulat stat.
-    pub fn iter_mut<S: Stat>(&mut self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &mut D)> {
+    pub fn iter_mut(&mut self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &mut D)> {
         self.inner
-            .range_mut(stat as &dyn DynStat)
+            .range_mut(stat)
             .map(|((_, q), v)| (q, v))
     }
 }
@@ -168,6 +168,18 @@ macro_rules! impl_stat_map {
             pub fn iter_mut<S: Stat>(&mut self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &mut $value)> {
                 self.0.iter_mut(stat)
                     .map(|(q, v)| (q, v.downcast_mut().expect(TYPE_ERROR)))
+            }
+
+            /// Iterate over a particulat stat.
+            pub fn iter_dyn(&self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &dyn Data)> {
+                self.0.iter(stat)
+                    .map(|(q, v)| (q, v.as_ref()))
+            }
+
+            /// Iterate over a particulat stat.
+            pub fn iter_dyn_mut(&mut self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &mut dyn Data)> {
+                self.0.iter_mut(stat)
+                    .map(|(q, v)| (q, v.as_mut()))
             }
         }
 

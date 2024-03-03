@@ -1,9 +1,8 @@
-use std::marker::PhantomData;
-use bevy_ecs::{component::Component, system::Resource};
+use bevy_ecs::system::Resource;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{Stat, QualifierFlag, DynStat, types::StatComponents, Data, TYPE_ERROR};
+use crate::{Stat, DynStat, types::StatComponents, Data, TYPE_ERROR};
 
 /// An single step calculation on a [`StatComponents`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
@@ -70,9 +69,11 @@ impl StatDefaults {
             .cloned()
             .unwrap_or(Default::default())
     }
-}
 
-/// A singleton marker component, if exists apply all logic on its children to
-/// all other components.
-#[derive(Debug, Component)]
-pub struct DefaultStatLogic<Q: QualifierFlag>(PhantomData<Q>);
+    /// Obtain a [`Stat`]'s default value.
+    pub(crate) fn get_dyn(&self, stat: &dyn DynStat) -> Box<dyn Data> {
+        self.stats.get(stat as &dyn DynStat)
+            .cloned()
+            .unwrap_or(stat.default_value())
+    }
+}

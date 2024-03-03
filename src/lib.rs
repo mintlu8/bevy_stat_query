@@ -126,19 +126,24 @@
 //! anything while having it as a parameter.
 //! Using some kind of deferred command queue for mutations might be advisable in this case.
 
+use bevy_ecs::world::World;
 #[allow(unused)]
-use bevy_ecs::{query::QueryData, component::Component, system::SystemParam, world::World};
+use bevy_ecs::{query::QueryData, component::Component, system::SystemParam};
 
 pub(crate) static TYPE_ERROR: &str = "Error: a stat does not have the approprate type. \
 This is almost certainly a bug since we do not provide a type erased api.";
 
+#[doc(hidden)]
+pub use bevy_app::{Plugin, App};
+
 use bevy_serde_project::typetagged::BevyTypeTagged;
 use downcast_rs::Downcast;
 mod stream;
+pub use stream::StatValuePair;
 mod num_traits;
 pub use num_traits::{Int, Float, Flags};
 pub use num_rational::Ratio;
-pub use stream::{StatStream, FromIntrinsics, StatQuerier};
+pub use stream::{StatStream, StatQuerier};
 pub mod types;
 pub use types::StatComponents;
 mod qualifier;
@@ -147,7 +152,7 @@ mod stat;
 pub use stat::Stat;
 pub(crate) use stat::{StatInstances, DynStat};
 mod calc;
-pub use calc::{StatOperation, StatDefaults, DefaultStatLogic};
+pub use calc::{StatOperation, StatDefaults};
 mod entity;
 pub use entity::{StatCache, StatEntity};
 pub mod rounding;
@@ -164,6 +169,8 @@ pub use stat_map::{StatMap, Unqualified, StatOperationsMap};
 use std::fmt::Debug;
 
 mod sealed {
+    pub struct SealToken;
+
     pub trait Sealed {}
 
     pub trait SealedAll {}
@@ -203,3 +210,19 @@ impl Clone for Box<dyn Data> {
 }
 
 downcast_rs::impl_downcast!(Data);
+
+pub trait WorldExtension {
+    fn register_stat<T: Stat>(&mut self) -> &mut Self;
+}
+
+impl WorldExtension for World {
+    fn register_stat<T: Stat>(&mut self) -> &mut Self {
+        self
+    }
+}
+
+impl WorldExtension for App {
+    fn register_stat<T: Stat>(&mut self) -> &mut Self {
+        self
+    }
+}

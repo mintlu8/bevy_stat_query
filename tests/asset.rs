@@ -6,9 +6,18 @@ use bevy_reflect::TypePath;
 use bevy_stat_engine::{match_stat, querier, stats, types::StatFloat, QualifierQuery, Stat, StatCache, StatComponents, StatEnginePlugin, StatEntity, StatStream};
 
 stats!(
-    StatFloat<f32> {
-        Damage,
-        Defense,
+    MyStatsPlugin {
+        StatFloat<f32> {
+            Damage,
+            Defense,
+        },
+        StatFloat<f64> {
+            X,
+            Y {
+                Hello,
+                Hi,
+            }
+        },
     }
 );
 

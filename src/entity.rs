@@ -43,9 +43,26 @@ impl<Q: QualifierFlag> StatCache<Q> {
         &self,
         query: &QualifierQuery<Q>,
         stat: &S,
-    ) -> Option<S::Data> {
+    ) -> Option<&S::Data> {
         self.cache.get(&(query, stat as &dyn DynStat) as &dyn StatQueryKey<Q>)
-            .map(|value| value.downcast_ref::<S::Data>().expect(TYPE_ERROR).clone())
+            .map(|value| value.downcast_ref::<S::Data>().expect(TYPE_ERROR))
+    }
+
+    pub(crate) fn cache_dyn(&mut self,
+        query: QualifierQuery<Q>,
+        stat: Box<dyn DynStat>,
+        value: Box<dyn Data>
+    ) {
+        self.cache.insert((query, stat), value);
+    }
+
+    pub(crate) fn try_get_cached_dyn(
+        &self,
+        query: &QualifierQuery<Q>,
+        stat: &dyn DynStat,
+    ) -> Option<&dyn Data> {
+        self.cache.get(&(query, stat) as &dyn StatQueryKey<Q>)
+            .map(|x| x.as_ref())
     }
 
     pub fn invalidate_all(&mut self) {
