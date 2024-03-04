@@ -1,15 +1,15 @@
 use std::fmt::Debug;
-
+use bevy_reflect::TypePath;
 use crate::Float;
 
 /// Rounding method for a floating point number.
-pub trait Rounding: Default + Debug + Copy + Send + Sync + 'static {
+pub trait Rounding: TypePath + Default + Debug + Copy + Send + Sync + 'static {
     /// Rounds to the an integer.
     fn round<F: Float>(input: F) -> F;
 }
 
 /// Rounds to 0.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, TypePath)]
 pub struct Truncate;
 
 impl Rounding for Truncate {
@@ -19,7 +19,7 @@ impl Rounding for Truncate {
 }
 
 /// Rounds to the largest integer smaller than the float.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, TypePath)]
 pub struct Floor;
 
 impl Rounding for Floor {
@@ -29,7 +29,7 @@ impl Rounding for Floor {
 }
 
 /// Rounds to the smallest integer larget than the float.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, TypePath)]
 pub struct Ceil;
 
 impl Rounding for Ceil {
@@ -39,7 +39,7 @@ impl Rounding for Ceil {
 }
 
 /// Rounds to the nearest integer.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, TypePath)]
 pub struct Round;
 
 impl Rounding for Round {
@@ -51,7 +51,7 @@ impl Rounding for Round {
 /// Rounds `x > 0` to at least `1`,
 /// rounds `x < 0` to at most `-1`.
 /// rounds `x == 0` to `0`.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, TypePath)]
 pub struct TruncateSigned;
 
 impl Rounding for TruncateSigned {

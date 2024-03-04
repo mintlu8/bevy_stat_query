@@ -107,7 +107,6 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
         let mut pair = StatValuePair(stat as &dyn DynStat, &mut stat_value as &mut dyn DynStatValue);
         let ok = D::distance_stream(&*self.querier.intrinsic, curr, entity, qualifier, &mut pair, self);
         ok.then_some(stat_value)
-        //D::distance(ctx, this, other, qualifier, stat, querier)
     }
 }
 

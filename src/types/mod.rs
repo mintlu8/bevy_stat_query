@@ -6,8 +6,9 @@ mod singleton;
 
 use std::fmt::Debug;
 
-use crate::{calc::StatOperation, Data, Named, Shareable, TYPE_ERROR};
+use crate::{calc::StatOperation, Data, Serializable, TYPE_ERROR};
 
+use bevy_reflect::TypePath;
 use bevy_serde_project::typetagged::BevyTypeTagged;
 use downcast_rs::impl_downcast;
 use dyn_clone::clone_trait_object;
@@ -15,24 +16,24 @@ pub use int_pct::{StatIntPercentAdditive, StatIntPercent};
 pub use int_ratio::StatIntFraction;
 pub use float::{StatFloat, StatFloatAdditive, StatMult};
 pub use flags::{StatFlags, StatSet};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 pub use singleton::StatSingleton;
 
 /// A never type indicating an operation is not supported.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize)]
 pub enum Unsupported {}
 
 /// Defines unordered operations on a stat's value.
 #[allow(unused_variables)]
-pub trait StatValue: Shareable + Default + Clone{
-    type Out: Shareable + Default;
+pub trait StatValue: Serializable + Default{
+    type Out: Serializable + Default;
     fn join(&mut self, other: Self);
     fn eval(&self) -> Self::Out;
 
-    type Add: Named;
-    type Mul: Named;
-    type Bit: Named;
-    type Bounds: Named;
+    type Add: Serializable;
+    type Mul: Serializable;
+    type Bit: Serializable;
+    type Bounds: Serializable;
 
     fn add(&mut self, other: Self::Add) {}
     fn mul(&mut self, other: Self::Mul) {}
@@ -54,7 +55,7 @@ pub(crate) trait DynStatValue: Data {
 impl_downcast!(DynStatValue);
 clone_trait_object!(DynStatValue);
 
-impl<T> DynStatValue for T where T: StatValue + Named + Serialize{
+impl<T> DynStatValue for T where T: StatValue + TypePath + Serialize, StatOperation<T>: TypePath + Serialize{
     fn apply_op(&mut self, other: &dyn Data) {
         other.downcast_ref::<StatOperation<T>>().expect(TYPE_ERROR).write_to(self)
     }
@@ -65,8 +66,8 @@ impl<T> DynStatValue for T where T: StatValue + Named + Serialize{
 }
 
 impl BevyTypeTagged for Box<dyn DynStatValue> {
-    fn name(&self) -> &'static str {
-        todo!()
+    fn name(&self) -> impl AsRef<str> {
+        <dyn DynStatValue>::name(self.as_ref())
     }
 
     fn as_serialize(&self) -> &dyn bevy_reflect::erased_serde::Serialize {

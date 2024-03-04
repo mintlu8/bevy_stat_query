@@ -56,7 +56,7 @@ impl<Q: QualifierFlag> BaseStatMap<Q> {
         let StatValuePair(stat, data) = pair;
         self.iter_dyn(*stat)
             .filter(|(q, _)| q.qualifies_as(qualifier))
-            .for_each(|(_, op)| data.apply_op(&stat.from_base(op)))
+            .for_each(|(_, op)| data.apply_op(stat.from_base(op).as_ref()))
     }
 }
 

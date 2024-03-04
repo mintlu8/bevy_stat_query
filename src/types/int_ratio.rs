@@ -1,14 +1,14 @@
 use std::marker::PhantomData;
-use num_rational::Ratio;
+use bevy_reflect::TypePath;
+use crate::Ratio;
 use serde::{Deserialize, Serialize};
-use crate::{StatOperation, Int, Float, rounding::{Rounding, Truncate}};
+use crate::{rounding::{Rounding, Truncate}, Float, Int, Serializable, StatOperation};
 use super::{StatValue, Unsupported};
 
 
 /// An integer stat that multiplies with rational numbers and rounds back to an integer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(bound(serialize = "T: serde::Serialize, T::PrimInt: serde::Serialize"))]
-#[serde(bound(deserialize = "T: serde::Deserialize<'de>, T::PrimInt: serde::Deserialize<'de>"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct StatIntFraction<T: Int, R: Rounding=Truncate> {
     addend: T,
     min: T,
@@ -29,7 +29,7 @@ impl<T: Int, R: Rounding> Default for StatIntFraction<T, R> {
     }
 }
 
-impl<T: Int, R: Rounding> StatValue for StatIntFraction<T, R> {
+impl<T: Int + Serializable, R: Rounding> StatValue for StatIntFraction<T, R> {
     type Out = T;
 
     fn join(&mut self, other: Self) {
@@ -75,7 +75,8 @@ impl<T: Int, R: Rounding> StatValue for StatIntFraction<T, R> {
 }
 
 /// An integer stat that multiplies with floating point numbers and rounds back to an integer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath, Serialize, Deserialize)]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct StatIntFloatMul<T: Int, F: Float, R: Rounding=Truncate> {
     addend: T,
     min: T,

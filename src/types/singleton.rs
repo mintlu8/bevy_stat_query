@@ -1,10 +1,13 @@
 use std::{any::type_name, fmt::Debug};
-use crate::{calc::StatOperation, Shareable};
+use bevy_reflect::TypePath;
+use serde::{Deserialize, Serialize};
+
+use crate::{calc::StatOperation, Serializable, Shareable};
 
 use super::{StatValue, Unsupported};
 
 /// Find if a stat exists.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, TypePath, Serialize, Deserialize)]
 pub struct StatExists(bool);
 
 impl StatValue for StatExists {
@@ -40,7 +43,7 @@ impl StatValue for StatExists {
 /// If no value or more than one value found if `eval` is called.
 /// This behavior depends on the const generic values supplied.
 /// if not, returns the default value.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, TypePath, Serialize, Deserialize)]
 pub enum StatSingleton<T: PartialEq + Shareable + Default, const PANIC_NOT_FOUND: bool=true, const PANIC_MULTIPLE_FOUND: bool=true> {
     #[default]
     NotFound,
@@ -48,7 +51,7 @@ pub enum StatSingleton<T: PartialEq + Shareable + Default, const PANIC_NOT_FOUND
     FoundMultiple,
 }
 
-impl<T: PartialEq + Shareable + Default, const PNF: bool, const PMF: bool> StatValue for StatSingleton<T, PNF, PMF> {
+impl<T: PartialEq + Serializable + Default, const PNF: bool, const PMF: bool> StatValue for StatSingleton<T, PNF, PMF> {
     type Out = T;
 
     fn join(&mut self, other: Self) {

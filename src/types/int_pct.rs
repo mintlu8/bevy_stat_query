@@ -1,12 +1,15 @@
 use std::marker::PhantomData;
-use num_rational::Ratio;
+use bevy_reflect::TypePath;
+use crate::Ratio;
 use serde::{Deserialize, Serialize};
 use crate::{rounding::{Rounding, Truncate}, Float, Int, StatOperation};
 use super::{StatValue, Unsupported};
 
 /// An integer stat that sums up multipliers additively,
 /// then divided by `SCALE`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
+#[serde(bound(serialize = ""))]
+#[serde(bound(deserialize = ""))]
 pub struct StatIntPercentAdditive<T: Int, R: Rounding=Truncate, const SCALE: i64=100> {
     addend: T,
     mult: T,
@@ -76,9 +79,9 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, 
 /// An integer stat with integer multipliers divided by `SCALE`.
 ///
 /// Calculated as a fraction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(bound(serialize = "T: serde::Serialize, T::PrimInt: serde::Serialize"))]
-#[serde(bound(deserialize = "T: serde::Deserialize<'de>, T::PrimInt: serde::Deserialize<'de>"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
+#[serde(bound(serialize = ""))]
+#[serde(bound(deserialize = ""))]
 pub struct StatIntPercent<T: Int, R: Rounding=Truncate, const SCALE: i64=100> {
     addend: T,
     mult: Ratio<T::PrimInt>,

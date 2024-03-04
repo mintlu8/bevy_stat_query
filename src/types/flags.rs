@@ -1,14 +1,17 @@
 use std::fmt::Debug;
-use rustc_hash::FxHashSet;
+use bevy_reflect::TypePath;
+use bevy_utils::HashSet;
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
-use crate::{calc::StatOperation, num_traits::Flags, Shareable};
+use crate::{calc::StatOperation, num_traits::Flags, Serializable};
 
 use super::{StatValue, Unsupported};
 
 /// A flags based on a type that supports bitwise operations,
 /// like integer, `bitflgs` or `enumset`.
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, TypePath)]
+#[serde(bound(serialize = ""))]
+#[serde(bound(deserialize = ""))]
 pub struct StatFlags<T: Flags> {
     pub not: T,
     pub or: T,
@@ -47,14 +50,16 @@ impl<T: Flags> StatValue for StatFlags<T> {
 
 /// A stat flags backed by a `HashSet`.
 /// Use [`StatFlags`] if possible for better performance.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct StatSet<T: Shareable + Hash + Eq + Default> {
-    pub not: FxHashSet<T>,
-    pub or: FxHashSet<T>,
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TypePath)]
+#[serde(bound(serialize = ""))]
+#[serde(bound(deserialize = ""))]
+pub struct StatSet<T: Serializable + Hash + Eq + Default> {
+    pub not: HashSet<T>,                                                     
+    pub or: HashSet<T>,
 }
 
-impl<T: Shareable + Hash + Eq + Default> StatValue for StatSet<T> {
-    type Out = FxHashSet<T>;
+impl<T: Serializable + Hash + Eq + Default> StatValue for StatSet<T> {
+    type Out = HashSet<T>;
 
     fn join(&mut self, other: Self) {
         self.not.extend(other.not);
@@ -73,7 +78,7 @@ impl<T: Shareable + Hash + Eq + Default> StatValue for StatSet<T> {
     type Mul = Unsupported;
     type Bounds = Unsupported;
 
-    type Bit = FxHashSet<T>;
+    type Bit = HashSet<T>;
 
     fn or(&mut self, other: Self::Bit) {
         self.or.extend(other);

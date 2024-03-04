@@ -136,14 +136,15 @@ This is almost certainly a bug since we do not provide a type erased api.";
 #[doc(hidden)]
 pub use bevy_app::{Plugin, App};
 
+use bevy_reflect::TypePath;
 use bevy_serde_project::typetagged::BevyTypeTagged;
 use downcast_rs::Downcast;
 mod stream;
 use dyn_clone::{clone_trait_object, DynClone};
+use serde::{de::DeserializeOwned, Serialize};
 pub use stream::StatValuePair;
 mod num_traits;
-pub use num_traits::{Int, Float, Flags};
-pub use num_rational::Ratio;
+pub use num_traits::{Int, Float, Flags, Ratio};
 pub use stream::{StatStream, StatQuerier};
 pub mod types;
 pub use types::StatValue;
@@ -183,19 +184,19 @@ mod sealed {
 pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 
-pub trait Named: Shareable {
-    fn name() -> impl AsRef<str>;
-}
+/// Alias for `Clone + Debug + Send + Sync + 'static`.
+pub trait Serializable: Clone + Debug + Send + Sync + Serialize + DeserializeOwned + TypePath + 'static {}
+impl<T> Serializable for T where T: Clone + Debug + Send + Sync + Sync + Serialize + DeserializeOwned + TypePath + 'static {}
 
 /// [`Any`](std::any::Any) that implements [`Send`], [`Sync`], [`Debug`] and [`Clone`].
 pub(crate) trait Data: Send + Sync + Downcast + Debug + DynClone {
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
     fn as_serialize(&self) -> &dyn erased_serde::Serialize;
 }
 
-impl<T> Data for T where T: Named + serde::Serialize {
-    fn name(&self) -> &str {
-        T::name(&self)
+impl<T> Data for T where T: Shareable + TypePath + serde::Serialize {
+    fn name(&self) -> &'static str {
+        T::short_type_path()
     }
 
     fn as_serialize(&self) -> &dyn erased_serde::Serialize {
@@ -206,7 +207,7 @@ impl<T> Data for T where T: Named + serde::Serialize {
 clone_trait_object!(Data);
 
 impl BevyTypeTagged for Box<dyn Data> {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> impl AsRef<str> {
         self.as_ref().name()
     }
 
