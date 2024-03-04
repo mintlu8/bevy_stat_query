@@ -2,7 +2,7 @@ use bevy_ecs::system::Resource;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{types::{DynStatValue, StatValue}, DynStat, Stat, TYPE_ERROR};
+use crate::{types::{DynStatValue, StatValue}, DynStat, Named, Stat, TYPE_ERROR};
 
 /// An single step calculation on a [`StatComponents`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
@@ -13,6 +13,10 @@ pub enum StatOperation<S: StatValue> {
     Not(S::Bit),
     Min(S::Bounds),
     Max(S::Bounds),
+}
+
+impl<T: StatValue + Named> Named for StatOperation<T> {
+    const NAME: &'static str = const_format::concatcp!("Op<", T::Name, ">");
 }
 
 impl<S: StatValue> StatOperation<S> {

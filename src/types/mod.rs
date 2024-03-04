@@ -6,7 +6,7 @@ mod singleton;
 
 use std::fmt::Debug;
 
-use crate::{calc::StatOperation, Data, Shareable, TYPE_ERROR};
+use crate::{calc::StatOperation, Data, Named, Shareable, TYPE_ERROR};
 
 use bevy_serde_project::typetagged::BevyTypeTagged;
 use downcast_rs::impl_downcast;
@@ -15,6 +15,7 @@ pub use int_pct::{StatIntPercentAdditive, StatIntPercent};
 pub use int_ratio::StatIntFraction;
 pub use float::{StatFloat, StatFloatAdditive, StatMult};
 pub use flags::{StatFlags, StatSet};
+use serde::Serialize;
 pub use singleton::StatSingleton;
 
 /// A never type indicating an operation is not supported.
@@ -28,10 +29,10 @@ pub trait StatValue: Shareable + Default + Clone{
     fn join(&mut self, other: Self);
     fn eval(&self) -> Self::Out;
 
-    type Add: Shareable;
-    type Mul: Shareable;
-    type Bit: Shareable;
-    type Bounds: Shareable;
+    type Add: Named;
+    type Mul: Named;
+    type Bit: Named;
+    type Bounds: Named;
 
     fn add(&mut self, other: Self::Add) {}
     fn mul(&mut self, other: Self::Mul) {}
@@ -51,10 +52,9 @@ pub(crate) trait DynStatValue: Data {
 }
 
 impl_downcast!(DynStatValue);
-
 clone_trait_object!(DynStatValue);
 
-impl<T> DynStatValue for T where T: StatValue {
+impl<T> DynStatValue for T where T: StatValue + Named + Serialize{
     fn apply_op(&mut self, other: &dyn Data) {
         other.downcast_ref::<StatOperation<T>>().expect(TYPE_ERROR).write_to(self)
     }

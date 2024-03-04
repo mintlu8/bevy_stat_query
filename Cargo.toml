@@ -26,6 +26,7 @@ bevy_serde_project = { version = "^0.1.1" }
 
 erased-serde = "0.4.3"
 dyn-clone = "1.0.17"
+const_format = "0.2.32"
 
 [dev-dependencies]
 bevy_asset = "0.13.0"

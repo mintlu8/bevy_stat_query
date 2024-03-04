@@ -183,16 +183,31 @@ mod sealed {
 pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 
-/// [`Any`](std::any::Any) that implements [`Send`], [`Sync`], [`Debug`] and [`Clone`].
-pub(crate) trait Data: Send + Sync + Downcast + Debug + DynClone {}
+pub trait Named: Shareable {
+    fn name() -> impl AsRef<str>;
+}
 
-impl<T> Data for T where T: Send + Sync + Downcast + Debug + Clone {}
+/// [`Any`](std::any::Any) that implements [`Send`], [`Sync`], [`Debug`] and [`Clone`].
+pub(crate) trait Data: Send + Sync + Downcast + Debug + DynClone {
+    fn name(&self) -> &str;
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize;
+}
+
+impl<T> Data for T where T: Named + serde::Serialize {
+    fn name(&self) -> &str {
+        T::name(&self)
+    }
+
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+}
 
 clone_trait_object!(Data);
 
 impl BevyTypeTagged for Box<dyn Data> {
     fn name(&self) -> &'static str {
-        todo!()
+        self.as_ref().name()
     }
 
     fn as_serialize(&self) -> &dyn bevy_reflect::erased_serde::Serialize {
