@@ -1,7 +1,7 @@
 use std::{any::type_name, fmt::Debug};
 use crate::{calc::StatOperation, Shareable};
 
-use super::{StatComponents, Unsupported};
+use super::{StatValue, Unsupported};
 
 /// Finds a single entry of a given stat.
 ///
@@ -18,7 +18,7 @@ pub enum StatSingleton<T: PartialEq + Shareable + Default, const PANIC_NOT_FOUND
     FoundMultiple,
 }
 
-impl<T: PartialEq + Shareable + Default, const PNF: bool, const PMF: bool> StatComponents for StatSingleton<T, PNF, PMF> {
+impl<T: PartialEq + Shareable + Default, const PNF: bool, const PMF: bool> StatValue for StatSingleton<T, PNF, PMF> {
     type Out = T;
 
     fn join(&mut self, other: Self) {
@@ -76,7 +76,7 @@ impl<T: PartialEq + Shareable + Default, const PNF: bool, const PMF: bool> StatC
         }
     }
 
-    fn from_out(out: Self::Out) -> StatOperation<Self> {
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Or(out)
     }
 }

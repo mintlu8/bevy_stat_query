@@ -3,10 +3,11 @@ use std::{borrow::Cow, cmp::{Eq, Ord, Ordering}, fmt::Debug, hash::Hash};
 use bevy_ecs::system::Resource;
 use bevy_serde_project::{Error, FromWorldAccess, SerdeProject};
 use downcast_rs::{impl_downcast, Downcast};
+use dyn_clone::DynClone;
 use dyn_hash::DynHash;
 use rustc_hash::FxHashMap;
 
-use crate::{sealed::SealedAll, Data, Shareable, StatComponents, TYPE_ERROR};
+use crate::{sealed::SealedAll, types::DynStatValue, Data, Shareable, StatValue, TYPE_ERROR};
 
 
 /// Implement this on your types to qualify them as a [`Stat`].
@@ -30,7 +31,7 @@ use crate::{sealed::SealedAll, Data, Shareable, StatComponents, TYPE_ERROR};
 /// impl Stat for MyStat { .. }
 /// ```
 pub trait Stat: Shareable + Hash + Debug + Eq + Ord {
-    type Data: StatComponents;
+    type Data: StatValue;
 
     fn name(&self) -> &str;
 
@@ -40,81 +41,20 @@ pub trait Stat: Shareable + Hash + Debug + Eq + Ord {
     fn is<S: Stat + SealedAll>(&self, other: &S) -> bool{
         self as &dyn DynStat == other as &dyn DynStat
     }
-
-    /// If a generic stat is a concrete stat, cast associated `Data`
-    /// as the concrete stat's associated `Data`.
-    fn is_then<S: Stat + SealedAll>(&self,
-        other: &S,
-        data: &Self::Data,
-        f: impl FnOnce(&S::Data)
-    ) -> bool {
-        if self as &dyn DynStat == other as &dyn DynStat {
-            f(data.as_any().downcast_ref().expect(TYPE_ERROR));
-            true
-        } else {
-            false
-        }
-    }
-
-    /// If a generic stat is a concrete stat, cast associated `Data`
-    /// as the concrete stat's associated `Data`.
-    fn is_then_mut<S: Stat + SealedAll>(&self,
-        other: &S,
-        mut_ref: &mut Self::Data,
-        f: impl FnOnce(&mut S::Data)
-    ) -> bool {
-        if self as &dyn DynStat == other as &dyn DynStat {
-            f(mut_ref.as_any_mut().downcast_mut().expect(TYPE_ERROR));
-            true
-        } else {
-            false
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! match_stat {
-    ($stat: expr, ref $mut_ref: expr => {
-        $(,)?
-    }) => {
-        ()
-    };
-    ($stat: expr, mut $mut_ref: expr => {
-        $(,)?
-    }) => {
-        ()
-    };
-    ($stat: expr, ref $mut_ref: expr => {
-        $first_arm: expr => $first_out: expr
-        $(,$arm: expr => $out: expr)* $(,)?
-    }) => {
-        if !$stat.is_then(&$first_arm, $mut_ref, $first_out) {
-            $crate::match_stat!($stat, ref $mut_ref => {$($arm => $out),*})
-        }
-    };
-    ($stat: expr, mut $mut_ref: expr => {
-        $first_arm: expr => $first_out: expr
-        $(,$arm: expr => $out: expr)* $(,)?
-    }) => {
-        if !$stat.is_then_mut(&$first_arm, $mut_ref, $first_out) {
-            $crate::match_stat!($stat, mut $mut_ref => {$($arm => $out),*})
-        }
-    };
-
 }
 
 /// Object safe version of [`Stat`].
-pub(crate) trait DynStat: Downcast + DynHash + Debug + Send + Sync {
+pub(crate) trait DynStat: Downcast + DynClone + DynHash + Debug + Send + Sync {
     fn name(&self) -> &str;
     fn dyn_eq(&self, other: &dyn DynStat) -> bool;
     fn dyn_ord(&self, other: &dyn DynStat) -> Ordering;
-    fn boxed_clone(&self) -> Box<dyn DynStat>;
-    fn default_value(&self) -> Box<dyn Data>;
+    fn default_value(&self) -> Box<dyn DynStatValue>;
     fn from_out(&self, out: &dyn Data) -> Box<dyn Data>;
     fn compose_stat(&self, from: &mut dyn Data, with: &dyn Data);
 }
 
 impl_downcast!(DynStat);
+dyn_clone::clone_trait_object!(DynStat);
 dyn_hash::hash_trait_object!(DynStat);
 
 impl PartialEq for dyn DynStat {
@@ -143,12 +83,6 @@ impl Ord for dyn DynStat {
     }
 }
 
-impl Clone for Box<dyn DynStat> {
-    fn clone(&self) -> Self {
-        self.boxed_clone()
-    }
-}
-
 impl<T> From<T> for Box<dyn DynStat> where T: Stat {
     fn from(value: T) -> Self {
         Box::new(value)
@@ -173,18 +107,14 @@ impl<T> DynStat for T where T:Stat {
             .unwrap_or(self.type_id().cmp(&other.type_id()))
     }
 
-    fn boxed_clone(&self) -> Box<dyn DynStat> {
-        Box::new(self.clone())
-    }
-
-    fn default_value(&self) -> Box<dyn Data> {
+    fn default_value(&self) -> Box<dyn DynStatValue> {
         Box::<<T as Stat>::Data>::default()
     }
 
     fn from_out(&self, out: &dyn Data) -> Box<dyn Data> {
         Box::new(
-            <<T as Stat>::Data>::from_out(
-                out.downcast_ref::<<<T as Stat>::Data as StatComponents>::Out>()
+            <<T as Stat>::Data>::from_base(
+                out.downcast_ref::<<<T as Stat>::Data as StatValue>::Out>()
                     .expect(TYPE_ERROR).clone())
         )
     }

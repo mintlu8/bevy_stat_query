@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use crate::{StatOperation, Float};
-use super::{StatComponents, Unsupported};
+use super::{StatValue, Unsupported};
 
 /// A stat represented by a floating point number or a fraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -22,7 +22,7 @@ impl<T: Float> Default for StatFloat<T> {
     }
 }
 
-impl<T: Float> StatComponents for StatFloat<T> {
+impl<T: Float> StatValue for StatFloat<T> {
     type Out = T;
 
     fn join(&mut self, other: Self) {
@@ -58,7 +58,7 @@ impl<T: Float> StatComponents for StatFloat<T> {
         self.max = self.max.min(other)
     }
 
-    fn from_out(out: Self::Out) -> StatOperation<Self> {
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Add(out)
     }
 }
@@ -83,7 +83,7 @@ impl<T: Float> Default for StatFloatAdditive<T> {
     }
 }
 
-impl<T: Float> StatComponents for StatFloatAdditive<T> {
+impl<T: Float> StatValue for StatFloatAdditive<T> {
     type Out = T;
 
     fn join(&mut self, other: Self) {
@@ -119,7 +119,7 @@ impl<T: Float> StatComponents for StatFloatAdditive<T> {
         self.max = self.max.min(other)
     }
 
-    fn from_out(out: Self::Out) -> StatOperation<Self> {
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Add(out)
     }
 }
@@ -143,7 +143,7 @@ impl<T: Float> Default for StatMult<T> {
     }
 }
 
-impl<T: Float> StatComponents for StatMult<T> {
+impl<T: Float> StatValue for StatMult<T> {
     type Out = T;
 
     fn join(&mut self, other: Self) {
@@ -176,7 +176,7 @@ impl<T: Float> StatComponents for StatMult<T> {
         self.max = self.max.min(other);
     }
 
-    fn from_out(out: Self::Out) -> StatOperation<Self> {
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Mul(out)
     }
 }

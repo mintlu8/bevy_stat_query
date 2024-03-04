@@ -1,9 +1,9 @@
 use bevy_app::{App, Startup, Update};
 use bevy_asset::{Asset, AssetApp, AssetPlugin, AssetServer, Assets, Handle};
-use bevy_ecs::{component::Component, entity::Entity, query::{QueryData, With}, system::{Commands, Query, Res}};
+use bevy_ecs::{component::Component, entity::Entity, query::With, system::{Commands, Query, Res}};
 use bevy_hierarchy::BuildChildren;
 use bevy_reflect::TypePath;
-use bevy_stat_engine::{match_stat, querier, stats, types::StatFloat, QualifierQuery, Stat, StatCache, StatComponents, StatEnginePlugin, StatEntity, StatStream};
+use bevy_stat_engine::{querier, stats, types::StatFloat, QualifierQuery, StatCache, StatValue, StatEnginePlugin, StatEntity, StatStream};
 
 stats!(
     MyStatsPlugin {
@@ -40,24 +40,19 @@ pub struct B;
 
 type MyQualifier = u32;
 
-impl<D: QueryData> StatStream<MyQualifier, D> for Weapon {
+impl StatStream<MyQualifier> for Weapon {
     type Ctx = Res<'static, Assets<Weapon>>;
     type QueryData = (&'static Handle<Weapon>, &'static WeaponState);
-
-    fn stream<S: Stat>(
+    fn stream (
         assets: &<Self::Ctx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         (handle, state): <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
-        write: &mut S::Data,
-        _: &bevy_stat_engine::QualifierQuery<MyQualifier>,
-        stat: &S,
-        _: &mut impl bevy_stat_engine::StatQuerier<MyQualifier, D>
+        _: &QualifierQuery<MyQualifier>,
+        stat: &mut bevy_stat_engine::StatValuePair,
+        _: &mut impl bevy_stat_engine::StatQuerier<MyQualifier>
     ) {
-        match_stat!(stat, mut write => {
-            Damage => |write| {
-                let Some(weapon) = assets.get(handle) else {return};
-                write.add(weapon.damage * state.durability)
-            },
-            Defense => |_| {},
+        stat.is_then(&Damage, |w| {
+            let Some(weapon) = assets.get(handle) else {return};
+            w.add(weapon.damage * state.durability)
         });
     }
 }
@@ -124,7 +119,6 @@ fn query(
     mut querier: MyQuerier,
     a: Query<Entity, (With<StatEntity>, With<A>)>,
     b: Query<Entity, (With<StatEntity>, With<B>)>,
-
 ){
     let a = a.single();
     assert_eq!(querier.query_eval(a, &QualifierQuery::Aggregate(0u32), &Damage), Some(2.0));

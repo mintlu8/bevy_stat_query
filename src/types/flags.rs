@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 use crate::{calc::StatOperation, num_traits::Flags, Shareable};
 
-use super::{StatComponents, Unsupported};
+use super::{StatValue, Unsupported};
 
 /// A flags based on a type that supports bitwise operations,
 /// like integer, `bitflgs` or `enumset`.
@@ -14,7 +14,7 @@ pub struct StatFlags<T: Flags> {
     pub or: T,
 }
 
-impl<T: Flags> StatComponents for StatFlags<T> {
+impl<T: Flags> StatValue for StatFlags<T> {
     type Out = T;
 
     fn join(&mut self, other: Self) {
@@ -40,7 +40,7 @@ impl<T: Flags> StatComponents for StatFlags<T> {
         self.not |= other
     }
 
-    fn from_out(out: Self::Out) -> StatOperation<Self> {
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Or(out)
     }
 }
@@ -53,7 +53,7 @@ pub struct StatSet<T: Shareable + Hash + Eq + Default> {
     pub or: FxHashSet<T>,
 }
 
-impl<T: Shareable + Hash + Eq + Default> StatComponents for StatSet<T> {
+impl<T: Shareable + Hash + Eq + Default> StatValue for StatSet<T> {
     type Out = FxHashSet<T>;
 
     fn join(&mut self, other: Self) {
@@ -83,7 +83,7 @@ impl<T: Shareable + Hash + Eq + Default> StatComponents for StatSet<T> {
         self.not.extend(other);
     }
 
-    fn from_out(out: Self::Out) -> StatOperation<Self> {
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Or(out)
     }
 }

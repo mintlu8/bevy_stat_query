@@ -139,13 +139,14 @@ pub use bevy_app::{Plugin, App};
 use bevy_serde_project::typetagged::BevyTypeTagged;
 use downcast_rs::Downcast;
 mod stream;
+use dyn_clone::{clone_trait_object, DynClone};
 pub use stream::StatValuePair;
 mod num_traits;
 pub use num_traits::{Int, Float, Flags};
 pub use num_rational::Ratio;
 pub use stream::{StatStream, StatQuerier};
 pub mod types;
-pub use types::StatComponents;
+pub use types::StatValue;
 mod qualifier;
 pub use qualifier::{Qualifier, QualifierFlag, QualifierQuery};
 mod stat;
@@ -183,15 +184,11 @@ pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 
 /// [`Any`](std::any::Any) that implements [`Send`], [`Sync`], [`Debug`] and [`Clone`].
-pub(crate) trait Data: Send + Sync + Downcast + Debug {
-    fn dyn_clone(&self) -> Box<dyn Data>;
-}
+pub(crate) trait Data: Send + Sync + Downcast + Debug + DynClone {}
 
-impl<T> Data for T where T: Send + Sync + Downcast + Debug + Clone{
-    fn dyn_clone(&self) -> Box<dyn Data> {
-        Box::new(self.clone())
-    }
-}
+impl<T> Data for T where T: Send + Sync + Downcast + Debug + Clone {}
+
+clone_trait_object!(Data);
 
 impl BevyTypeTagged for Box<dyn Data> {
     fn name(&self) -> &'static str {
@@ -200,12 +197,6 @@ impl BevyTypeTagged for Box<dyn Data> {
 
     fn as_serialize(&self) -> &dyn bevy_reflect::erased_serde::Serialize {
         todo!()
-    }
-}
-
-impl Clone for Box<dyn Data> {
-    fn clone(&self) -> Self {
-        self.dyn_clone()
     }
 }
 

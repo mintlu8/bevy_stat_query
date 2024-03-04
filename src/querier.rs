@@ -1,19 +1,20 @@
-use bevy_ecs::{entity::Entity, query::{QueryData, With}, system::{In, Query, Res, StaticSystemParam, SystemParam}};
+use bevy_ecs::{entity::Entity, query::With, system::{In, Query, Res, StaticSystemParam, SystemParam}};
 use bevy_hierarchy::Children;
+use dyn_clone::clone_box;
 use rustc_hash::FxHashMap;
-use crate::{sealed::Sealed, stream::ContextStream, Data, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, StatMap, StatParam};
-use crate::{StatQuerier, StatComponents};
+use crate::{param::IntrinsicParam, sealed::Sealed, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, StatMap, StatParam, StatValuePair, TYPE_ERROR};
+use crate::{StatQuerier, StatValue};
 use crate::{StatCache, StatEntity};
 
 #[derive(SystemParam)]
 struct QuerierInner<'w, 's,
     Qualifier: QualifierFlag,
-    Intrinsic: ContextStream<Qualifier> + 'static,
+    Intrinsic: IntrinsicParam<Qualifier> + 'static,
     Components: StatParam<Qualifier> + 'static
 > {
     defaults: Res<'w, StatDefaults>,
     units: Query<'w, 's, (Option<&'static StatMap<Qualifier>>, Option<&'static Children>), With<StatEntity>>,
-    intrinsic: Query<'w, 's, Intrinsic>,
+    intrinsic: StaticSystemParam<'w, 's, Intrinsic>,
     items: StaticSystemParam<'w, 's, Components>,
 }
 
@@ -26,102 +27,91 @@ struct QuerierInner<'w, 's,
 #[derive(SystemParam)]
 pub struct Querier<'w, 's,
     Qualifier: QualifierFlag,
-    Intrinsic: QueryData + 'static,
+    Intrinsic: IntrinsicParam<Qualifier> + 'static,
     Components: StatParam<Qualifier> + 'static
 > {
     querier: QuerierInner<'w, 's, Qualifier, Intrinsic, Components>,
     cache: Query<'w, 's, &'static mut StatCache<Qualifier>, With<StatEntity>>,
 }
 
-struct QueryStack<'w, 's, 'w2, 's2, 't, Q: QualifierFlag, D: ContextStream<Qualifier> + 'static, A: StatParam<Q> + 'static> {
+struct QueryStack<'w, 's, 'w2, 's2, 't, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> {
     world_cache: &'t mut Query<'w2, 's2, &'static mut StatCache<Q>, With<StatEntity>>,
-    current_cache: FxHashMap<(Entity, QualifierQuery<Q>, Box<dyn DynStat>), Box<dyn Data>>,
+    current_cache: FxHashMap<(Entity, QualifierQuery<Q>, Box<dyn DynStat>), Box<dyn DynStatValue>>,
     querier: &'t QuerierInner<'w, 's, Q, D, A>,
     stack: Vec<(QualifierQuery<Q>, Box<dyn DynStat>, Entity)>,
 }
 
-impl<Q: QualifierFlag, D: QueryData + 'static, A: StatParam<Q> + 'static> Sealed
+impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> Sealed
     for QueryStack<'_, '_, '_, '_, '_, Q, D, A> {}
 
-impl<Q: QualifierFlag, D: QueryData + 'static, A: StatParam<Q> + 'static> QueryStack<'_, '_, '_, '_, '_, Q, D, A> {
-    fn query(&mut self, qualifier: &QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn Data>> {
+impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> QueryStack<'_, '_, '_, '_, '_, Q, D, A> {
+    fn query(&mut self, qualifier: &QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>> {
         let entity = self.stack.last().expect("Must call query_other on the first call.").2;
         self.query_other(entity, qualifier, stat)
     }
 
-    fn query_other(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn Data>> {
+    fn query_other(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>> {
         if self.stack.iter().any(|(q, s, e)| q == qualifier && s.as_ref() == stat && e == &entity) {
             panic!("A cycle detected in stat dependencies when querying ({:?}, {:?}, {:?}). \
                 This query cannot be completed {:?}.",
                 qualifier, stat, entity, self.stack
             )
         };
-        self.stack.push((qualifier.clone(), stat.boxed_clone(), entity));
+        self.stack.push((qualifier.clone(), clone_box(stat), entity));
         let Ok((stat_map, children)) = self.querier.units.get(entity) else { return None; };
 
         if let Some(cached) = match self.world_cache.get(entity){
             Ok(cache) => cache.try_get_cached_dyn(qualifier, stat),
             Err(_) => None,
         } {
-            return Some(cached.dyn_clone())
+            return Some(clone_box(cached))
         }
         let queried = match children {
             Some(children) => children.iter(),
             None => [].iter(),
         };
         let mut stat_value = self.querier.defaults.get_dyn(stat);
-        let pair = (stat, stat_value.as_mut());
+        let mut pair = StatValuePair(stat, stat_value.as_mut());
         if let Some(stat_map) = stat_map {
             stat_map.iter_write(qualifier, &mut pair)
         }
         A::stream(&*self.querier.items, queried, qualifier, &mut pair, self);
         let Some(_) = self.stack.pop() else {panic!("Stack mismatch.")};
         if let Ok(mut cache) = self.world_cache.get_mut(entity) {
-            cache.cache_dyn(qualifier.clone(), stat.boxed_clone(), stat_value.clone());
+            cache.cache_dyn(qualifier.clone(), clone_box(stat), stat_value.clone());
         } else {
             self.current_cache.insert(
-                (entity, qualifier.clone(), stat.boxed_clone()),
-                stat_value.dyn_clone()
+                (entity, qualifier.clone(), clone_box(stat)),
+                stat_value.clone()
             );
         }
         Some(stat_value)
     }
-
-    // fn query_intrinsic<S: Stat + FromIntrinsics<IntrisicQuery = D>>(&mut self, stat: &S) -> Option<S::Data> {
-    //     let curr = self.stack.last().expect("Must call query_other on the first call.").2;
-    //     let Ok(ctx) = self.querier.intrinsic.get(curr) else { return None; };
-    //     Some(stat.from_intrinsic(&ctx))
-    // }
-
-    // fn query_distance<S: Stat + FromIntrinsics<IntrisicQuery = D>>(&mut self, entity: Entity, stat: &S) -> Option<S::Data> {
-    //     let curr = self.stack.last().expect("Must call query_other on first call.").2;
-    //     let Ok(ctx1) = self.querier.intrinsic.get(curr) else { return None; };
-    //     let Ok(ctx2) = self.querier.intrinsic.get(entity) else { return None; };
-    //     Some(stat.from_distance(&ctx1, &ctx2))
-    // }
 }
 
 
-impl<Q: QualifierFlag, D: ContextStream<Q> + 'static, A: StatParam<Q> + 'static> StatQuerier<Q>
+impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> StatQuerier<Q>
         for QueryStack<'_, '_, '_, '_, '_, Q, D, A> {
     fn query<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
         let entity = self.stack.last().expect("Must call query_other on the first call.").2;
-        self.query_other(entity, qualifier, stat)
+        self.query_other(entity, qualifier, stat).map(|x| *x.downcast().expect(TYPE_ERROR))
     }
 
-    fn query_other<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<&S::Data> {
-        self.query_other(entity, qualifier, stat).map(|x| x.downcast_ref())
+    fn query_other<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
+        self.query_other(entity, qualifier, stat).map(|x| *x.downcast().expect(TYPE_ERROR))
     }
 
-    fn query_distance<S: Stat>(&mut self, entity: Entity, stat: &S) -> Option<S::Data> {
+    fn query_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
         let curr = self.stack.last().expect("Must call query_other on first call.").2;
-        let Ok(ctx1) = self.querier.intrinsic.get(curr) else { return None; };
-        let Ok(ctx2) = self.querier.intrinsic.get(entity) else { return None; };
+        let mut stat_value = self.querier.defaults.get(stat);
+        let mut pair = StatValuePair(stat as &dyn DynStat, &mut stat_value as &mut dyn DynStatValue);
+        let ok = D::distance_stream(&*self.querier.intrinsic, curr, entity, qualifier, &mut pair, self);
+        ok.then_some(stat_value)
         //D::distance(ctx, this, other, qualifier, stat, querier)
     }
 }
 
-impl<'w, 's, Q: QualifierFlag, D: QueryData + 'static, A: StatParam<Q> + 'static> QuerierInner<'w, 's, Q, D, A> {
+impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> QuerierInner<'w, 's, Q, D, A> {
     fn as_query_stack<'w2, 's2, 't>(&'t self, cache: &'t mut Query<'w2, 's2, &'static mut StatCache<Q>, With<StatEntity>>) -> QueryStack<'w, 's, 'w2, 's2, 't, Q, D, A> {
         QueryStack {
             querier: self,
@@ -138,24 +128,25 @@ impl<'w, 's, Q: QualifierFlag, D: QueryData + 'static, A: StatParam<Q> + 'static
         stat: &S
     ) -> Option<S::Data> {
         self.as_query_stack(cache).query_other(entity, qualifier, stat)
+            .map(|x| *x.downcast().expect(TYPE_ERROR))
     }
 }
 
 
-impl<'w, 's, Q: QualifierFlag, D: ContextStream<Q> + 'static, A: StatParam<Q> + 'static> Querier<'w, 's, Q, D, A> {
+impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> Querier<'w, 's, Q, D, A> {
     pub fn query<S: Stat>(&mut self,
         entity: Entity,
         qualifier: &QualifierQuery<Q>,
         stat: &S
     ) -> Option<S::Data> {
-        self.querier.as_query_stack(&mut self.cache).query_other(entity, qualifier, stat)
+        self.querier.query(&mut self.cache, entity, qualifier, stat)
     }
 
     pub fn query_eval<S: Stat>(&mut self,
         entity: Entity,
         qualifier: &QualifierQuery<Q>,
         stat: &S
-    ) -> Option<<S::Data as StatComponents>::Out> {
+    ) -> Option<<S::Data as StatValue>::Out> {
         self.query(entity, qualifier, stat).map(|x| x.eval())
     }
 }
@@ -175,7 +166,7 @@ pub trait ErasedQuerier: SystemParam + 'static {
     ) -> Option<S::Data>;
 }
 
-impl<Q: QualifierFlag, D: QueryData + 'static, A: StatParam<Q> + 'static> ErasedQuerier for Querier<'static, 'static, Q, D, A> {
+impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> ErasedQuerier for Querier<'static, 'static, Q, D, A> {
     type Qualifier = Q;
 
     fn query<S: Stat>(&mut self,
@@ -238,7 +229,6 @@ macro_rules! querier {
         ($crate::ChildStatParam<'static, 'static,
             $first,
             $qualifier,
-            $ctx
         >, $crate::querier!(@join $qualifier, $ctx $(,$ty)*))
     };
     (

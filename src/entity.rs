@@ -2,7 +2,8 @@ use std::borrow::Borrow;
 use std::{fmt::Debug, hash::Hash};
 use bevy_ecs::component::Component;
 use rustc_hash::FxHashMap;
-use crate::{Data, Stat, TYPE_ERROR};
+use crate::types::DynStatValue;
+use crate::{Stat, TYPE_ERROR};
 use crate::{QualifierFlag, QualifierQuery, DynStat};
 
 pub type StatQuery<Q> = (QualifierQuery<Q>, Box<dyn DynStat>);
@@ -17,7 +18,7 @@ pub struct StatEntity;
 /// the user must manually invalidate the cache if something has changed.
 #[derive(Debug, Component)]
 pub struct StatCache<Q: QualifierFlag>{
-    pub(crate) cache: FxHashMap<StatQuery<Q>, Box<dyn Data>>
+    pub(crate) cache: FxHashMap<StatQuery<Q>, Box<dyn DynStatValue>>
 }
 
 impl<Q: QualifierFlag> Default for StatCache<Q> {
@@ -51,7 +52,7 @@ impl<Q: QualifierFlag> StatCache<Q> {
     pub(crate) fn cache_dyn(&mut self,
         query: QualifierQuery<Q>,
         stat: Box<dyn DynStat>,
-        value: Box<dyn Data>
+        value: Box<dyn DynStatValue>
     ) {
         self.cache.insert((query, stat), value);
     }
@@ -60,7 +61,7 @@ impl<Q: QualifierFlag> StatCache<Q> {
         &self,
         query: &QualifierQuery<Q>,
         stat: &dyn DynStat,
-    ) -> Option<&dyn Data> {
+    ) -> Option<&dyn DynStatValue> {
         self.cache.get(&(query, stat) as &dyn StatQueryKey<Q>)
             .map(|x| x.as_ref())
     }

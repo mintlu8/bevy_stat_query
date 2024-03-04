@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use bevy_app::{App, Plugin};
 use bevy_ecs::{entity::Entity, system::{Resource, SystemId}, world::World};
 
-use crate::{calc::StatDefaults, querier::ErasedQuerier, Stat, QualifierFlag, QualifierQuery, StatComponents, StatOperation};
+use crate::{calc::StatDefaults, querier::ErasedQuerier, Stat, QualifierFlag, QualifierQuery, StatValue, StatOperation};
 
 /// [`Plugin`] for the stat engine.
 #[derive(Debug, Default)]
@@ -18,7 +18,7 @@ impl Plugin for StatEnginePlugin {
 #[derive(Debug, Resource)]
 pub struct QuerySysId<Q: QualifierFlag, S: Stat>(SystemId<(Entity, QualifierQuery<Q>, S), Option<S::Data>>, PhantomData<(Q, S)>);
 
-type Bounds<T> = <<T as Stat>::Data as StatComponents>::Bounds;
+type Bounds<T> = <<T as Stat>::Data as StatValue>::Bounds;
 
 /// Extension on [`World`] and [`App`]
 pub trait StatExtension {
@@ -49,7 +49,7 @@ pub trait StatExtension {
         entity: Entity,
         qualifier: &QualifierQuery<E::Qualifier>,
         stat: &S,
-    ) -> Option<<S::Data as StatComponents>::Out> {
+    ) -> Option<<S::Data as StatValue>::Out> {
         self.query_stat::<E, S>(entity, qualifier, stat)
             .map(|x| x.eval())
     }

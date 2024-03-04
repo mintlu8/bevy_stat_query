@@ -9,7 +9,7 @@ use ref_cast::RefCast;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use bevy_ecs::change_detection::Mut;
-use crate::{Data, Stat, Qualifier, QualifierFlag, DynStat, StatComponents, StatOperation, TYPE_ERROR};
+use crate::{Data, Stat, Qualifier, QualifierFlag, DynStat, StatValue, StatOperation, TYPE_ERROR};
 use crate::StatInstances;
 /// A map-like, type erased storage for stats.
 /// When present on an entity with [`StatEntity`](crate::StatEntity)
@@ -35,7 +35,7 @@ impl<Q: QualifierFlag, D> Default for StatMapInner<Q, D> {
     }
 }
 
-type SOut<T> = <<T as Stat>::Data as StatComponents>::Out;
+type SOut<T> = <<T as Stat>::Data as StatValue>::Out;
 type SOp<T> = StatOperation<<T as Stat>::Data>;
 
 impl<Q: QualifierFlag, D> StatMapInner<Q, D> {
@@ -171,13 +171,13 @@ macro_rules! impl_stat_map {
             }
 
             /// Iterate over a particulat stat.
-            pub fn iter_dyn(&self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &dyn Data)> {
+            pub(crate) fn iter_dyn(&self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &dyn Data)> {
                 self.0.iter(stat)
                     .map(|(q, v)| (q, v.as_ref()))
             }
 
             /// Iterate over a particulat stat.
-            pub fn iter_dyn_mut(&mut self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &mut dyn Data)> {
+            pub(crate) fn iter_dyn_mut(&mut self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &mut dyn Data)> {
                 self.0.iter_mut(stat)
                     .map(|(q, v)| (q, v.as_mut()))
             }

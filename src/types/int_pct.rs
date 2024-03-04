@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use crate::{rounding::{Rounding, Truncate}, Float, Int, StatOperation};
-use super::{StatComponents, Unsupported};
+use super::{StatValue, Unsupported};
 
 /// An integer stat that sums up multipliers additively,
 /// then divided by `SCALE`.
@@ -27,7 +27,7 @@ impl<T: Int, R: Rounding, const S: i64> Default for StatIntPercentAdditive<T, R,
     }
 }
 
-impl<T: Int, R: Rounding, const S: i64> StatComponents for StatIntPercentAdditive<T, R, S> {
+impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, R, S> {
     type Out = T;
 
 
@@ -67,7 +67,7 @@ impl<T: Int, R: Rounding, const S: i64> StatComponents for StatIntPercentAdditiv
         self.max = self.max.min(other)
     }
 
-    fn from_out(out: Self::Out) -> StatOperation<Self> {
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Add(out)
     }
 }
@@ -99,7 +99,7 @@ impl<T: Int, R: Rounding, const S: i64> Default for StatIntPercent<T, R, S> {
     }
 }
 
-impl<T: Int, R: Rounding, const S: i64> StatComponents for StatIntPercent<T, R, S> {
+impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercent<T, R, S> {
     type Out = T;
 
     fn join(&mut self, other: Self) {
@@ -137,7 +137,7 @@ impl<T: Int, R: Rounding, const S: i64> StatComponents for StatIntPercent<T, R, 
         self.max = self.max.min(other)
     }
 
-    fn from_out(out: Self::Out) -> StatOperation<Self> {
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Add(out)
     }
 }

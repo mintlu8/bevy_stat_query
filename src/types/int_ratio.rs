@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use crate::{StatOperation, Int, Float, rounding::{Rounding, Truncate}};
-use super::{StatComponents, Unsupported};
+use super::{StatValue, Unsupported};
 
 
 /// An integer stat that multiplies with rational numbers and rounds back to an integer.
@@ -29,7 +29,7 @@ impl<T: Int, R: Rounding> Default for StatIntFraction<T, R> {
     }
 }
 
-impl<T: Int, R: Rounding> StatComponents for StatIntFraction<T, R> {
+impl<T: Int, R: Rounding> StatValue for StatIntFraction<T, R> {
     type Out = T;
 
     fn join(&mut self, other: Self) {
@@ -69,7 +69,7 @@ impl<T: Int, R: Rounding> StatComponents for StatIntFraction<T, R> {
         self.max = self.max.min(other);
     }
 
-    fn from_out(out: Self::Out) -> StatOperation<Self> {
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Add(out)
     }
 }
@@ -96,7 +96,7 @@ impl<T: Int, F: Float, R: Rounding> Default for StatIntFloatMul<T, F, R> where T
     }
 }
 
-impl<T: Int, F: Float, R: Rounding> StatComponents for StatIntFloatMul<T, F, R> where T: Into<F>, F: Into<T> {
+impl<T: Int, F: Float, R: Rounding> StatValue for StatIntFloatMul<T, F, R> where T: Into<F>, F: Into<T> {
     type Out = T;
 
     fn join(&mut self, other: Self) {
@@ -135,7 +135,7 @@ impl<T: Int, F: Float, R: Rounding> StatComponents for StatIntFloatMul<T, F, R> 
         self.max = self.max.min(other);
     }
 
-    fn from_out(out: Self::Out) -> StatOperation<Self> {
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Add(out)
     }
 }

@@ -25,6 +25,7 @@ num-traits = { version = "0.2.18", default-features = false }
 bevy_serde_project = { version = "^0.1.1" }
 
 erased-serde = "0.4.3"
+dyn-clone = "1.0.17"
 
 [dev-dependencies]
 bevy_asset = "0.13.0"

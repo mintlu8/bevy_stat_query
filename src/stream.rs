@@ -1,33 +1,29 @@
-use bevy_ecs::{entity::Entity, query::{QueryData, ReadOnlyQueryData, WorldQuery}, system::SystemParam};
-use crate::{sealed::{SealToken, Sealed}, Data, DynStat, QualifierFlag, QualifierQuery, Stat, StatMap, StatOperationsMap, TYPE_ERROR};
+use bevy_ecs::{entity::Entity, query::{ReadOnlyQueryData, WorldQuery}, system::SystemParam};
+use crate::{sealed::Sealed, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatMap, StatOperationsMap, TYPE_ERROR};
 
-pub trait StatValuePair {
-    fn as_dyn(&mut self, sealed: SealToken) -> (&dyn DynStat, &mut dyn Data);
-}
+/// Opaque type that contains a stat and a value.
+#[derive(Debug)]
+pub struct StatValuePair<'t>(pub(crate) &'t dyn DynStat, pub(crate) &'t mut dyn DynStatValue);
 
-impl dyn StatValuePair {
-    fn is_then<S: Stat>(&mut self, is: &S, then: impl FnOnce(&mut S::Data)) {
-        let (stat, data) = self.as_dyn(SealToken);
-        if stat == is as &dyn DynStat {
-            then(data.downcast_mut::<S::Data>().expect(TYPE_ERROR))
+impl StatValuePair<'_> {
+    pub fn is_then<'a, S: Stat>(&'a mut self, is: &S, then: impl FnOnce(&'a mut S::Data)) -> bool {
+        let StatValuePair(stat, data) = self;
+        if *stat == is as &dyn DynStat {
+            then(data.downcast_mut::<S::Data>().expect(TYPE_ERROR));
+            true
+        } else {
+            false
         }
     }
-}
 
-pub struct StatValueMut<'t, S: Stat> {
-    pub stat: &'t S,
-    pub write: &'t mut S::Data,
-}
-
-impl StatValuePair for (&dyn DynStat, &mut dyn Data) {
-    fn as_dyn(&mut self, sealed: SealToken) -> (&dyn DynStat, &mut dyn Data) {
-        *self
-    }
-}
-
-impl<T: Stat> StatValuePair for StatValueMut<'_, T> {
-    fn as_dyn(&mut self, sealed: SealToken) -> (&dyn DynStat, &mut dyn Data) {
-        (self.stat, self.write)
+    pub fn as_then<'a, S: Stat>(&'a mut self, then: impl FnOnce(&S, &'a mut S::Data)) -> bool {
+        let StatValuePair(stat, data) = self;
+        if let Some(stat) = stat.downcast_ref::<S>() {
+            then(stat, data.downcast_mut::<S::Data>().expect(TYPE_ERROR));
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -35,7 +31,7 @@ impl<T: Stat> StatValuePair for StatValueMut<'_, T> {
 pub trait StatQuerier<Q: QualifierFlag>: Sealed {
     fn query<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data>;
     fn query_other<S: Stat>(&mut self, entity: Entity, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data>;
-    fn query_distance<S: Stat>(&mut self, entity: Entity, stat: &S) -> Option<S::Data>;
+    fn query_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data>;
 }
 
 /// An item that can be used to generate stats when its associated component
@@ -50,28 +46,26 @@ pub trait StatStream<Q: QualifierFlag>: 'static {
         ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
         component: <Self::QueryData as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Q>,
-        stat: &mut dyn StatValuePair,
+        stat: &mut StatValuePair,
         querier: &mut impl StatQuerier<Q>
     );
 }
 
 impl<Q: QualifierFlag> StatMap<Q> {
-    pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut dyn StatValuePair) {
-        let (stat, value) = pair.as_dyn(SealToken);
-        self.iter_dyn(stat)
+    pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
+        let StatValuePair(stat, data) = pair;
+        self.iter_dyn(*stat)
             .filter(|(q, _)| q.qualifies_as(qualifier))
-            .for_each(|_|())
-            //.for_each(|(_, v)| v.write_to(write))
+            .for_each(|(_, op)| data.apply_op(op))
     }
 }
 
 impl<Q: QualifierFlag> StatOperationsMap<Q> {
-    pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut dyn StatValuePair) {
-        let (stat, value) = pair.as_dyn(SealToken);
-        self.iter_dyn(stat)
+    pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
+        let StatValuePair(stat, data) = pair;
+        self.iter_dyn(*stat)
             .filter(|(q, _)| q.qualifies_as(qualifier))
-            .for_each(|_|())
-            //.for_each(|(_, v)| v.write_to(write))
+            .for_each(|(_, op)| data.apply_op(op))
     }
 }
 
@@ -83,7 +77,7 @@ impl<Q: QualifierFlag> StatStream<Q> for StatOperationsMap<Q> {
         _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
         this: <Self::QueryData as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Q>,
-        pair: &mut dyn StatValuePair,
+        pair: &mut StatValuePair,
         _: &mut impl StatQuerier<Q>
     ){
         this.iter_write(qualifier, pair);
@@ -100,7 +94,7 @@ pub trait ContextStream<Qualifier: QualifierFlag>: StatStream<Qualifier> {
         this: <Self::QueryData as WorldQuery>::Item<'_>,
         other: <Self::QueryData as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Qualifier>,
-        stat: &mut dyn StatValuePair,
+        stat: &mut StatValuePair,
         querier: &mut impl StatQuerier<Qualifier>
     );
 }

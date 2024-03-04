@@ -2,11 +2,11 @@ use bevy_ecs::system::Resource;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{Stat, DynStat, types::StatComponents, Data, TYPE_ERROR};
+use crate::{types::{DynStatValue, StatValue}, DynStat, Stat, TYPE_ERROR};
 
 /// An single step calculation on a [`StatComponents`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
-pub enum StatOperation<S: StatComponents> {
+pub enum StatOperation<S: StatValue> {
     Add(S::Add),
     Mul(S::Mul),
     Or(S::Bit),
@@ -15,7 +15,7 @@ pub enum StatOperation<S: StatComponents> {
     Max(S::Bounds),
 }
 
-impl<S: StatComponents> StatOperation<S> {
+impl<S: StatValue> StatOperation<S> {
     pub fn write_to(&self, to: &mut S) {
         match self.clone() {
             StatOperation::Add(item) => to.add(item),
@@ -33,7 +33,7 @@ impl<S: StatComponents> StatOperation<S> {
 /// Uses [`Default::default()`] instead if not registered.
 #[derive(Debug, Resource, Default)]
 pub struct StatDefaults {
-    stats: FxHashMap<Box<dyn DynStat>, Box<dyn Data>>,
+    stats: FxHashMap<Box<dyn DynStat>, Box<dyn DynStatValue>>,
 }
 
 impl StatDefaults {
@@ -71,7 +71,7 @@ impl StatDefaults {
     }
 
     /// Obtain a [`Stat`]'s default value.
-    pub(crate) fn get_dyn(&self, stat: &dyn DynStat) -> Box<dyn Data> {
+    pub(crate) fn get_dyn(&self, stat: &dyn DynStat) -> Box<dyn DynStatValue> {
         self.stats.get(stat as &dyn DynStat)
             .cloned()
             .unwrap_or(stat.default_value())
