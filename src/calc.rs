@@ -1,6 +1,6 @@
 use bevy_ecs::system::Resource;
 use bevy_reflect::TypePath;
-use rustc_hash::FxHashMap;
+use bevy_utils::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{types::{DynStatValue, StatValue}, DynStat, Stat, TYPE_ERROR};
@@ -32,15 +32,15 @@ impl<S: StatValue> StatOperation<S> {
 /// [`Resource`] that stores default [`StatComponents`] value per [`Stat`].
 ///
 /// Uses [`Default::default()`] instead if not registered.
-#[derive(Debug, Resource, Default)]
+#[derive(Debug, Resource, Default, TypePath)]
 pub struct StatDefaults {
-    stats: FxHashMap<Box<dyn DynStat>, Box<dyn DynStatValue>>,
+    stats: HashMap<Box<dyn DynStat>, Box<dyn DynStatValue>>,
 }
 
 impl StatDefaults {
     pub fn new() -> Self {
         Self {
-            stats: FxHashMap::default(),
+            stats: HashMap::default(),
         }
     }
 

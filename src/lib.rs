@@ -159,7 +159,7 @@ pub mod rounding;
 mod plugin;
 pub use plugin::StatExtension;
 mod querier;
-pub use querier::{Querier, hints, QuerierRef};
+pub use querier::{StatQuerier, hints, QuerierRef};
 mod param;
 #[doc(hidden)]
 pub use param::{ChildStatParam, StatParam};

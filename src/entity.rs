@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::{fmt::Debug, hash::Hash};
 use bevy_ecs::component::Component;
-use rustc_hash::FxHashMap;
+use bevy_utils::hashbrown::HashMap;
 use crate::types::DynStatValue;
 use crate::{Stat, TYPE_ERROR};
 use crate::{QualifierFlag, QualifierQuery, DynStat};
@@ -18,7 +18,7 @@ pub struct StatEntity;
 /// the user must manually invalidate the cache if something has changed.
 #[derive(Debug, Component)]
 pub struct StatCache<Q: QualifierFlag>{
-    pub(crate) cache: FxHashMap<StatQuery<Q>, Box<dyn DynStatValue>>
+    pub(crate) cache: HashMap<StatQuery<Q>, Box<dyn DynStatValue>>
 }
 
 impl<Q: QualifierFlag> Default for StatCache<Q> {
@@ -29,7 +29,7 @@ impl<Q: QualifierFlag> Default for StatCache<Q> {
 
 impl<Q: QualifierFlag> StatCache<Q> {
     pub fn new() -> Self {
-        Self { cache: FxHashMap::default() }
+        Self { cache: HashMap::default() }
     }
 
     pub fn cache<S: Stat>(&mut self,

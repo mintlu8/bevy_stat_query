@@ -2,10 +2,10 @@ use std::{borrow::Cow, cmp::{Eq, Ord, Ordering}, fmt::Debug, hash::Hash, str::Fr
 
 use bevy_ecs::system::Resource;
 use bevy_serde_project::{Error, FromWorldAccess, SerdeProject};
+use bevy_utils::HashMap;
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
 use dyn_hash::DynHash;
-use rustc_hash::FxHashMap;
 
 use crate::{sealed::SealedAll, types::DynStatValue, Data, Shareable, StatValue, TYPE_ERROR};
 
@@ -124,7 +124,7 @@ impl<T> DynStat for T where T:Stat {
 
 #[derive(Resource, Default)]
 pub struct StatInstances {
-    pub(crate) concrete: FxHashMap<String, Box<dyn DynStat>>,
+    pub(crate) concrete: HashMap<String, Box<dyn DynStat>>,
     pub(crate) any: Vec<fn(&str) -> Option<Box<dyn DynStat>>>,
 }
 

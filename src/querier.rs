@@ -1,7 +1,7 @@
 use bevy_ecs::{entity::Entity, query::With, system::{In, Query, Res, StaticSystemParam, SystemParam}};
 use bevy_hierarchy::Children;
+use bevy_utils::hashbrown::HashMap;
 use dyn_clone::clone_box;
-use rustc_hash::FxHashMap;
 use crate::{param::IntrinsicParam, sealed::Sealed, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, BaseStatMap, StatParam, StatValuePair, TYPE_ERROR};
 use crate::{StatCache, StatEntity, StatValue};
 
@@ -24,7 +24,7 @@ struct QuerierInner<'w, 's,
 ///
 /// Alternatively this can be ran with world access with [`query_stat`](crate::StatExtension::query_stat).
 #[derive(SystemParam)]
-pub struct Querier<'w, 's,
+pub struct StatQuerier<'w, 's,
     Qualifier: QualifierFlag,
     Intrinsic: IntrinsicParam<Qualifier> + 'static,
     Components: StatParam<Qualifier> + 'static
@@ -35,7 +35,7 @@ pub struct Querier<'w, 's,
 
 struct QueryStack<'w, 's, 'w2, 's2, 't, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> {
     world_cache: &'t mut Query<'w2, 's2, &'static mut StatCache<Q>, With<StatEntity>>,
-    current_cache: FxHashMap<(Entity, QualifierQuery<Q>, Box<dyn DynStat>), Box<dyn DynStatValue>>,
+    current_cache: HashMap<(Entity, QualifierQuery<Q>, Box<dyn DynStat>), Box<dyn DynStatValue>>,
     querier: &'t QuerierInner<'w, 's, Q, D, A>,
     stack: Vec<(QualifierQuery<Q>, Box<dyn DynStat>, Entity)>,
 }
@@ -133,7 +133,7 @@ impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> +
             querier: self,
             stack: Vec::new(),
             world_cache: cache,
-            current_cache: FxHashMap::default(),
+            current_cache: HashMap::default(),
         }
     }
 
@@ -149,7 +149,7 @@ impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> +
 }
 
 
-impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> Querier<'w, 's, Q, D, A> {
+impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> StatQuerier<'w, 's, Q, D, A> {
     pub fn query<S: Stat>(&mut self,
         entity: Entity,
         qualifier: &QualifierQuery<Q>,
@@ -182,7 +182,7 @@ pub trait ErasedQuerier: SystemParam + 'static {
     ) -> Option<S::Data>;
 }
 
-impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> ErasedQuerier for Querier<'static, 'static, Q, D, A> {
+impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> ErasedQuerier for StatQuerier<'static, 'static, Q, D, A> {
     type Qualifier = Q;
 
     fn query<S: Stat>(&mut self,
@@ -265,7 +265,7 @@ macro_rules! querier {
             } $(,)?
         }
     ) => {
-        $vis type $name<'w, 's> = $crate::Querier<'w, 's,
+        $vis type $name<'w, 's> = $crate::StatQuerier<'w, 's,
             $qualifier,
             $ctx,
             $crate::querier!(@join $qualifier, $ctx $(,$ty)*)

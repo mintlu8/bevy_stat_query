@@ -1,8 +1,8 @@
 use bevy_ecs::{query::{ReadOnlyQueryData, WorldQuery}, system::SystemParam};
 use bevy_reflect::TypePath;
-use bevy_serde_project::typetagged::BevyTypeTagged;
+use bevy_serde_project::typetagged::{BevyTypeTagged, FromTypeTagged};
 use dyn_clone::{clone_trait_object, DynClone};
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use crate::{QuerierRef, FullStatMap, types::DynStatValue, BaseStatMap, DynStat, QualifierFlag, QualifierQuery, Stat, StatOperationsMap, TYPE_ERROR};
 
 /// Opaque type that contains a stat and a value.
@@ -21,7 +21,7 @@ impl StatValuePair<'_> {
         }
     }
 
-    /// If stat is of a type, downcast stat and value.
+    /// If stat is of a type, downcast the stat and value.
     pub fn as_then<'a, S: Stat>(&'a mut self, then: impl FnOnce(&S, &'a mut S::Data)) -> bool {
         let StatValuePair(stat, data) = self;
         if let Some(stat) = stat.downcast_ref::<S>() {
@@ -44,6 +44,8 @@ pub trait StatStream<Q: QualifierFlag>: Send + Sync + 'static {
 }
 
 /// A generalized object safe stat relation that can be serialized.
+/// 
+/// Automatically implemented on implementors of [`StatStream`], [`TypePath`] and [`Serialize`].
 pub trait StatStreamObject<Q: QualifierFlag>: StatStream<Q> + DynClone {
     fn name(&self) -> &'static str;
     fn as_serialize(&self) -> &dyn erased_serde::Serialize;
@@ -71,8 +73,18 @@ impl<Q: QualifierFlag> BevyTypeTagged for Box<dyn StatStreamObject<Q>>{
     }
 }
 
-/// An item that can be used to generate stats when its associated component
-/// is added as child to a queriable unit.
+
+impl<Q, T> FromTypeTagged<T> for Box<dyn StatStreamObject<Q>> where Q: QualifierFlag, T: StatStreamObject<Q> + TypePath + DeserializeOwned {
+    fn name() -> impl AsRef<str> {
+        T::short_type_path()
+    }
+
+    fn from_type_tagged(item: T) -> Self {
+        Box::new(item)
+    }
+}
+
+/// Component and context based stat stream.
 ///
 /// The item is generated from the [`QueryData`] and a [`SystemParam`] context,
 /// For example an `Asset` can be generated from a `Handle` and context `Assets`.

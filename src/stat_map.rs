@@ -96,7 +96,7 @@ impl<Q: QualifierFlag, D> StatMapInner<Q, D> {
     }
 }
 
-/// An unqualified view of a [`StatMap`].
+/// An unqualified view of a stat map.
 #[derive(Debug, RefCast)]
 #[repr(transparent)]
 pub struct Unqualified<T>(T);
@@ -116,7 +116,11 @@ impl<T> DerefMut for Unqualified<T> {
 }
 
 macro_rules! impl_stat_map {
-    ($name: ident, $stat: ident, $value: ty, $trait_obj: ident) => {
+    (
+        $(#[$($attrs: tt)*])*
+        $name: ident, $stat: ident, $value: ty, $trait_obj: ident
+    ) => {
+        $(#[$($attrs)*])*
         #[derive(Debug, Clone, Default, Component, TypePath)]
         #[type_path = "bse"]
         pub struct $name<Q: QualifierFlag>(StatMapInner<Q, Box<dyn $trait_obj>>);
@@ -255,9 +259,18 @@ macro_rules! impl_stat_map {
     };
 }
 
-impl_stat_map!(BaseStatMap, S, SOut<S>, Data);
-impl_stat_map!(FullStatMap, S, SData<S>, DynStatValue);
-impl_stat_map!(StatOperationsMap, S, SOp<S>, Data);
+impl_stat_map!(
+    /// A map containing the associated output value of stats.
+    BaseStatMap, S, SOut<S>, Data
+);
+impl_stat_map!(
+    /// A map containing the associated [`StatValue`] of stats.
+    FullStatMap, S, SData<S>, DynStatValue
+);
+impl_stat_map!(
+    /// A map containing the associated [`StatOperation`]s of stats.
+    StatOperationsMap, S, SOp<S>, Data
+);
 
 impl<Q: QualifierFlag> BaseStatMap<Q> {
     pub fn modify<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S, f: impl FnOnce(&mut SOut<S>)){
