@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, marker::PhantomData};
 use bevy_ecs::{entity::Entity, query::Without, system::{Query, StaticSystemParam, SystemParam}};
-use crate::{stream::{StatQuerier, StatStream}, QualifierFlag, QualifierQuery, StatCache, StatValuePair};
+use crate::{querier::QuerierRef, stream::ComponentStream, QualifierFlag, QualifierQuery, StatCache, StatValuePair};
 
 /// [`SystemParam`] that can be aggregated as stat components.
 pub trait StatParam<Q: QualifierFlag>: SystemParam {
@@ -9,7 +9,7 @@ pub trait StatParam<Q: QualifierFlag>: SystemParam {
         entities: impl IntoIterator<Item = E> + Clone,
         qualifier: &QualifierQuery<Q>,
         stat: &mut StatValuePair,
-        querier: &mut impl StatQuerier<Q>,
+        querier: &mut QuerierRef<'_, Q>,
     );
 }
 
@@ -21,26 +21,26 @@ pub trait IntrinsicParam<Q: QualifierFlag>: StatParam<Q> {
         other: Entity,
         qualifier: &QualifierQuery<Q>,
         stat: &mut StatValuePair,
-        querier: &mut impl StatQuerier<Q>,
+        querier: &mut QuerierRef<'_, Q>,
     ) -> bool;
 }
 
 
 /// [`SystemParam`] that queries for a specific [`StatStream`] in an entity.
 #[derive(SystemParam)]
-pub struct ChildStatParam<'w, 's, T: StatStream<Q>, Q: QualifierFlag> {
-    pub ctx: StaticSystemParam<'w, 's, <T as StatStream<Q>>::Ctx>,
-    pub query: Query<'w, 's, <T as StatStream<Q>>::QueryData, Without<StatCache<Q>>>,
+pub struct ChildStatParam<'w, 's, T: ComponentStream<Q>, Q: QualifierFlag> {
+    pub ctx: StaticSystemParam<'w, 's, <T as ComponentStream<Q>>::Ctx>,
+    pub query: Query<'w, 's, <T as ComponentStream<Q>>::QueryData, Without<StatCache<Q>>>,
     p: PhantomData<Q>,
 }
 
-impl<T: StatStream<Q>, Q: QualifierFlag> StatParam<Q> for ChildStatParam<'_, '_, T, Q> {
+impl<T: ComponentStream<Q>, Q: QualifierFlag> StatParam<Q> for ChildStatParam<'_, '_, T, Q> {
     fn stream<E: Borrow<Entity>>(
         this: &Self::Item<'_, '_>,
         entities: impl IntoIterator<Item = E> + Clone,
         qualifier: &QualifierQuery<Q>,
         stat: &mut StatValuePair,
-        querier: &mut impl StatQuerier<Q>,
+        querier: &mut QuerierRef<'_, Q>,
     ) {
         for handle in this.query.iter_many(entities) {
             T::stream(&*this.ctx, handle, qualifier, stat, querier);
@@ -54,7 +54,7 @@ impl<Q: QualifierFlag> StatParam<Q> for () {
         _: impl IntoIterator<Item = E> + Clone,
         _: &QualifierQuery<Q>,
         _: &mut StatValuePair,
-        _: &mut impl StatQuerier<Q>,
+        _: &mut QuerierRef<'_, Q>,
     ) {}
 }
 
@@ -65,7 +65,7 @@ impl<Q: QualifierFlag> IntrinsicParam<Q> for () {
         _: Entity,
         _: &QualifierQuery<Q>,
         _: &mut StatValuePair,
-        _: &mut impl StatQuerier<Q>,
+        _: &mut QuerierRef<'_, Q>,
     ) -> bool {
         true
     }
@@ -77,7 +77,7 @@ impl<A, B, Q: QualifierFlag> StatParam<Q> for (A, B) where A: StatParam<Q>, B: S
         entities: impl IntoIterator<Item = E> + Clone,
         qualifier: &QualifierQuery<Q>,
         stat: &mut StatValuePair,
-        querier: &mut impl StatQuerier<Q>,
+        querier: &mut QuerierRef<'_, Q>,
     ) {
         A::stream(&this.0, entities.clone(), qualifier, stat, querier);
         B::stream(&this.1, entities, qualifier, stat, querier);

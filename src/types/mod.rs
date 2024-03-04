@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use crate::{calc::StatOperation, Data, Serializable, TYPE_ERROR};
 
 use bevy_reflect::TypePath;
-use bevy_serde_project::typetagged::BevyTypeTagged;
+use bevy_serde_project::typetagged::{BevyTypeTagged, FromTypeTagged};
 use downcast_rs::impl_downcast;
 use dyn_clone::clone_trait_object;
 pub use int_pct::{StatIntPercentAdditive, StatIntPercent};
@@ -52,6 +52,16 @@ pub(crate) trait DynStatValue: Data {
     fn join_value(&mut self, other: &dyn DynStatValue);
 }
 
+impl<T: StatValue + TypePath + Serialize> FromTypeTagged<T> for Box<dyn DynStatValue> {
+    fn name() -> impl AsRef<str> {
+        T::short_type_path()
+    }
+
+    fn from_type_tagged(item: T) -> Self {
+        Box::new(item)
+    }
+}
+
 impl_downcast!(DynStatValue);
 clone_trait_object!(DynStatValue);
 
@@ -71,6 +81,6 @@ impl BevyTypeTagged for Box<dyn DynStatValue> {
     }
 
     fn as_serialize(&self) -> &dyn bevy_reflect::erased_serde::Serialize {
-        todo!()
+        self.as_ref().as_serialize()
     }
 }

@@ -257,7 +257,7 @@ impl Float for f64 {
     }
 }
 
-
+/// Represents the ratio between two numbers.
 #[derive(Debug, Clone, Copy, Default, TypePath, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(transparent, bound(serialize = "", deserialize = ""))]
@@ -285,43 +285,36 @@ impl<I: Int + NumInteger> Ratio<I> {
     pub(crate) const fn new_raw(numer: I, denom: I) -> Self{
         Self(num_rational::Ratio::new_raw(numer, denom))
     }
-}
 
-impl<I: Int + NumInteger> Add for Ratio<I> {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self(self.0 + rhs.0)
+    pub fn into_inner(self) -> num_rational::Ratio<I> {
+        self.0
     }
 }
 
-impl<I: Int + NumInteger> AddAssign for Ratio<I> {
-    fn add_assign(&mut self, rhs: Self) {
-        self.0 += rhs.0
-    }
+macro_rules! impl_ops {
+    ($a: tt, $b: tt, $c: tt, $d:tt, $e: tt, $f:tt) => {
+        impl<I: Int + NumInteger> $a for Ratio<I> {
+            type Output = Self;
+        
+            fn $b(self, rhs: Self) -> Self::Output {
+                Self(self.0 $c rhs.0)
+            }
+        }
+        
+        impl<I: Int + NumInteger> $d for Ratio<I> {
+            fn $e(&mut self, rhs: Self) {
+                self.0 $f rhs.0
+            }
+        }
+    };
 }
 
-impl<I: Int + NumInteger> Sub for Ratio<I> {
-    type Output = Self;
+impl_ops!(Add, add, +, AddAssign, add_assign, +=);
+impl_ops!(Sub, sub, -, SubAssign, sub_assign, -=);
+impl_ops!(Mul, mul, *, MulAssign, mul_assign, *=);
+impl_ops!(Div, div, /, DivAssign, div_assign, /=);
+impl_ops!(Rem, rem, %, RemAssign, rem_assign, %=);
 
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self(self.0 - rhs.0)
-    }
-}
-
-impl<I: Int + NumInteger> Mul for Ratio<I> {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self(self.0 * rhs.0)
-    }
-}
-
-impl<I: Int + NumInteger> MulAssign for Ratio<I> {
-    fn mul_assign(&mut self, rhs: Self) {
-        self.0 *= rhs.0
-    }
-}
 
 impl<I: Int + NumInteger + Clone> Float for Ratio<I> {
     const ZERO: Self = Ratio::new_raw(I::ZERO, I::ONE);

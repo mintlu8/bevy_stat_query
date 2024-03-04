@@ -1,19 +1,8 @@
-use std::marker::PhantomData;
-
-use bevy_app::{App, Plugin};
+use std::{marker::PhantomData, str::FromStr};
+use bevy_app::App;
 use bevy_ecs::{entity::Entity, system::{Resource, SystemId}, world::World};
-
-use crate::{calc::StatDefaults, querier::ErasedQuerier, Stat, QualifierFlag, QualifierQuery, StatValue, StatOperation};
-
-/// [`Plugin`] for the stat engine.
-#[derive(Debug, Default)]
-pub struct StatEnginePlugin;
-
-impl Plugin for StatEnginePlugin {
-    fn build(&self, app: &mut bevy_app::App) {
-        app.init_resource::<StatDefaults>();
-    }
-}
+use crate::{Data, StatInstances};
+use crate::{calc::StatDefaults, querier::ErasedQuerier, types::DynStatValue, QualifierFlag, QualifierQuery, Stat, StatOperation, StatValue};
 
 #[derive(Debug, Resource)]
 pub struct QuerySysId<Q: QualifierFlag, S: Stat>(SystemId<(Entity, QualifierQuery<Q>, S), Option<S::Data>>, PhantomData<(Q, S)>);
@@ -22,18 +11,22 @@ type Bounds<T> = <<T as Stat>::Data as StatValue>::Bounds;
 
 /// Extension on [`World`] and [`App`]
 pub trait StatExtension {
+    /// Register associated serialization routine for a stat.
+    fn register_stat<T: Stat>(&mut self) -> &mut Self;
+    /// Register associated serialization routine for a stat that uses [`FromStr`].
+    fn register_stat_parser<T: Stat + FromStr>(&mut self) -> &mut Self;
     /// Register a default stat value.
     ///
     /// Since a component can be supplied instead of a raw value,
     /// this is the standard way
     /// to add default bounds to a stat, e.g, in `1..15`.
-    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Data);
+    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Data) -> &mut Self;
 
     /// Register the minimum value of a stat.
-    fn register_stat_min<S: Stat>(&mut self, stat: &S, value: Bounds<S>);
+    fn register_stat_min<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self;
 
     /// Register the maximum value of a stat.
-    fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>);
+    fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self;
 
     /// Query for a stat on an [`Entity`] with [`World`] access.
     fn query_stat<E: ErasedQuerier, S: Stat>(
@@ -56,19 +49,42 @@ pub trait StatExtension {
 }
 
 impl StatExtension for World {
-    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Data) {
-        self.get_resource_mut::<StatDefaults>().unwrap()
+    fn register_stat<T: Stat>(&mut self) -> &mut Self {
+        use bevy_serde_project::WorldExtension;
+        self.register_typetag::<Box<dyn DynStatValue>, T::Data>();
+        self.register_typetag::<Box<dyn Data>, <T::Data as StatValue>::Out>();
+        self.register_typetag::<Box<dyn Data>, StatOperation<T::Data>>();
+        self.get_resource_or_insert_with::<StatInstances>(Default::default)
+            .register::<T>();
+        self
+    }
+
+    fn register_stat_parser<T: Stat + FromStr>(&mut self) -> &mut Self {
+        use bevy_serde_project::WorldExtension;
+        self.register_typetag::<Box<dyn DynStatValue>, T::Data>();
+        self.register_typetag::<Box<dyn Data>, <T::Data as StatValue>::Out>();
+        self.register_typetag::<Box<dyn Data>, StatOperation<T::Data>>();
+        self.get_resource_or_insert_with::<StatInstances>(Default::default)
+            .register_parser::<T>();
+        self
+    }
+
+    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Data) -> &mut Self {
+        self.get_resource_or_insert_with::<StatDefaults>(Default::default)
             .insert(stat, value);
+        self
     }
 
-    fn register_stat_min<S: Stat>(&mut self, stat: &S, value: Bounds<S>) {
-        self.get_resource_mut::<StatDefaults>().unwrap()
-            .patch(stat, StatOperation::Min(value))
+    fn register_stat_min<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
+        self.get_resource_or_insert_with::<StatDefaults>(Default::default)
+            .patch(stat, StatOperation::Min(value));
+        self
     }
 
-    fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) {
-        self.get_resource_mut::<StatDefaults>().unwrap()
-            .patch(stat, StatOperation::Max(value))
+    fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
+        self.get_resource_or_insert_with::<StatDefaults>(Default::default)
+            .patch(stat, StatOperation::Max(value));
+        self
     }
 
     fn query_stat<E: ErasedQuerier, S: Stat>(
@@ -89,17 +105,29 @@ impl StatExtension for World {
 }
 
 impl StatExtension for App {
-    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Data) {
-        self.world.get_resource_mut::<StatDefaults>().unwrap()
-            .insert(stat, value);
+    fn register_stat<T: Stat>(&mut self) -> &mut Self {
+        self.world.register_stat::<T>();
+        self
     }
 
-    fn register_stat_min<S: Stat>(&mut self, stat: &S, value: Bounds<S>) {
-        self.world.register_stat_min(stat, value)
+    fn register_stat_parser<T: Stat + FromStr>(&mut self) -> &mut Self {
+        self.world.register_stat_parser::<T>();
+        self
     }
 
-    fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) {
-        self.world.register_stat_max(stat, value)
+    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Data) -> &mut Self {
+        self.world.register_stat_default::<S>(stat, value);
+        self
+    }
+
+    fn register_stat_min<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
+        self.world.register_stat_min(stat, value);
+        self
+    }
+
+    fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
+        self.world.register_stat_max(stat, value);
+        self
     }
 
     fn query_stat<E: ErasedQuerier, S: Stat>(

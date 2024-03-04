@@ -1,9 +1,7 @@
 use std::{any::type_name, fmt::Debug};
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
-
-use crate::{calc::StatOperation, Serializable, Shareable};
-
+use crate::{calc::StatOperation, Serializable};
 use super::{StatValue, Unsupported};
 
 /// Find if a stat exists.
@@ -44,7 +42,8 @@ impl StatValue for StatExists {
 /// This behavior depends on the const generic values supplied.
 /// if not, returns the default value.
 #[derive(Debug, Default, Clone, Copy, TypePath, Serialize, Deserialize)]
-pub enum StatSingleton<T: PartialEq + Shareable + Default, const PANIC_NOT_FOUND: bool=true, const PANIC_MULTIPLE_FOUND: bool=true> {
+#[serde(bound(serialize = "", deserialize = ""))]
+pub enum StatSingleton<T: PartialEq + Serializable + Default, const PANIC_NOT_FOUND: bool=true, const PANIC_MULTIPLE_FOUND: bool=true> {
     #[default]
     NotFound,
     Found(T),

@@ -5,8 +5,7 @@ use super::{StatValue, Unsupported};
 
 /// A stat represented by a floating point number or a fraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
-#[serde(bound(serialize = ""))]
-#[serde(bound(deserialize = ""))]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct StatFloat<T: Float> {
     pub addend: T,
     pub min: T,
@@ -68,8 +67,7 @@ impl<T: Float> StatValue for StatFloat<T> {
 
 /// A stat represented by a floating point number or a fraction, multiplier is additive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
-#[serde(bound(serialize = ""))]
-#[serde(bound(deserialize = ""))]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct StatFloatAdditive<T: Float> {
     pub addend: T,
     pub min: T,
@@ -130,10 +128,9 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
 }
 
 
-/// An floating point or fraction based multiplier aggregation.
+/// An floating point or fraction based multiplier aggregation. Does not support addition.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TypePath)]
-#[serde(bound(serialize = ""))]
-#[serde(bound(deserialize = ""))]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct StatMult<T: Float> {
     min: T,
     max: T,

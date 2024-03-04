@@ -3,8 +3,7 @@ use bevy_hierarchy::Children;
 use dyn_clone::clone_box;
 use rustc_hash::FxHashMap;
 use crate::{param::IntrinsicParam, sealed::Sealed, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, BaseStatMap, StatParam, StatValuePair, TYPE_ERROR};
-use crate::{StatQuerier, StatValue};
-use crate::{StatCache, StatEntity};
+use crate::{StatCache, StatEntity, StatValue};
 
 #[derive(SystemParam)]
 struct QuerierInner<'w, 's,
@@ -12,7 +11,7 @@ struct QuerierInner<'w, 's,
     Intrinsic: IntrinsicParam<Qualifier> + 'static,
     Components: StatParam<Qualifier> + 'static
 > {
-    defaults: Res<'w, StatDefaults>,
+    defaults: Option<Res<'w, StatDefaults>>,
     units: Query<'w, 's, (Option<&'static BaseStatMap<Qualifier>>, Option<&'static Children>), With<StatEntity>>,
     intrinsic: StaticSystemParam<'w, 's, Intrinsic>,
     items: StaticSystemParam<'w, 's, Components>,
@@ -44,7 +43,16 @@ struct QueryStack<'w, 's, 'w2, 's2, 't, Q: QualifierFlag, D: IntrinsicParam<Q> +
 impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> Sealed
     for QueryStack<'_, '_, '_, '_, '_, Q, D, A> {}
 
-impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> QueryStack<'_, '_, '_, '_, '_, Q, D, A> {
+trait DynQuerier<Q: QualifierFlag> {
+    fn query(&mut self, qualifier: &QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>>;
+    fn query_other(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>>;
+    fn query_distance(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>>;
+}
+
+pub struct QuerierRef<'t, Q: QualifierFlag>(&'t mut dyn DynQuerier<Q>);
+
+
+impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> DynQuerier<Q> for QueryStack<'_, '_, '_, '_, '_, Q, D, A> {
     fn query(&mut self, qualifier: &QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>> {
         let entity = self.stack.last().expect("Must call query_other on the first call.").2;
         self.query_other(entity, qualifier, stat)
@@ -70,12 +78,14 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
             Some(children) => children.iter(),
             None => [].iter(),
         };
-        let mut stat_value = self.querier.defaults.get_dyn(stat);
+        let mut stat_value = self.querier.defaults.as_ref()
+            .map(|x| x.get_dyn(stat))
+            .unwrap_or_else(||stat.default_value());
         let mut pair = StatValuePair(stat, stat_value.as_mut());
         if let Some(stat_map) = stat_map {
             stat_map.iter_write(qualifier, &mut pair)
         }
-        A::stream(&*self.querier.items, queried, qualifier, &mut pair, self);
+        A::stream(&*self.querier.items, queried, qualifier, &mut pair, &mut QuerierRef(self));
         let Some(_) = self.stack.pop() else {panic!("Stack mismatch.")};
         if let Ok(mut cache) = self.world_cache.get_mut(entity) {
             cache.cache_dyn(qualifier.clone(), clone_box(stat), stat_value.clone());
@@ -87,26 +97,33 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
         }
         Some(stat_value)
     }
+
+    fn query_distance(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>> {
+        let curr = self.stack.last().expect("Must call query_other on first call.").2;
+        let mut stat_value = self.querier.defaults.as_ref()
+            .map(|x| x.get_dyn(stat))
+            .unwrap_or_else(||stat.default_value());        
+        let mut pair = StatValuePair(stat as &dyn DynStat, stat_value.as_mut());
+        let ok = D::distance_stream(&*self.querier.intrinsic, curr, entity, qualifier, &mut pair, &mut QuerierRef(self));
+        ok.then_some(stat_value)
+    }
 }
 
 
-impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> StatQuerier<Q>
-        for QueryStack<'_, '_, '_, '_, '_, Q, D, A> {
+impl<Q: QualifierFlag> QuerierRef<'_, Q> {
     fn query<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
-        let entity = self.stack.last().expect("Must call query_other on the first call.").2;
-        self.query_other(entity, qualifier, stat).map(|x| *x.downcast().expect(TYPE_ERROR))
+        self.0.query(qualifier, stat)
+            .map(|x| *x.downcast().expect(TYPE_ERROR))
     }
 
     fn query_other<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
-        self.query_other(entity, qualifier, stat).map(|x| *x.downcast().expect(TYPE_ERROR))
+        self.0.query_other(entity, qualifier, stat)
+            .map(|x| *x.downcast().expect(TYPE_ERROR))    
     }
 
     fn query_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
-        let curr = self.stack.last().expect("Must call query_other on first call.").2;
-        let mut stat_value = self.querier.defaults.get(stat);
-        let mut pair = StatValuePair(stat as &dyn DynStat, &mut stat_value as &mut dyn DynStatValue);
-        let ok = D::distance_stream(&*self.querier.intrinsic, curr, entity, qualifier, &mut pair, self);
-        ok.then_some(stat_value)
+        self.0.query_other(entity, qualifier, stat)
+            .map(|x| *x.downcast().expect(TYPE_ERROR))    
     }
 }
 
@@ -179,7 +196,7 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
     fn system<S: Stat>(
         input: In<(Entity, QualifierQuery<Self::Qualifier>, S)>,
         mut this: StaticSystemParam<Self>,
-    ) -> Option<S::Data>{
+    ) -> Option<S::Data> {
         let (entity, qualifier, stat) = input.0;
         this.query(entity, &qualifier, &stat)
     }
@@ -300,7 +317,7 @@ pub mod hints {
     #[derive(Default)]
     pub struct List<T>(T);
 
-    use crate::{QualifierFlag, StatStream};
+    use crate::{QualifierFlag, ComponentStream};
     use bevy_ecs::query::QueryData;
 
     #[doc(hidden)]

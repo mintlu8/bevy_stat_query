@@ -1,11 +1,16 @@
-use bevy_ecs::{entity::Entity, query::{ReadOnlyQueryData, WorldQuery}, system::SystemParam};
-use crate::{sealed::Sealed, stat_map::FullStatMap, types::DynStatValue, BaseStatMap, DynStat, QualifierFlag, QualifierQuery, Stat, StatOperationsMap, TYPE_ERROR};
+use bevy_ecs::{query::{ReadOnlyQueryData, WorldQuery}, system::SystemParam};
+use bevy_reflect::TypePath;
+use bevy_serde_project::typetagged::BevyTypeTagged;
+use dyn_clone::{clone_trait_object, DynClone};
+use serde::Serialize;
+use crate::{QuerierRef, FullStatMap, types::DynStatValue, BaseStatMap, DynStat, QualifierFlag, QualifierQuery, Stat, StatOperationsMap, TYPE_ERROR};
 
 /// Opaque type that contains a stat and a value.
 #[derive(Debug)]
 pub struct StatValuePair<'t>(pub(crate) &'t dyn DynStat, pub(crate) &'t mut dyn DynStatValue);
 
 impl StatValuePair<'_> {
+    /// If stat is a concrete stat, downcast value.
     pub fn is_then<'a, S: Stat>(&'a mut self, is: &S, then: impl FnOnce(&'a mut S::Data)) -> bool {
         let StatValuePair(stat, data) = self;
         if *stat == is as &dyn DynStat {
@@ -16,6 +21,7 @@ impl StatValuePair<'_> {
         }
     }
 
+    /// If stat is of a type, downcast stat and value.
     pub fn as_then<'a, S: Stat>(&'a mut self, then: impl FnOnce(&S, &'a mut S::Data)) -> bool {
         let StatValuePair(stat, data) = self;
         if let Some(stat) = stat.downcast_ref::<S>() {
@@ -27,11 +33,42 @@ impl StatValuePair<'_> {
     }
 }
 
-/// A trait that can be used to obtain stat relations from other stats or other entities.
-pub trait StatQuerier<Q: QualifierFlag>: Sealed {
-    fn query<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data>;
-    fn query_other<S: Stat>(&mut self, entity: Entity, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data>;
-    fn query_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data>;
+/// A generalized object safe stat relation.
+pub trait StatStream<Q: QualifierFlag>: Send + Sync + 'static {
+    fn stream (
+        &self,
+        qualifier: &QualifierQuery<Q>,
+        stat: &mut StatValuePair,
+        querier: &mut QuerierRef<'_, Q>,
+    );
+}
+
+/// A generalized object safe stat relation that can be serialized.
+pub trait StatStreamObject<Q: QualifierFlag>: StatStream<Q> + DynClone {
+    fn name(&self) -> &'static str;
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize;
+}
+
+impl<Q: QualifierFlag, T: StatStream<Q>> StatStreamObject<Q> for T where T: TypePath + Clone + Serialize {
+    fn name(&self) -> &'static str {
+        T::short_type_path()
+    }
+
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+        self
+    }
+}
+
+clone_trait_object!(<Q: QualifierFlag> StatStreamObject<Q>);
+
+impl<Q: QualifierFlag> BevyTypeTagged for Box<dyn StatStreamObject<Q>>{
+    fn name(&self) -> impl AsRef<str> {
+        self.as_ref().name()
+    }
+
+    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
+        self.as_ref().as_serialize()
+    }
 }
 
 /// An item that can be used to generate stats when its associated component
@@ -39,7 +76,7 @@ pub trait StatQuerier<Q: QualifierFlag>: Sealed {
 ///
 /// The item is generated from the [`QueryData`] and a [`SystemParam`] context,
 /// For example an `Asset` can be generated from a `Handle` and context `Assets`.
-pub trait StatStream<Q: QualifierFlag>: 'static {
+pub trait ComponentStream<Q: QualifierFlag>: 'static {
     type Ctx: SystemParam;
     type QueryData: ReadOnlyQueryData;
     fn stream (
@@ -47,7 +84,7 @@ pub trait StatStream<Q: QualifierFlag>: 'static {
         component: <Self::QueryData as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Q>,
         stat: &mut StatValuePair,
-        querier: &mut impl StatQuerier<Q>
+        querier: &mut QuerierRef<'_, Q>,
     );
 }
 
@@ -78,7 +115,7 @@ impl<Q: QualifierFlag> StatOperationsMap<Q> {
     }
 }
 
-impl<Q: QualifierFlag> StatStream<Q> for StatOperationsMap<Q> {
+impl<Q: QualifierFlag> ComponentStream<Q> for StatOperationsMap<Q> {
     type Ctx = ();
     type QueryData = &'static Self;
 
@@ -87,23 +124,22 @@ impl<Q: QualifierFlag> StatStream<Q> for StatOperationsMap<Q> {
         this: <Self::QueryData as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Q>,
         pair: &mut StatValuePair,
-        _: &mut impl StatQuerier<Q>
+        _: &mut QuerierRef<'_, Q>,
     ){
         this.iter_write(qualifier, pair);
     }
 }
 
-
 /// An item that can be used to generate stats when directly added to `Entity`.
 ///
 /// The item also allows querying for "distance" or other relation between two entities.
-pub trait ContextStream<Qualifier: QualifierFlag>: StatStream<Qualifier> {
+pub trait ContextStream<Qualifier: QualifierFlag>: ComponentStream<Qualifier> {
     fn distance<S: Stat>(
         ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
         this: <Self::QueryData as WorldQuery>::Item<'_>,
         other: <Self::QueryData as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Qualifier>,
         stat: &mut StatValuePair,
-        querier: &mut impl StatQuerier<Qualifier>
+        querier: &mut QuerierRef<Qualifier>
     );
 }

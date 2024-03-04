@@ -242,7 +242,7 @@ macro_rules! stats {
 
         impl $crate::Plugin for $plugin {
             fn build(&self, world: &mut $crate::App) {
-                use $crate::WorldExtension as _;
+                use $crate::StatExtension as _;
                 $($(world.register_stat::<$name>();)*)*
             }
         }

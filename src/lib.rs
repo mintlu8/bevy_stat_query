@@ -125,8 +125,6 @@
 //! [`Querier`] requires read access to all components in stat system so you cannot mutate
 //! anything while having it as a parameter.
 //! Using some kind of deferred command queue for mutations might be advisable in this case.
-
-use bevy_ecs::world::World;
 #[allow(unused)]
 use bevy_ecs::{query::QueryData, component::Component, system::SystemParam};
 
@@ -137,7 +135,7 @@ This is almost certainly a bug since we do not provide a type erased api.";
 pub use bevy_app::{Plugin, App};
 
 use bevy_reflect::TypePath;
-use bevy_serde_project::typetagged::BevyTypeTagged;
+use bevy_serde_project::typetagged::{BevyTypeTagged, FromTypeTagged};
 use downcast_rs::Downcast;
 mod stream;
 use dyn_clone::{clone_trait_object, DynClone};
@@ -145,7 +143,7 @@ use serde::{de::DeserializeOwned, Serialize};
 pub use stream::StatValuePair;
 mod num_traits;
 pub use num_traits::{Int, Float, Flags, Ratio};
-pub use stream::{StatStream, StatQuerier};
+pub use stream::ComponentStream;
 pub mod types;
 pub use types::StatValue;
 mod qualifier;
@@ -159,14 +157,14 @@ mod entity;
 pub use entity::{StatCache, StatEntity};
 pub mod rounding;
 mod plugin;
-pub use plugin::{StatEnginePlugin, StatExtension};
+pub use plugin::StatExtension;
 mod querier;
-pub use querier::{Querier, hints};
+pub use querier::{Querier, hints, QuerierRef};
 mod param;
 #[doc(hidden)]
 pub use param::{ChildStatParam, StatParam};
 mod stat_map;
-pub use stat_map::{BaseStatMap, Unqualified, StatOperationsMap};
+pub use stat_map::{BaseStatMap, FullStatMap, Unqualified, StatOperationsMap};
 
 use std::fmt::Debug;
 
@@ -212,24 +210,21 @@ impl BevyTypeTagged for Box<dyn Data> {
     }
 
     fn as_serialize(&self) -> &dyn bevy_reflect::erased_serde::Serialize {
-        todo!()
+        self.as_ref().as_serialize()
     }
 }
+
+
+impl<T: Serializable> FromTypeTagged<T> for Box<dyn Data> {
+    fn name() -> impl AsRef<str> {
+        T::short_type_path()
+    }
+
+    fn from_type_tagged(item: T) -> Self {
+        Box::new(item)
+    }
+}
+
+
 
 downcast_rs::impl_downcast!(Data);
-
-pub trait WorldExtension {
-    fn register_stat<T: Stat>(&mut self) -> &mut Self;
-}
-
-impl WorldExtension for World {
-    fn register_stat<T: Stat>(&mut self) -> &mut Self {
-        self
-    }
-}
-
-impl WorldExtension for App {
-    fn register_stat<T: Stat>(&mut self) -> &mut Self {
-        self
-    }
-}

@@ -3,7 +3,7 @@ use bevy_asset::{Asset, AssetApp, AssetPlugin, AssetServer, Assets, Handle};
 use bevy_ecs::{component::Component, entity::Entity, query::With, system::{Commands, Query, Res}};
 use bevy_hierarchy::BuildChildren;
 use bevy_reflect::TypePath;
-use bevy_stat_engine::{querier, stats, types::StatFloat, QualifierQuery, StatCache, StatValue, StatEnginePlugin, StatEntity, StatStream};
+use bevy_stat_engine::{querier, stats, types::StatFloat, QualifierQuery, QuerierRef, StatCache, StatEntity, ComponentStream, StatValue};
 
 stats!(
     MyStatsPlugin {
@@ -40,7 +40,7 @@ pub struct B;
 
 type MyQualifier = u32;
 
-impl StatStream<MyQualifier> for Weapon {
+impl ComponentStream<MyQualifier> for Weapon {
     type Ctx = Res<'static, Assets<Weapon>>;
     type QueryData = (&'static Handle<Weapon>, &'static WeaponState);
     fn stream (
@@ -48,7 +48,7 @@ impl StatStream<MyQualifier> for Weapon {
         (handle, state): <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<MyQualifier>,
         stat: &mut bevy_stat_engine::StatValuePair,
-        _: &mut impl bevy_stat_engine::StatQuerier<MyQualifier>
+        _: &mut QuerierRef<'_, MyQualifier>
     ) {
         stat.is_then(&Damage, |w| {
             let Some(weapon) = assets.get(handle) else {return};
@@ -69,7 +69,6 @@ querier!(pub MyQuerier {
 pub fn main() {
     App::new()
         .add_plugins(AssetPlugin::default())
-        .add_plugins(StatEnginePlugin)
         .init_asset::<Weapon>()
         .add_systems(Startup, init)
         .add_systems(Update, query)
