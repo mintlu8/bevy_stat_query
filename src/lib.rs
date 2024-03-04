@@ -165,7 +165,7 @@ mod param;
 #[doc(hidden)]
 pub use param::{ChildStatParam, StatParam};
 mod stat_map;
-pub use stat_map::{StatMap, Unqualified, StatOperationsMap};
+pub use stat_map::{BaseStatMap, Unqualified, StatOperationsMap};
 
 use std::fmt::Debug;
 

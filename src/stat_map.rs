@@ -9,6 +9,7 @@ use ref_cast::RefCast;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use bevy_ecs::change_detection::Mut;
+use crate::types::DynStatValue;
 use crate::{Data, Stat, Qualifier, QualifierFlag, DynStat, StatValue, StatOperation, TYPE_ERROR};
 use crate::StatInstances;
 /// A map-like, type erased storage for stats.
@@ -35,6 +36,7 @@ impl<Q: QualifierFlag, D> Default for StatMapInner<Q, D> {
     }
 }
 
+type SData<T> = <T as Stat>::Data;
 type SOut<T> = <<T as Stat>::Data as StatValue>::Out;
 type SOp<T> = StatOperation<<T as Stat>::Data>;
 
@@ -114,10 +116,10 @@ impl<T> DerefMut for Unqualified<T> {
 }
 
 macro_rules! impl_stat_map {
-    ($name: ident, $stat: ident, $value: ty) => {
+    ($name: ident, $stat: ident, $value: ty, $trait_obj: ident) => {
         #[derive(Debug, Clone, Default, Component, TypePath)]
         #[type_path = "bse"]
-        pub struct $name<Q: QualifierFlag>(StatMapInner<Q, Box<dyn Data>>);
+        pub struct $name<Q: QualifierFlag>(StatMapInner<Q, Box<dyn $trait_obj>>);
 
         impl<Q: QualifierFlag> $name<Q> {
             pub fn new() -> Self {
@@ -171,87 +173,114 @@ macro_rules! impl_stat_map {
             }
 
             /// Iterate over a particulat stat.
-            pub(crate) fn iter_dyn(&self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &dyn Data)> {
+            pub(crate) fn iter_dyn(&self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &dyn $trait_obj)> {
                 self.0.iter(stat)
                     .map(|(q, v)| (q, v.as_ref()))
             }
 
             /// Iterate over a particulat stat.
-            pub(crate) fn iter_dyn_mut(&mut self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &mut dyn Data)> {
+            pub(crate) fn iter_dyn_mut(&mut self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &mut dyn $trait_obj)> {
                 self.0.iter_mut(stat)
                     .map(|(q, v)| (q, v.as_mut()))
             }
         }
 
         impl<Q: QualifierFlag> Unqualified<$name<Q>> {
-            pub fn insert<S: Stat>(&mut self, stat: S, value: SOut<S>) {
+            pub fn insert<S: Stat>(&mut self, stat: S, value: $value) {
                 self.0.0.inner.insert((Box::new(stat), Qualifier::default()), Box::new(value));
             }
 
-            pub fn get<S: Stat>(&self, stat: &S) -> Option<&SOut<S>> {
+            pub fn get<S: Stat>(&self, stat: &S) -> Option<&$value> {
                 self.0.0.inner
                     .get(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
-                    .map(|x| x.downcast_ref::<SOut<S>>().expect(TYPE_ERROR))
+                    .map(|x| x.downcast_ref::<$value>().expect(TYPE_ERROR))
             }
 
-            pub fn get_mut<S: Stat>(&mut self, stat: &S) -> Option<&mut SOut<S>> {
+            pub fn get_mut<S: Stat>(&mut self, stat: &S) -> Option<&mut $value> {
                 self.0.0.inner
                     .get_mut(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
-                    .map(|x| x.downcast_mut::<SOut<S>>().expect(TYPE_ERROR))
+                    .map(|x| x.downcast_mut::<$value>().expect(TYPE_ERROR))
             }
 
-            pub fn remove<S: Stat>(&mut self, stat: &S) -> Option<SOut<S>> {
+            pub fn remove<S: Stat>(&mut self, stat: &S) -> Option<$value> {
                 self.0.0.inner
                     .remove(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
-                    .map(|x| *x.downcast::<SOut<S>>().expect(TYPE_ERROR))
+                    .map(|x| *x.downcast::<$value>().expect(TYPE_ERROR))
             }
         }
 
-        impl<Q: QualifierFlag + Serialize + DeserializeOwned> SerdeProject for $name<Q> {
-            type Ctx = StatInstances;
-
-            type Ser<'t> = Vec<SerEntry<'t, Q>>;
-            type De<'de> = Vec<DeEntry<'de, Q>>;
-
-            fn to_ser<'t>(&'t self, ctx: &&'t StatInstances) -> Result<Self::Ser<'t>, Box<Error>> {
-                self.0.inner.iter().map(|((s, q), d)|{
-                    Ok(SerEntry {
-                        qualifier: q,
-                        stat: s.to_ser(ctx)?,
-                        data: TypeTagged::ref_cast(d).to_ser(&())?,
-                    })
-                }).collect()
+        const _: () = {
+            #[derive(Serialize)]
+            pub struct SerEntry<'t, Q: QualifierFlag + Serialize + DeserializeOwned> {
+                qualifier: &'t Qualifier<Q>,
+                stat: <Box<dyn DynStat> as SerdeProject>::Ser<'t>,
+                data: <TypeTagged<Box<dyn $trait_obj>> as SerdeProject>::Ser<'t>,
             }
 
-            fn from_de(ctx: &mut Mut<StatInstances>, de: Self::De<'_>) -> Result<Self, Box<Error>> {
-                use bevy_serde_project::Convert;
-                Ok(Self(StatMapInner{
-                    inner: de.into_iter().map(|DeEntry { qualifier, stat, data }| {
-                        Ok(((Box::<dyn DynStat>::from_de(ctx, stat)?, qualifier),
-                            TypeTagged::from_de(&mut (), data)?.de()))
-                    }).collect::<Result<_, Box<Error>>>()?
-                }))
+            #[derive(Deserialize)]
+            #[serde(bound = "'t: 'de")]
+            pub struct DeEntry<'t, Q: QualifierFlag + Serialize + DeserializeOwned> {
+                qualifier: Qualifier<Q>,
+                stat: <Box<dyn DynStat> as SerdeProject>::De<'t>,
+                data: <TypeTagged<Box<dyn $trait_obj>> as SerdeProject>::De<'t>,
             }
-        }
+
+            impl<Q: QualifierFlag + Serialize + DeserializeOwned> SerdeProject for $name<Q> {
+                type Ctx = StatInstances;
+    
+                type Ser<'t> = Vec<SerEntry<'t, Q>>;
+                type De<'de> = Vec<DeEntry<'de, Q>>;
+    
+                fn to_ser<'t>(&'t self, ctx: &&'t StatInstances) -> Result<Self::Ser<'t>, Box<Error>> {
+                    self.0.inner.iter().map(|((s, q), d)|{
+                        Ok(SerEntry {
+                            qualifier: q,
+                            stat: s.to_ser(ctx)?,
+                            data: TypeTagged::ref_cast(d).to_ser(&())?,
+                        })
+                    }).collect()
+                }
+    
+                fn from_de(ctx: &mut Mut<StatInstances>, de: Self::De<'_>) -> Result<Self, Box<Error>> {
+                    use bevy_serde_project::Convert;
+                    Ok(Self(StatMapInner{
+                        inner: de.into_iter().map(|DeEntry { qualifier, stat, data }| {
+                            Ok(((Box::<dyn DynStat>::from_de(ctx, stat)?, qualifier),
+                                TypeTagged::from_de(&mut (), data)?.de()))
+                        }).collect::<Result<_, Box<Error>>>()?
+                    }))
+                }
+            }
+        };
     };
 }
 
-impl_stat_map!(StatMap, S, SOut<S>);
-impl_stat_map!(StatOperationsMap, S, SOp<S>);
+impl_stat_map!(BaseStatMap, S, SOut<S>, Data);
+impl_stat_map!(FullStatMap, S, SData<S>, DynStatValue);
+impl_stat_map!(StatOperationsMap, S, SOp<S>, Data);
 
-#[derive(Serialize)]
-pub struct SerEntry<'t, Q: QualifierFlag + Serialize + DeserializeOwned> {
-    qualifier: &'t Qualifier<Q>,
-    stat: <Box<dyn DynStat> as SerdeProject>::Ser<'t>,
-    data: <TypeTagged<Box<dyn Data>> as SerdeProject>::Ser<'t>,
+impl<Q: QualifierFlag> BaseStatMap<Q> {
+    pub fn modify<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S, f: impl FnOnce(&mut SOut<S>)){
+        if let Some(val) = self.get_mut(qualifier, stat){
+            f(val)
+        } else {
+            let mut val = SOut::<S>::default();
+            f(&mut val);
+            self.insert(qualifier.clone(), stat.clone(), val);
+        }
+    }
 }
 
-#[derive(Deserialize)]
-#[serde(bound = "'t: 'de")]
-pub struct DeEntry<'t, Q: QualifierFlag + Serialize + DeserializeOwned> {
-    qualifier: Qualifier<Q>,
-    stat: <Box<dyn DynStat> as SerdeProject>::De<'t>,
-    data: <TypeTagged<Box<dyn Data>> as SerdeProject>::De<'t>,
+impl<Q: QualifierFlag> FullStatMap<Q> {
+    pub fn modify<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S, f: impl FnOnce(&mut SData<S>)){
+        if let Some(val) = self.get_mut(qualifier, stat){
+            f(val)
+        } else {
+            let mut val = SData::<S>::default();
+            f(&mut val);
+            self.insert(qualifier.clone(), stat.clone(), val);
+        }
+    }
 }
 
 trait QueryStatEntry<Q: QualifierFlag> {

@@ -8,6 +8,7 @@ use std::fmt::Debug;
 
 use crate::{calc::StatOperation, Data, Shareable, TYPE_ERROR};
 
+use bevy_serde_project::typetagged::BevyTypeTagged;
 use downcast_rs::impl_downcast;
 use dyn_clone::clone_trait_object;
 pub use int_pct::{StatIntPercentAdditive, StatIntPercent};
@@ -46,7 +47,7 @@ pub trait StatValue: Shareable + Default + Clone{
 
 pub(crate) trait DynStatValue: Data {
     fn apply_op(&mut self, other: &dyn Data);
-    fn join_value(&mut self, other: &dyn Data);
+    fn join_value(&mut self, other: &dyn DynStatValue);
 }
 
 impl_downcast!(DynStatValue);
@@ -58,7 +59,17 @@ impl<T> DynStatValue for T where T: StatValue {
         other.downcast_ref::<StatOperation<T>>().expect(TYPE_ERROR).write_to(self)
     }
 
-    fn join_value(&mut self, other: &dyn Data) {
+    fn join_value(&mut self, other: &dyn DynStatValue) {
         self.join(other.downcast_ref::<Self>().expect(TYPE_ERROR).clone())
+    }
+}
+
+impl BevyTypeTagged for Box<dyn DynStatValue> {
+    fn name(&self) -> &'static str {
+        todo!()
+    }
+
+    fn as_serialize(&self) -> &dyn bevy_reflect::erased_serde::Serialize {
+        todo!()
     }
 }

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::{Eq, Ord, Ordering}, fmt::Debug, hash::Hash};
+use std::{borrow::Cow, cmp::{Eq, Ord, Ordering}, fmt::Debug, hash::Hash, str::FromStr};
 
 use bevy_ecs::system::Resource;
 use bevy_serde_project::{Error, FromWorldAccess, SerdeProject};
@@ -8,7 +8,6 @@ use dyn_hash::DynHash;
 use rustc_hash::FxHashMap;
 
 use crate::{sealed::SealedAll, types::DynStatValue, Data, Shareable, StatValue, TYPE_ERROR};
-
 
 /// Implement this on your types to qualify them as a [`Stat`].
 ///
@@ -33,8 +32,11 @@ use crate::{sealed::SealedAll, types::DynStatValue, Data, Shareable, StatValue, 
 pub trait Stat: Shareable + Hash + Debug + Eq + Ord {
     type Data: StatValue;
 
+    /// Unique name of the stat.
     fn name(&self) -> &str;
 
+    /// Register all fields,
+    /// alternatively register a `FromStr` parser.
     fn values() -> impl IntoIterator<Item = Self>;
 
     /// Equality comparison between all stat implementors.
@@ -49,8 +51,8 @@ pub(crate) trait DynStat: Downcast + DynClone + DynHash + Debug + Send + Sync {
     fn dyn_eq(&self, other: &dyn DynStat) -> bool;
     fn dyn_ord(&self, other: &dyn DynStat) -> Ordering;
     fn default_value(&self) -> Box<dyn DynStatValue>;
-    fn from_out(&self, out: &dyn Data) -> Box<dyn Data>;
-    fn compose_stat(&self, from: &mut dyn Data, with: &dyn Data);
+    #[allow(clippy::wrong_self_convention)]
+    fn from_base(&self, out: &dyn Data) -> Box<dyn Data>;
 }
 
 impl_downcast!(DynStat);
@@ -111,31 +113,42 @@ impl<T> DynStat for T where T:Stat {
         Box::<<T as Stat>::Data>::default()
     }
 
-    fn from_out(&self, out: &dyn Data) -> Box<dyn Data> {
+    fn from_base(&self, out: &dyn Data) -> Box<dyn Data> {
         Box::new(
             <<T as Stat>::Data>::from_base(
                 out.downcast_ref::<<<T as Stat>::Data as StatValue>::Out>()
                     .expect(TYPE_ERROR).clone())
         )
     }
-
-    fn compose_stat(&self, from: &mut dyn Data, with: &dyn Data) {
-        let from = from.downcast_mut::<T::Data>().expect("Wrong data type in compose.");
-        let with = with.downcast_ref::<T::Data>().expect("Wrong data type in compose.");
-        from.join(with.clone());
-    }
 }
 
-#[derive(Debug, Resource, Default)]
-pub struct StatInstances (
-    pub(crate) FxHashMap<String, Box<dyn DynStat>>
-);
+#[derive(Resource, Default)]
+pub struct StatInstances {
+    pub(crate) concrete: FxHashMap<String, Box<dyn DynStat>>,
+    pub(crate) any: Vec<fn(&str) -> Option<Box<dyn DynStat>>>,
+}
+
+impl Debug for StatInstances {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StatInstances")
+            .field("concrete", &self.concrete)
+            .field("any", &self.any.len())
+            .finish()
+    }
+}
 
 impl StatInstances {
     pub fn register<T: Stat>(&mut self) {
         T::values().into_iter().for_each(|x| {
-            self.0.insert(x.name().to_owned(), Box::new(x));
+            self.concrete.insert(x.name().to_owned(), Box::new(x));
         })
+    }
+
+    pub fn register_parser<T: Stat + FromStr>(&mut self) {
+        T::values().into_iter().for_each(|x| {
+            self.concrete.insert(x.name().to_owned(), Box::new(x));
+        });
+        self.any.push(|s| T::from_str(s).map(|x| Box::new(x) as Box<dyn DynStat>).ok())
     }
 }
 
@@ -150,7 +163,9 @@ impl SerdeProject for Box<dyn DynStat> {
 
     fn from_de(ctx: &mut <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, Box<Error>> {
         let s = de.as_ref();
-        if let Some(result) = ctx.0.get(s){
+        if let Some(result) = ctx.concrete.get(s){
+            Ok(result.clone())
+        } else if let Some(result) = ctx.any.iter().find_map(|f| f(s)){
             Ok(result.clone())
         } else {
             Err(Error::custom(format!("Unable to parse Stat \"{s}\".")))

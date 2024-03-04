@@ -3,6 +3,36 @@ use crate::{calc::StatOperation, Shareable};
 
 use super::{StatValue, Unsupported};
 
+/// Find if a stat exists.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct StatExists(bool);
+
+impl StatValue for StatExists {
+    type Out = bool;
+
+    type Bit = bool;
+
+    type Add = Unsupported;
+    type Mul = Unsupported;
+    type Bounds = Unsupported;
+
+    fn join(&mut self, other: Self) {
+        self.0 = other.0;
+    }
+    
+    fn eval(&self) -> Self::Out {
+        self.0
+    }
+    
+    fn from_base(out: Self::Out) -> StatOperation<Self> {
+        StatOperation::Or(out)
+    }
+
+    fn or(&mut self, other: Self::Bit) {
+        self.0 |= other
+    }
+}
+
 /// Finds a single entry of a given stat.
 ///
 /// # Panics

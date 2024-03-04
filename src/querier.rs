@@ -2,7 +2,7 @@ use bevy_ecs::{entity::Entity, query::With, system::{In, Query, Res, StaticSyste
 use bevy_hierarchy::Children;
 use dyn_clone::clone_box;
 use rustc_hash::FxHashMap;
-use crate::{param::IntrinsicParam, sealed::Sealed, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, StatMap, StatParam, StatValuePair, TYPE_ERROR};
+use crate::{param::IntrinsicParam, sealed::Sealed, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, BaseStatMap, StatParam, StatValuePair, TYPE_ERROR};
 use crate::{StatQuerier, StatValue};
 use crate::{StatCache, StatEntity};
 
@@ -13,7 +13,7 @@ struct QuerierInner<'w, 's,
     Components: StatParam<Qualifier> + 'static
 > {
     defaults: Res<'w, StatDefaults>,
-    units: Query<'w, 's, (Option<&'static StatMap<Qualifier>>, Option<&'static Children>), With<StatEntity>>,
+    units: Query<'w, 's, (Option<&'static BaseStatMap<Qualifier>>, Option<&'static Children>), With<StatEntity>>,
     intrinsic: StaticSystemParam<'w, 's, Intrinsic>,
     items: StaticSystemParam<'w, 's, Components>,
 }

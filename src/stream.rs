@@ -1,5 +1,5 @@
 use bevy_ecs::{entity::Entity, query::{ReadOnlyQueryData, WorldQuery}, system::SystemParam};
-use crate::{sealed::Sealed, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatMap, StatOperationsMap, TYPE_ERROR};
+use crate::{sealed::Sealed, stat_map::FullStatMap, types::DynStatValue, BaseStatMap, DynStat, QualifierFlag, QualifierQuery, Stat, StatOperationsMap, TYPE_ERROR};
 
 /// Opaque type that contains a stat and a value.
 #[derive(Debug)]
@@ -51,12 +51,21 @@ pub trait StatStream<Q: QualifierFlag>: 'static {
     );
 }
 
-impl<Q: QualifierFlag> StatMap<Q> {
+impl<Q: QualifierFlag> BaseStatMap<Q> {
     pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
         let StatValuePair(stat, data) = pair;
         self.iter_dyn(*stat)
             .filter(|(q, _)| q.qualifies_as(qualifier))
-            .for_each(|(_, op)| data.apply_op(op))
+            .for_each(|(_, op)| data.apply_op(&stat.from_base(op)))
+    }
+}
+
+impl<Q: QualifierFlag> FullStatMap<Q> {
+    pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
+        let StatValuePair(stat, data) = pair;
+        self.iter_dyn(*stat)
+            .filter(|(q, _)| q.qualifies_as(qualifier))
+            .for_each(|(_, op)| data.join_value(op))
     }
 }
 
