@@ -9,7 +9,12 @@ use crate::{QuerierRef, FullStatMap, types::DynStatValue, BaseStatMap, DynStat, 
 #[derive(Debug)]
 pub struct StatValuePair<'t>(pub(crate) &'t dyn DynStat, pub(crate) &'t mut dyn DynStatValue);
 
-impl StatValuePair<'_> {
+impl<'t> StatValuePair<'t> {
+
+    pub fn new<S: Stat>(stat: &'t S, value: &'t mut S::Data) -> Self{
+        StatValuePair(stat, value)
+    }
+
     /// If stat is a concrete stat, downcast value.
     pub fn is_then<'a, S: Stat>(&'a mut self, is: &S, then: impl FnOnce(&'a mut S::Data)) -> bool {
         let StatValuePair(stat, data) = self;
@@ -114,11 +119,27 @@ impl<Q, T> FromTypeTagged<T> for Box<dyn StatStreamObject<Q>> where Q: Qualifier
     }
 }
 
-/// Component and context based stat stream.
+/// An item that can be used to generate stats when directly added to [`StatEntity`](crate::StatEntity).
+///
+/// The item also allows querying for "distance" or other relation between paired components on two entities.
+pub trait IntrinsicStream<Qualifier: QualifierFlag>: ExternalStream<Qualifier> {
+    /// Write to `stat` and return true ***if a value is written***.
+    fn distance (
+        ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
+        this: <Self::QueryData as WorldQuery>::Item<'_>,
+        other: <Self::QueryData as WorldQuery>::Item<'_>,
+        qualifier: &QualifierQuery<Qualifier>,
+        stat: &mut StatValuePair,
+        querier: &mut QuerierRef<Qualifier>
+    ) -> bool;
+}
+
+
+/// Component and context based stat streams on children of [`StatEntity`](crate::StatEntity).
 ///
 /// The item is generated from the [`ReadOnlyQueryData`] and a [`SystemParam`] context,
 /// For example an `Asset` can be generated from a `Handle` and context `Assets`.
-pub trait ComponentStream<Q: QualifierFlag>: 'static {
+pub trait ExternalStream<Q: QualifierFlag>: 'static {
     type Ctx: ReadOnlySystemParam;
     type QueryData: ReadOnlyQueryData;
     fn stream (
@@ -157,7 +178,7 @@ impl<Q: QualifierFlag> StatelessStream<Q> for FullStatMap<Q> {
     }
 }
 
-impl<Q: QualifierFlag>  StatelessStream<Q> for StatOperationsMap<Q> {
+impl<Q: QualifierFlag> StatelessStream<Q> for StatOperationsMap<Q> {
     fn stat_extend (
         &self,
         qualifier: &QualifierQuery<Q>,
@@ -170,9 +191,9 @@ impl<Q: QualifierFlag>  StatelessStream<Q> for StatOperationsMap<Q> {
     }
 }
 
-impl<Q: QualifierFlag> ComponentStream<Q> for BaseStatMap<Q> {
+impl<Q: QualifierFlag> ExternalStream<Q> for BaseStatMap<Q> {
     type Ctx = ();
-    type QueryData = &'static Self;
+    type QueryData = Option<&'static Self>;
 
     fn stream (
         _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
@@ -181,13 +202,15 @@ impl<Q: QualifierFlag> ComponentStream<Q> for BaseStatMap<Q> {
         pair: &mut StatValuePair,
         _: &mut QuerierRef<'_, Q>,
     ){
-        this.stat_extend(qualifier, pair);
+        if let Some(this) = this {
+            this.stat_extend(qualifier, pair);
+        }
     }
 }
 
-impl<Q: QualifierFlag> ComponentStream<Q> for FullStatMap<Q> {
+impl<Q: QualifierFlag> ExternalStream<Q> for FullStatMap<Q> {
     type Ctx = ();
-    type QueryData = &'static Self;
+    type QueryData = Option<&'static Self>;
 
     fn stream (
         _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
@@ -196,13 +219,15 @@ impl<Q: QualifierFlag> ComponentStream<Q> for FullStatMap<Q> {
         pair: &mut StatValuePair,
         _: &mut QuerierRef<'_, Q>,
     ){
-        this.stat_extend(qualifier, pair);
+        if let Some(this) = this {
+            this.stat_extend(qualifier, pair);
+        }    
     }
 }
 
-impl<Q: QualifierFlag> ComponentStream<Q> for StatOperationsMap<Q> {
+impl<Q: QualifierFlag> ExternalStream<Q> for StatOperationsMap<Q> {
     type Ctx = ();
-    type QueryData = &'static Self;
+    type QueryData = Option<&'static Self>;
 
     fn stream (
         _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
@@ -211,21 +236,49 @@ impl<Q: QualifierFlag> ComponentStream<Q> for StatOperationsMap<Q> {
         pair: &mut StatValuePair,
         _: &mut QuerierRef<'_, Q>,
     ){
-        this.stat_extend(qualifier, pair);
+        if let Some(this) = this {
+            this.stat_extend(qualifier, pair);
+        }    
     }
 }
 
-/// An item that can be used to generate stats when directly added to `Entity`.
-///
-/// The item also allows querying for "distance" or other relation between paired components on two entities.
-pub trait IntrinsicStream<Qualifier: QualifierFlag>: ComponentStream<Qualifier> {
-    /// Write to `stat` and return true ***if a value is written***.
+
+impl<Q: QualifierFlag> IntrinsicStream<Q> for BaseStatMap<Q> {
     fn distance (
-        ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
-        this: <Self::QueryData as WorldQuery>::Item<'_>,
-        other: <Self::QueryData as WorldQuery>::Item<'_>,
-        qualifier: &QualifierQuery<Qualifier>,
-        stat: &mut StatValuePair,
-        querier: &mut QuerierRef<Qualifier>
-    ) -> bool;
+        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
+        _: <Self::QueryData as WorldQuery>::Item<'_>,
+        _: <Self::QueryData as WorldQuery>::Item<'_>,
+        _: &QualifierQuery<Q>,
+        _: &mut StatValuePair,
+        _: &mut QuerierRef<Q>
+    ) -> bool {
+        false
+    }
 }
+
+impl<Q: QualifierFlag> IntrinsicStream<Q> for FullStatMap<Q> {
+    fn distance (
+        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
+        _: <Self::QueryData as WorldQuery>::Item<'_>,
+        _: <Self::QueryData as WorldQuery>::Item<'_>,
+        _: &QualifierQuery<Q>,
+        _: &mut StatValuePair,
+        _: &mut QuerierRef<Q>
+    ) -> bool {
+        false
+    }
+}
+
+impl<Q: QualifierFlag> IntrinsicStream<Q> for StatOperationsMap<Q> {
+    fn distance (
+        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
+        _: <Self::QueryData as WorldQuery>::Item<'_>,
+        _: <Self::QueryData as WorldQuery>::Item<'_>,
+        _: &QualifierQuery<Q>,
+        _: &mut StatValuePair,
+        _: &mut QuerierRef<Q>
+    ) -> bool {
+        false
+    }
+}
+

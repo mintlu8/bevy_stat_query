@@ -24,7 +24,7 @@
 //! 
 //! Each [`Qualifier`] can only have one group of `any_of` which is a limitation currently.
 //! 
-//! # Examples
+//! ### Examples
 //!
 //! ```
 //! let fire = Qualifier::all_of(Flag::Fire);
@@ -49,8 +49,8 @@
 //! * `(Fire|Sword, Damage)` does not qualify.
 //! * `(Fire|Burn|Magic, Defense)` does not qualify.
 //!
-//! [`QualifierQuery::Specific`] allows you to deny
-//! more generalized qualifiers that qualifies as this.
+//! [`QualifierQuery::Exact`] allows us to deny
+//! more generalized qualifiers..
 //!
 //! For example, in order to model a statement like so:
 //!
@@ -64,28 +64,36 @@
 //! Therefore the query should be:
 //!
 //! ```
-//! QualifierQuery::Specific {
+//! QualifierQuery::Exact {
 //!     any_of: None,
 //!     all_of: Magic,
-//!     some_of: Magic,
 //! }
 //! ```
+//! 
+//! * What do you mean? `DarkFire` and `Fire` and totally different things and should be independent.
+//! 
+//! Create a new qualifier `DarkFire` instead of `Dark`|`Fire`.
 //!
 //! # Getting Started
 //!
 //! Add marker component [`StatEntity`] to an `Entity`.
 //! If you need caching, add a [`StatCache`] as well.
-//! You need to manually clear the cache when state is changed.
+//! You need to manually clear the cache when the state is changed, however.
+//! 
+//! *Implement [`IntrinsicStream`] to make components on the entity queryable.
+//! *Implement [`ExternalStream`] to make components on child entities queryable.
+//! 
+//! For example we can add [`BaseStatMap`] to the `Entity` as base stats, if we include
+//! it in the `intrinsic` section of the [`querier!`] macro.
+//! 
+//! # Querier
 //!
-//! Let's refer to an `Entity` that can be queried as a `Unit`.
+//! [`StatQuerier`] is the [`SystemParam`] to query stats, it is quite difficult to
+//! define one manually so the recommended way is to define a `type` with the
+//! [`querier!`] macro. Additionally we can also use the [`StatExtension`] with `World` access
+//! for similar functionalities.
 //!
-//! [`StatMap`] can be used as base stats for the `Unit`.
-//! To add behaviors beyond base stats,
-//! we need to implement [`ComponentStream`], which is a [`QueryData`] with some external context.
-//! [`StatStream`] implementors can be attached to **children** of the
-//! [`StatEntity`] (not on `StatEntity` itself) to take effect.
-//!
-//! # Unordered Stat Stream
+//! # Unordered StatStream
 //!
 //! `bevy_stat_engine` uses unordered operations to build up stats. This includes
 //! `add`, `multiply`, `min`, `max` and `or`. This ensures no explicit ordering is
@@ -93,31 +101,32 @@
 //!
 //! Each stat has its components form [`StatValue`], e.g. `(12 * 4).min(99).max(0)`,
 //! and its evaluated form, e.g. `48`. You can implement your own `StatValue`
-//! to achieve custom behaviors.
+//! to achieve custom behaviors. [`StatOperation`] stores a single operation
+//! that can be written to a [`StatValue`].
+//! 
+//! ## Stat Relation
 //!
-//! Additionally you can create relations between different
+//! We can create relations between different
 //! stats using either their components form or their evaluated form.
 //! [`StatStream`]s are allowed to query other stats or stats on other entities.
 //! Since stat operations are unordered, dependency cycles cannot be resolved.
 //! If a cycle is detected, an error will be thrown.
 //!
-//! # Intrinsics
+//! ## Entity Relation
 //!
-//! The stat system can obtain intrinsic information on the `Unit`.
-//! By implementing [`IntrinsicStream`] for a [`Stat`] we can look for stats
-//! directly on components on the `Unit` entity. Additionally intrinsics
-//! can be used to obtain `distance` or other bi-unit relationship 
-//! for the stat system. This can be used to model aura effects.
+//! [`IntrinsicStream`] can be used to provide bi-entity relationship 
+//! like `distance` or `allegiance`. This can be used to model range based effects.
+//! 
+//! # Note
 //!
-//! # Querier
-//!
-//! The [`StatQuerier`] is the [`SystemParam`] to query stats, it is quite difficult to
-//! define one manually so the recommended way is to define a `type` with the
-//! [`querier!`] macro. Additionally you can also use the [`StatExtension`] with `World` access.
-//!
-//! [`StatQuerier`] requires read access to all components in stat system so you cannot mutate
+//! * [`StatQuerier`] requires read access to all components in stat system so we cannot mutate
 //! anything while having it as a parameter.
-//! Using some kind of deferred command queue for mutations might be advisable in this case.
+//! Using system piping or some kind of deferred command queue for mutations 
+//! might be advisable in this case.
+//! 
+//! * The crate heavily utilizes dynamic dispatch under the hood, and is therefore
+//! not fully reflect compatible. The sole supported serialization method is
+//! through the [`bevy_serde_project`] crate, Check out that crate for more information.
 #[allow(unused)]
 use bevy_ecs::{query::QueryData, component::Component, system::SystemParam};
 
@@ -136,7 +145,7 @@ use serde::{de::DeserializeOwned, Serialize};
 pub use stream::StatValuePair;
 mod num_traits;
 pub use num_traits::{Int, Float, Flags, Fraction};
-pub use stream::{ComponentStream, IntrinsicStream, StatStream, StatStreamObject, StatelessStream};
+pub use stream::{ExternalStream, IntrinsicStream, StatStream, StatStreamObject, StatelessStream};
 pub mod types;
 pub use types::StatValue;
 mod qualifier;

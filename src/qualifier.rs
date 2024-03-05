@@ -83,10 +83,9 @@ pub trait IntoQualifierQuery<Q: QualifierFlag> {
 
 impl<Q: QualifierFlag> IntoQualifierQuery<Q> for Qualifier<Q> {
     fn into_flags(self) -> QualifierQuery<Q> {
-        QualifierQuery::Specific {
+        QualifierQuery::Exact {
             any_of: self.any_of,
             all_of: self.all_of,
-            some_of: Q::none()
         }
     }
     fn to_flags_ref(&self) -> Cow<'_, QualifierQuery<Q>>{
@@ -113,6 +112,13 @@ impl<Q: QualifierFlag> IntoQualifierQuery<Q> for QualifierQuery<Q> {
 }
 
 impl<Q: QualifierFlag> Qualifier<Q> {
+
+    pub fn none() -> Self {
+        Self { 
+            any_of: Q::none(), 
+            all_of: Q::none() 
+        }
+    }
 
     pub fn is_none(&self) -> bool {
         self.any_of.is_none() && self.all_of.is_none()
@@ -159,11 +165,9 @@ impl<Q: QualifierFlag> Qualifier<Q> {
                 some_of.contains(&self.all_of) &&
                 self.any_of.is_none_or_intersects(some_of)
             },
-            QualifierQuery::Specific { any_of, all_of, some_of } => {
+            QualifierQuery::Exact { any_of, all_of } => {
                 self.any_of.contains(any_of) &&
-                self.all_of.contains(all_of) &&
-                some_of.contains(&self.all_of) &&
-                self.any_of.is_none_or_intersects(some_of)
+                &self.all_of == all_of
             },
         }
     }
@@ -178,18 +182,22 @@ pub enum QualifierQuery<Q: QualifierFlag> {
     /// Queried `any_of` intersects this (or is none) and this contains Queried `all_of`.
     Aggregate(Q),
     /// Look for qualifiers that are this and deny more generalized qualifiers.
-    Specific {
+    Exact {
         /// Queried `any_of` contains this.
         any_of: Q,
-        /// Queried `all_of` contains this.
+        /// Queried `all_of` equals this.
         all_of: Q,
-        /// Same constraint as `Aggregate`.
-        some_of: Q,
     }
 }
 
 impl<Q: QualifierFlag> Default for QualifierQuery<Q> {
     fn default() -> Self {
+        Self::Aggregate(Q::none())
+    }
+}
+
+impl<Q: QualifierFlag> QualifierQuery<Q> {
+    pub fn none() -> Self {
         Self::Aggregate(Q::none())
     }
 }

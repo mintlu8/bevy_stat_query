@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, marker::PhantomData};
 use bevy_ecs::{entity::Entity, query::Without, system::{Query, StaticSystemParam, SystemParam}};
-use crate::{querier::QuerierRef, stream::ComponentStream, IntrinsicStream, QualifierFlag, QualifierQuery, StatCache, StatValuePair};
+use crate::{querier::QuerierRef, stream::ExternalStream, IntrinsicStream, QualifierFlag, QualifierQuery, StatCache, StatValuePair};
 
 /// [`SystemParam`] that can be aggregated as stat components.
 pub trait StatParam<Q: QualifierFlag>: SystemParam {
@@ -28,13 +28,13 @@ pub trait IntrinsicParam<Q: QualifierFlag>: StatParam<Q> {
 
 /// [`SystemParam`] that queries for a specific [`StatStream`] in an entity.
 #[derive(SystemParam)]
-pub struct ChildStatParam<'w, 's, T: ComponentStream<Q>, Q: QualifierFlag> {
-    pub ctx: StaticSystemParam<'w, 's, <T as ComponentStream<Q>>::Ctx>,
-    pub query: Query<'w, 's, <T as ComponentStream<Q>>::QueryData, Without<StatCache<Q>>>,
+pub struct ChildStatParam<'w, 's, T: ExternalStream<Q>, Q: QualifierFlag> {
+    pub ctx: StaticSystemParam<'w, 's, <T as ExternalStream<Q>>::Ctx>,
+    pub query: Query<'w, 's, <T as ExternalStream<Q>>::QueryData, Without<StatCache<Q>>>,
     p: PhantomData<Q>,
 }
 
-impl<T: ComponentStream<Q>, Q: QualifierFlag> StatParam<Q> for ChildStatParam<'_, '_, T, Q> {
+impl<T: ExternalStream<Q>, Q: QualifierFlag> StatParam<Q> for ChildStatParam<'_, '_, T, Q> {
     fn stream<E: Borrow<Entity>>(
         this: &Self::Item<'_, '_>,
         entities: impl IntoIterator<Item = E> + Clone,

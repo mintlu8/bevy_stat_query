@@ -223,7 +223,7 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
 }
 
 #[allow(unused)]
-pub use crate::stream::{ComponentStream, IntrinsicStream};
+pub use crate::stream::{ExternalStream, IntrinsicStream};
 /// Construct a [`StatQuerier`] type alias from arguments.
 /// The result can be used as a [`SystemParam`].
 ///
@@ -236,7 +236,7 @@ pub use crate::stream::{ComponentStream, IntrinsicStream};
 ///         Allegiance,
 ///         Position
 ///     },
-///     components: {
+///     external: {
 ///         MyStat,
 ///         MyWeapon,
 ///         MyBuff,
@@ -246,7 +246,7 @@ pub use crate::stream::{ComponentStream, IntrinsicStream};
 /// 
 /// * qualifier: implements [`QualifierFlag`]
 /// * intrinsic: { implements [`IntrinsicStream`], .. }
-/// * components: { implements [`ComponentStream`], .. }
+/// * components: { implements [`ExternalStream`], .. }
 ///
 /// This generates
 ///
@@ -291,7 +291,7 @@ macro_rules! querier {
             intrinsic: {
                 $($intrinsics: ty),* $(,)?
             },
-            components: {
+            external: {
                 $($ty: ty),* $(,)?
             } $(,)?
         }
@@ -315,19 +315,19 @@ pub mod hints {
     #[doc(hidden)]
     #[allow(nonstandard_style)]
     #[derive(Default)]
-    pub struct impl_ContextStream;
+    pub struct impl_IntrinsicStream;
 
     #[doc(hidden)]
     #[allow(nonstandard_style)]
     #[derive(Default)]
-    pub struct impl_ComponentStream;
+    pub struct impl_ExternalStream;
 
     #[doc(hidden)]
     #[allow(nonstandard_style)]
     #[derive(Default)]
     pub struct List<T>(T);
 
-    use crate::{QualifierFlag, ComponentStream, IntrinsicStream};
+    use crate::{QualifierFlag, ExternalStream, IntrinsicStream};
     use bevy_ecs::query::QueryData;
 
     #[doc(hidden)]
@@ -335,9 +335,9 @@ pub mod hints {
     pub struct ImplQuerier {
         /// The qualifier of the type, should be a [`QualifierFlag`](crate::QualifierFlag)
         pub qualifier: impl_QualifierFlags,
-        /// A [`ContextStream`] that is used to obtain intrinsic information about a stat's owner.
-        pub intrinsic: impl_ContextStream,
-        /// A list of [`ComponentStream`] types to pull data from.
-        pub components: List<impl_ComponentStream>,
+        /// A list of [`IntrinsicStream`] types to pull data from a `StatEntity`'s components.
+        pub intrinsic: List<impl_IntrinsicStream>,
+        /// A list of [`ExternalStream`] types to pull data from a `StatEntity`'s children.
+        pub external: List<impl_ExternalStream>,
     }
 }
