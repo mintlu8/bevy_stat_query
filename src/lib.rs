@@ -11,33 +11,28 @@
 //!
 //! For example in `FireMagicDamage`, `Fire|Magic` is the qualifier,
 //! `Damage` is the `Stat`.
-//!
-//! # [`Qualifier`] and [`QualifierQuery`]
-//!
-//! [`Qualifier`] attached to stat modifiers on characters,
-//! while [`QualifierQuery`] is used to search all `Qualifier`s
-//! that matches its description.
+//! 
+//! What this means if an effect boosts `Fire Damage`, `Magic Damage`,
+//! or simply just `Damage`, the effect will be applied to the stat,
+//! but an effect on `Sword Damage` or `Fire Range` won't be applied to the stat.
 //!
 //! ## Qualifier
-//!
-//! Qualifier has two fields: `any_of` and `all_of`.
-//!
-//! `all_of` is good for most cases.
+//! 
+//! [`Qualifier`] is tied to effects, and provides the aforementioned `all_of`,
+//! and in addition `any_of`, useful for modelling conditional effects like
+//! `Elemental|Damage`, which means `Fire or Water Damage` instead of `Fire and Water Damage`.
+//! 
+//! Each [`Qualifier`] can only have one group of `any_of` which is a limitation currently.
+//! 
+//! # Examples
 //!
 //! ```
 //! let fire = Qualifier::all_of(Flag::Fire);
 //! let fire_magic = Qualifier::all_of(Flag::Fire|Flag::Magic);
-//! ```
-//!
-//! Sometimes we want to match if one of a group of flags exists, `any_of` can help.
-//!
-//! ```
 //! let elemental = Qualifier::any_of(Fire|Water|Air|Earth);
 //! let elemental_magic = Qualifier::any_of(Fire|Water|Air|Earth)
 //!     .and_all_of(Magic);
 //! ```
-//!
-//! Note: matching multiple groups of `all_of` is not supported.
 //!
 //! ## QualifierQuery
 //!
@@ -78,17 +73,15 @@
 //!
 //! # Getting Started
 //!
-//! Add [`StatEntity`] to an `Entity` that has stats.
+//! Add marker component [`StatEntity`] to an `Entity`.
 //! If you need caching, add a [`StatCache`] as well.
 //! You need to manually clear the cache when state is changed.
 //!
-//! Let's refer to an `Entity` that can be queired as a `Unit`.
-
+//! Let's refer to an `Entity` that can be queried as a `Unit`.
+//!
 //! [`StatMap`] can be used as base stats for the `Unit`.
 //! To add behaviors beyond base stats,
-//! we need to implement [`StatStream`], which is a [`QueryData`] with some external context.
-//! If you don't know what [`QueryData`] is,
-//! think either a [`Component`] or a group of components on a single Entity.
+//! we need to implement [`ComponentStream`], which is a [`QueryData`] with some external context.
 //! [`StatStream`] implementors can be attached to **children** of the
 //! [`StatEntity`] (not on `StatEntity` itself) to take effect.
 //!
@@ -98,8 +91,8 @@
 //! `add`, `multiply`, `min`, `max` and `or`. This ensures no explicit ordering is
 //! ever needed when querying for stats.
 //!
-//! Each stat has its components form [`StatComponents`], e.g. `(12 * 4).min(99).max(0)`,
-//! and its evaluated form, e.g. `48`. You can implement your own `StatComponents`
+//! Each stat has its components form [`StatValue`], e.g. `(12 * 4).min(99).max(0)`,
+//! and its evaluated form, e.g. `48`. You can implement your own `StatValue`
 //! to achieve custom behaviors.
 //!
 //! Additionally you can create relations between different
@@ -111,14 +104,14 @@
 //! # Intrinsics
 //!
 //! The stat system can obtain intrinsic information on the `Unit`.
-//! By implementing [`FromIntrinsics`] for a [`Stat`] we can obatin data
-//! not found in that stat system directly from the `Unit` entity.
-//! This is crucial to obtain distance and other relationships between units.
-//! The type of intrinsic can be passed to the [`Querier`] in the [`querier!`] macro.
+//! By implementing [`IntrinsicStream`] for a [`Stat`] we can look for stats
+//! directly on components on the `Unit` entity. Additionally intrinsics
+//! can be used to obtain `distance` or other bi-unit relationship 
+//! for the stat system. This can be used to model aura effects.
 //!
 //! # Querier
 //!
-//! The [`Querier`] is the [`SystemParam`] to query stats, it is quite difficult to
+//! The [`StatQuerier`] is the [`SystemParam`] to query stats, it is quite difficult to
 //! define one manually so the recommended way is to define a `type` with the
 //! [`querier!`] macro. Additionally you can also use the [`Querier`] with [`World`] access.
 //!

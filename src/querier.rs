@@ -1,8 +1,10 @@
+use std::marker::PhantomData;
+
 use bevy_ecs::{entity::Entity, query::With, system::{In, Query, Res, StaticSystemParam, SystemParam}};
 use bevy_hierarchy::Children;
 use bevy_utils::hashbrown::HashMap;
 use dyn_clone::clone_box;
-use crate::{param::IntrinsicParam, sealed::Sealed, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, BaseStatMap, StatParam, StatValuePair, TYPE_ERROR};
+use crate::{param::IntrinsicParam, sealed::Sealed, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, StatParam, StatValuePair, TYPE_ERROR};
 use crate::{StatCache, StatEntity, StatValue};
 
 #[derive(SystemParam)]
@@ -12,9 +14,10 @@ struct QuerierInner<'w, 's,
     Components: StatParam<Qualifier> + 'static
 > {
     defaults: Option<Res<'w, StatDefaults>>,
-    units: Query<'w, 's, (Option<&'static BaseStatMap<Qualifier>>, Option<&'static Children>), With<StatEntity>>,
+    units: Query<'w, 's, Option<&'static Children>, With<StatEntity>>,
     intrinsic: StaticSystemParam<'w, 's, Intrinsic>,
     items: StaticSystemParam<'w, 's, Components>,
+    p: PhantomData<Qualifier>
 }
 
 /// A [`SystemParam`] that allows the user to query stats by [`Entity`].
@@ -65,7 +68,7 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
             )
         };
         self.stack.push((qualifier.clone(), clone_box(stat), entity));
-        let Ok((stat_map, children)) = self.querier.units.get(entity) else { return None; };
+        let Ok(children) = self.querier.units.get(entity) else { return None; };
 
         if let Some(cached) = match self.world_cache.get(entity){
             Ok(cache) => cache.try_get_cached_dyn(qualifier, stat),
@@ -81,9 +84,6 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
             .map(|x| x.get_dyn(stat))
             .unwrap_or_else(||stat.default_value());
         let mut pair = StatValuePair(stat, stat_value.as_mut());
-        if let Some(stat_map) = stat_map {
-            stat_map.iter_write(qualifier, &mut pair)
-        }
         A::stream(&*self.querier.items, queried, qualifier, &mut pair, &mut QuerierRef(self));
         let Some(_) = self.stack.pop() else {panic!("Stack mismatch.")};
         if let Ok(mut cache) = self.world_cache.get_mut(entity) {
@@ -203,6 +203,8 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
     }
 }
 
+#[allow(unused)]
+pub use crate::stream::{ComponentStream, IntrinsicStream};
 /// Construct a [`Querier`] type alias from arguments.
 /// The result can be used as a [`SystemParam`].
 ///
@@ -211,7 +213,10 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
 /// ```
 /// querier!(pub MyQuerier {
 ///     qualifier: MyQualifier,
-///     intrinsic: (&'static UnitPosition, &'static UnitInfo),
+///     intrinsic: {
+///         Allegiance,
+///         Position
+///     },
 ///     components: {
 ///         MyStat,
 ///         MyWeapon,
@@ -219,6 +224,10 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
 ///     }
 /// });
 /// ```
+/// 
+/// * qualifier: implements [`QualifierFlag`]
+/// * intrinsic: { implements [`IntrinsicStream`], .. }
+/// * components: { implements [`ComponentStream`], .. }
 ///
 /// This generates
 ///
@@ -239,14 +248,14 @@ macro_rules! querier {
             };
         };
     };
-    (@join $qualifier: ty, $ctx: ty) => {
+    (@join $qualifier: ty) => {
         ()
     };
-    (@join $qualifier: ty, $ctx: ty, $first: ty $(,$ty: ty)*) => {
+    (@join $qualifier: ty, $first: ty $(,$ty: ty)*) => {
         ($crate::ChildStatParam<'static, 'static,
             $first,
             $qualifier,
-        >, $crate::querier!(@join $qualifier, $ctx $(,$ty)*))
+        >, $crate::querier!(@join $qualifier $(,$ty)*))
     };
     (
         $vis: vis $name: ident {
@@ -260,40 +269,21 @@ macro_rules! querier {
         @main
         $vis: vis $name: ident {
             qualifier: $qualifier: ty,
-            intrinsic: $ctx: ty,
+            intrinsic: {
+                $($intrinsics: ty),* $(,)?
+            },
             components: {
-                $($ty: ty),*
+                $($ty: ty),* $(,)?
             } $(,)?
         }
     ) => {
         $vis type $name<'w, 's> = $crate::StatQuerier<'w, 's,
             $qualifier,
-            $ctx,
-            $crate::querier!(@join $qualifier, $ctx $(,$ty)*)
-        >;
-    };
-    (
-        @main
-        $vis: vis $name: ident {
-            qualifier: $qualifier: ty,
-            components: {
-                $($ty: ty),*
-            } $(,)?
-        }
-    ) => {
-        $vis type $name<'w, 's> = $crate::Querier<'w, 's,
-            $qualifier,
-            (),
-            $crate::querier!(@join $($ty),*)
+            $crate::querier!(@join $qualifier $(,$intrinsics)*),
+            $crate::querier!(@join $qualifier $(,$ty)*)
         >;
     };
 }
-
-querier!(pub StatQuerier2 {
-   qualifier: u32,
-   intrinsic: (),
-   components: {}
-});
 
 #[allow(unused)]
 #[doc(hidden)]

@@ -85,7 +85,7 @@ impl<Q: QualifierFlag> IntrinsicParam<Q> for () {
         _: &mut StatValuePair,
         _: &mut QuerierRef<'_, Q>,
     ) -> bool {
-        true
+        false
     }
 }
 
@@ -112,7 +112,7 @@ impl<A, B, Q: QualifierFlag> IntrinsicParam<Q> for (A, B) where A: IntrinsicPara
         stat: &mut StatValuePair,
         querier: &mut QuerierRef<'_, Q>,
     ) -> bool {
-        A::distance_stream(&item.0, this, other, qualifier, stat, querier) &&
+        A::distance_stream(&item.0, this, other, qualifier, stat, querier) ||
         B::distance_stream(&item.1, this, other, qualifier, stat, querier)
     }
 }

@@ -3,23 +3,38 @@ use bevy_asset::{Asset, AssetApp, AssetPlugin, AssetServer, Assets, Handle};
 use bevy_ecs::{component::Component, entity::Entity, query::With, system::{Commands, Query, Res}};
 use bevy_hierarchy::BuildChildren;
 use bevy_reflect::TypePath;
-use bevy_stat_engine::{querier, stats, types::StatFloat, QualifierQuery, QuerierRef, StatCache, StatEntity, ComponentStream, StatValue};
+use bevy_stat_engine::{querier, types::StatFloat, ComponentStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatValue};
 
-stats!(
-    MyStatsPlugin {
-        StatFloat<f32> {
-            Damage,
-            Defense,
-        },
-        StatFloat<f64> {
-            X,
-            Y {
-                Hello,
-                Hi,
-            }
-        },
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Damage;
+
+impl Stat for Damage {
+    type Data = StatFloat<f32>;
+
+    fn name(&self) -> &str {
+        "Damage"
     }
-);
+
+    fn values() -> impl IntoIterator<Item = Self> {
+        [Damage]
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Defense;
+
+impl Stat for Defense {
+    type Data = StatFloat<f32>;
+
+    fn name(&self) -> &str {
+        "Defense"
+    }
+
+    fn values() -> impl IntoIterator<Item = Self> {
+        [Defense]
+    }
+}
 
 #[derive(Asset, TypePath)]
 pub struct Weapon {
@@ -59,7 +74,7 @@ impl ComponentStream<MyQualifier> for Weapon {
 
 querier!(pub MyQuerier {
     qualifier: MyQualifier,
-    intrinsic: (),
+    intrinsic: {},
     components: {
         Weapon
     }
@@ -70,6 +85,8 @@ pub fn main() {
     App::new()
         .add_plugins(AssetPlugin::default())
         .init_asset::<Weapon>()
+        .register_stat::<Damage>()
+        .register_stat::<Defense>()
         .add_systems(Startup, init)
         .add_systems(Update, query)
         .update();

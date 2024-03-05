@@ -12,6 +12,7 @@ use bevy_ecs::change_detection::Mut;
 use crate::types::DynStatValue;
 use crate::{Data, Stat, Qualifier, QualifierFlag, DynStat, StatValue, StatOperation, TYPE_ERROR};
 use crate::StatInstances;
+
 /// A map-like, type erased storage for stats.
 /// When present on an entity with [`StatEntity`](crate::StatEntity)
 /// will be used as the base stats of the unit.
@@ -25,7 +26,6 @@ use crate::StatInstances;
 /// Although the implementation is type erased,
 /// the public interface is completely type safe.
 #[derive(Debug, Clone, Component, TypePath)]
-#[type_path = "bse"]
 struct StatMapInner<Q: QualifierFlag, D>{
     inner: BTreeMap<(Box<dyn DynStat>, Qualifier<Q>), D>,
 }
@@ -122,7 +122,6 @@ macro_rules! impl_stat_map {
     ) => {
         $(#[$($attrs)*])*
         #[derive(Debug, Clone, Default, Component, TypePath)]
-        #[type_path = "bse"]
         pub struct $name<Q: QualifierFlag>(StatMapInner<Q, Box<dyn $trait_obj>>);
 
         impl<Q: QualifierFlag> $name<Q> {

@@ -1,4 +1,4 @@
-use bevy_ecs::{query::{ReadOnlyQueryData, WorldQuery}, system::SystemParam};
+use bevy_ecs::{query::{ReadOnlyQueryData, WorldQuery}, system::{ReadOnlySystemParam, SystemParam}};
 use bevy_reflect::TypePath;
 use bevy_serde_project::typetagged::{BevyTypeTagged, FromTypeTagged};
 use dyn_clone::{clone_trait_object, DynClone};
@@ -86,10 +86,10 @@ impl<Q, T> FromTypeTagged<T> for Box<dyn StatStreamObject<Q>> where Q: Qualifier
 
 /// Component and context based stat stream.
 ///
-/// The item is generated from the [`QueryData`] and a [`SystemParam`] context,
+/// The item is generated from the [`ReadOnlyQueryData`] and a [`SystemParam`] context,
 /// For example an `Asset` can be generated from a `Handle` and context `Assets`.
 pub trait ComponentStream<Q: QualifierFlag>: 'static {
-    type Ctx: SystemParam;
+    type Ctx: ReadOnlySystemParam;
     type QueryData: ReadOnlyQueryData;
     fn stream (
         ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
@@ -177,8 +177,9 @@ impl<Q: QualifierFlag> ComponentStream<Q> for StatOperationsMap<Q> {
 
 /// An item that can be used to generate stats when directly added to `Entity`.
 ///
-/// The item also allows querying for "distance" or other relation between two entities.
+/// The item also allows querying for "distance" or other relation between paired components on two entities.
 pub trait IntrinsicStream<Qualifier: QualifierFlag>: ComponentStream<Qualifier> {
+    /// Write to `stat` and return true ***if a value is written***.
     fn distance (
         ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
         this: <Self::QueryData as WorldQuery>::Item<'_>,
@@ -186,5 +187,5 @@ pub trait IntrinsicStream<Qualifier: QualifierFlag>: ComponentStream<Qualifier> 
         qualifier: &QualifierQuery<Qualifier>,
         stat: &mut StatValuePair,
         querier: &mut QuerierRef<Qualifier>
-    );
+    ) -> bool;
 }
