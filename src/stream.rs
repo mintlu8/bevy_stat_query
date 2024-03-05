@@ -5,7 +5,7 @@ use dyn_clone::{clone_trait_object, DynClone};
 use serde::{de::DeserializeOwned, Serialize};
 use crate::{QuerierRef, FullStatMap, types::DynStatValue, BaseStatMap, DynStat, QualifierFlag, QualifierQuery, Stat, StatOperationsMap, TYPE_ERROR};
 
-/// Opaque type that contains a stat and a value.
+/// Opaque type that contains a stat and a mutable value.
 #[derive(Debug)]
 pub struct StatValuePair<'t>(pub(crate) &'t dyn DynStat, pub(crate) &'t mut dyn DynStatValue);
 
@@ -101,6 +101,7 @@ pub trait ComponentStream<Q: QualifierFlag>: 'static {
 }
 
 impl<Q: QualifierFlag> BaseStatMap<Q> {
+    /// Write qualified entries to a [`StatValuePair`].
     pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
         let StatValuePair(stat, data) = pair;
         self.iter_dyn(*stat)
@@ -110,6 +111,7 @@ impl<Q: QualifierFlag> BaseStatMap<Q> {
 }
 
 impl<Q: QualifierFlag> FullStatMap<Q> {
+    /// Write qualified entries to a [`StatValuePair`].
     pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
         let StatValuePair(stat, data) = pair;
         self.iter_dyn(*stat)
@@ -119,11 +121,42 @@ impl<Q: QualifierFlag> FullStatMap<Q> {
 }
 
 impl<Q: QualifierFlag> StatOperationsMap<Q> {
+    /// Write qualified entries to a [`StatValuePair`].
     pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
         let StatValuePair(stat, data) = pair;
         self.iter_dyn(*stat)
             .filter(|(q, _)| q.qualifies_as(qualifier))
             .for_each(|(_, op)| data.apply_op(op))
+    }
+}
+
+impl<Q: QualifierFlag> ComponentStream<Q> for BaseStatMap<Q> {
+    type Ctx = ();
+    type QueryData = &'static Self;
+
+    fn stream (
+        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
+        this: <Self::QueryData as WorldQuery>::Item<'_>,
+        qualifier: &QualifierQuery<Q>,
+        pair: &mut StatValuePair,
+        _: &mut QuerierRef<'_, Q>,
+    ){
+        this.iter_write(qualifier, pair);
+    }
+}
+
+impl<Q: QualifierFlag> ComponentStream<Q> for FullStatMap<Q> {
+    type Ctx = ();
+    type QueryData = &'static Self;
+
+    fn stream (
+        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
+        this: <Self::QueryData as WorldQuery>::Item<'_>,
+        qualifier: &QualifierQuery<Q>,
+        pair: &mut StatValuePair,
+        _: &mut QuerierRef<'_, Q>,
+    ){
+        this.iter_write(qualifier, pair);
     }
 }
 
@@ -145,8 +178,8 @@ impl<Q: QualifierFlag> ComponentStream<Q> for StatOperationsMap<Q> {
 /// An item that can be used to generate stats when directly added to `Entity`.
 ///
 /// The item also allows querying for "distance" or other relation between two entities.
-pub trait ContextStream<Qualifier: QualifierFlag>: ComponentStream<Qualifier> {
-    fn distance<S: Stat>(
+pub trait IntrinsicStream<Qualifier: QualifierFlag>: ComponentStream<Qualifier> {
+    fn distance (
         ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
         this: <Self::QueryData as WorldQuery>::Item<'_>,
         other: <Self::QueryData as WorldQuery>::Item<'_>,

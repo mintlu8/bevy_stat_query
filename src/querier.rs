@@ -49,7 +49,6 @@ trait DynQuerier<Q: QualifierFlag> {
     fn query_distance(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>>;
 }
 
-pub struct QuerierRef<'t, Q: QualifierFlag>(&'t mut dyn DynQuerier<Q>);
 
 
 impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> DynQuerier<Q> for QueryStack<'_, '_, '_, '_, '_, Q, D, A> {
@@ -109,6 +108,8 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
     }
 }
 
+/// Erased querier.
+pub struct QuerierRef<'t, Q: QualifierFlag>(&'t mut dyn DynQuerier<Q>);
 
 impl<Q: QualifierFlag> QuerierRef<'_, Q> {
     fn query<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
@@ -167,7 +168,7 @@ impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> +
     }
 }
 
-// Type erased [`Querier`] with no generics.
+/// Type erased but non-dynamic [`StatQuerier`] with no generics.
 pub trait ErasedQuerier: SystemParam + 'static {
     type Qualifier: QualifierFlag;
     fn query<S: Stat>(&mut self,
@@ -305,19 +306,19 @@ pub mod hints {
     #[doc(hidden)]
     #[allow(nonstandard_style)]
     #[derive(Default)]
-    pub struct impl_QueryData;
+    pub struct impl_ContextStream;
 
     #[doc(hidden)]
     #[allow(nonstandard_style)]
     #[derive(Default)]
-    pub struct impl_StatStream;
+    pub struct impl_ComponentStream;
 
     #[doc(hidden)]
     #[allow(nonstandard_style)]
     #[derive(Default)]
     pub struct List<T>(T);
 
-    use crate::{QualifierFlag, ComponentStream};
+    use crate::{QualifierFlag, ComponentStream, IntrinsicStream};
     use bevy_ecs::query::QueryData;
 
     #[doc(hidden)]
@@ -325,9 +326,9 @@ pub mod hints {
     pub struct ImplQuerier {
         /// The qualifier of the type, should be a [`QualifierFlag`](crate::QualifierFlag)
         pub qualifier: impl_QualifierFlags,
-        /// A [`QueryData`] that is used to obtain intrinsic information about a stat's owner.
-        pub intrinsic: impl_QueryData,
-        /// A list of [`StatStream`] types to pull data from.
-        pub components: List<impl_StatStream>,
+        /// A [`ContextStream`] that is used to obtain intrinsic information about a stat's owner.
+        pub intrinsic: impl_ContextStream,
+        /// A list of [`ComponentStream`] types to pull data from.
+        pub components: List<impl_ComponentStream>,
     }
 }

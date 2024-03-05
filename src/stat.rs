@@ -65,13 +65,44 @@ impl PartialEq for dyn DynStat {
     }
 }
 
+impl Eq for dyn DynStat {}
+
+impl<S: DynStat> PartialEq<S> for dyn DynStat {
+    fn eq(&self, other: &S) -> bool {
+        self.dyn_eq(other)
+    }
+}
+
 impl<S: DynStat> PartialEq<S> for Box<dyn DynStat>  {
     fn eq(&self, other: &S) -> bool {
         self.dyn_eq(other)
     }
 }
 
-impl Eq for dyn DynStat {}
+impl PartialEq<str> for dyn DynStat  {
+    fn eq(&self, other: &str) -> bool {
+        self.name() == other
+    }
+}
+
+impl PartialEq<str> for Box<dyn DynStat>  {
+    fn eq(&self, other: &str) -> bool {
+        self.name() == other
+    }
+}
+
+impl PartialEq<String> for dyn DynStat  {
+    fn eq(&self, other: &String) -> bool {
+        self.name() == other.as_str()
+    }
+}
+
+impl PartialEq<String> for Box<dyn DynStat>  {
+    fn eq(&self, other: &String) -> bool {
+        self.name() == other.as_str()
+    }
+}
+
 
 impl PartialOrd for dyn DynStat {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {

@@ -143,7 +143,7 @@ use serde::{de::DeserializeOwned, Serialize};
 pub use stream::StatValuePair;
 mod num_traits;
 pub use num_traits::{Int, Float, Flags, Ratio};
-pub use stream::ComponentStream;
+pub use stream::{ComponentStream, IntrinsicStream, StatStream, StatStreamObject};
 pub mod types;
 pub use types::StatValue;
 mod qualifier;
