@@ -113,9 +113,9 @@
 //!
 //! The [`StatQuerier`] is the [`SystemParam`] to query stats, it is quite difficult to
 //! define one manually so the recommended way is to define a `type` with the
-//! [`querier!`] macro. Additionally you can also use the [`Querier`] with [`World`] access.
+//! [`querier!`] macro. Additionally you can also use the [`StatExtension`] with `World` access.
 //!
-//! [`Querier`] requires read access to all components in stat system so you cannot mutate
+//! [`StatQuerier`] requires read access to all components in stat system so you cannot mutate
 //! anything while having it as a parameter.
 //! Using some kind of deferred command queue for mutations might be advisable in this case.
 #[allow(unused)]
@@ -135,8 +135,8 @@ use dyn_clone::{clone_trait_object, DynClone};
 use serde::{de::DeserializeOwned, Serialize};
 pub use stream::StatValuePair;
 mod num_traits;
-pub use num_traits::{Int, Float, Flags, Ratio};
-pub use stream::{ComponentStream, IntrinsicStream, StatStream, StatStreamObject};
+pub use num_traits::{Int, Float, Flags, Fraction};
+pub use stream::{ComponentStream, IntrinsicStream, StatStream, StatStreamObject, StatelessStream};
 pub mod types;
 pub use types::StatValue;
 mod qualifier;

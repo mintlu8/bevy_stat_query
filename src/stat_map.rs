@@ -259,15 +259,15 @@ macro_rules! impl_stat_map {
 }
 
 impl_stat_map!(
-    /// A map containing the associated output value of stats.
+    /// A map containing associated output value of stats.
     BaseStatMap, S, SOut<S>, Data
 );
 impl_stat_map!(
-    /// A map containing the associated [`StatValue`] of stats.
+    /// A map containing associated [`StatValue`] of stats.
     FullStatMap, S, SData<S>, DynStatValue
 );
 impl_stat_map!(
-    /// A map containing the associated [`StatOperation`]s of stats.
+    /// A map containing associated [`StatOperation`]s of stats.
     StatOperationsMap, S, SOp<S>, Data
 );
 

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{types::{DynStatValue, StatValue}, DynStat, Stat, TYPE_ERROR};
 
-/// An single step calculation on a [`StatComponents`].
+/// An single step unordered operation on a [`StatValue`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Serialize, Deserialize, TypePath)]
 pub enum StatOperation<S: StatValue> {
     Add(S::Add),
@@ -29,9 +29,9 @@ impl<S: StatValue> StatOperation<S> {
     }
 }
 
-/// [`Resource`] that stores default [`StatComponents`] value per [`Stat`].
+/// [`Resource`] that stores default [`StatValue`]s per [`Stat`].
 ///
-/// Uses [`Default::default()`] instead if not registered.
+/// Stats that are not registered are still returned with [`Default::default()`] instead.
 #[derive(Debug, Resource, Default, TypePath)]
 pub struct StatDefaults {
     stats: HashMap<Box<dyn DynStat>, Box<dyn DynStatValue>>,

@@ -70,9 +70,9 @@ pub trait Int: NumOps + PartialOrd + Default + Copy + Serializable {
 
     type PrimInt: Int + NumInteger + Clone + Serializable;
 
-    fn into_fraction(self) -> Ratio<Self::PrimInt>;
-    fn build_fraction(self, denom: Self) -> Ratio<Self::PrimInt>;
-    fn from_fraction(frac: Ratio<Self::PrimInt>) -> Self;
+    fn into_fraction(self) -> Fraction<Self::PrimInt>;
+    fn build_fraction(self, denom: Self) -> Fraction<Self::PrimInt>;
+    fn from_fraction(frac: Fraction<Self::PrimInt>) -> Self;
 }
 
 macro_rules! impl_int {
@@ -98,15 +98,15 @@ macro_rules! impl_int {
 
             type PrimInt = $ty;
 
-            fn into_fraction(self) -> Ratio<Self::PrimInt> {
-                Ratio::new_raw(self, 1)
+            fn into_fraction(self) -> Fraction<Self::PrimInt> {
+                Fraction::new_raw(self, 1)
             }
 
-            fn build_fraction(self, denom: Self) -> Ratio<Self::PrimInt> {
-                Ratio::new(self, denom)
+            fn build_fraction(self, denom: Self) -> Fraction<Self::PrimInt> {
+                Fraction::new(self, denom)
             }
 
-            fn from_fraction(frac: Ratio<Self::PrimInt>) -> Self{
+            fn from_fraction(frac: Fraction<Self::PrimInt>) -> Self{
                 frac.to_integer()
             }
         })*
@@ -151,15 +151,15 @@ macro_rules! impl_int_newtype {
 
             type PrimInt = $ty;
 
-            fn into_fraction(self) -> Ratio<Self::PrimInt> {
-                Ratio::new_raw(self.0, 1)
+            fn into_fraction(self) -> Fraction<Self::PrimInt> {
+                Fraction::new_raw(self.0, 1)
             }
 
-            fn build_fraction(self, denom: Self) -> Ratio<Self::PrimInt> {
-                Ratio::new(self.0, denom.0)
+            fn build_fraction(self, denom: Self) -> Fraction<Self::PrimInt> {
+                Fraction::new(self.0, denom.0)
             }
 
-            fn from_fraction(frac: Ratio<Self::PrimInt>) -> Self{
+            fn from_fraction(frac: Fraction<Self::PrimInt>) -> Self{
                 Self(frac.to_integer())
             }
         })*)*
@@ -178,7 +178,7 @@ impl_int_newtype!(
     // },
 );
 
-/// Trait for a floating point number or a [`Ratio`].
+/// Trait for a floating point number or a [`Fraction`].
 pub trait Float: NumOps + PartialOrd + Default + Copy + Serializable {
     const ZERO: Self;
     const ONE: Self;
@@ -257,13 +257,15 @@ impl Float for f64 {
     }
 }
 
-/// Represents the ratio between two numbers.
+/// Represents a fractional number.
+/// 
+/// Newtype of [`num_rational::Ratio`].
 #[derive(Debug, Clone, Copy, Default, TypePath, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(transparent, bound(serialize = "", deserialize = ""))]
-pub struct Ratio<I: Int + NumInteger>(num_rational::Ratio<I>);
+pub struct Fraction<I: Int + NumInteger>(num_rational::Ratio<I>);
 
-impl<I: Int + NumInteger> Deref for Ratio<I> {
+impl<I: Int + NumInteger> Deref for Fraction<I> {
     type Target = num_rational::Ratio<I>;
 
     fn deref(&self) -> &Self::Target {
@@ -271,13 +273,13 @@ impl<I: Int + NumInteger> Deref for Ratio<I> {
     }
 }
 
-impl<I: Int + NumInteger> DerefMut for Ratio<I> {
+impl<I: Int + NumInteger> DerefMut for Fraction<I> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl<I: Int + NumInteger> Ratio<I> {
+impl<I: Int + NumInteger> Fraction<I> {
     pub fn new(numer: I, denom: I) -> Self{
         Self(num_rational::Ratio::new(numer, denom))
     }
@@ -293,7 +295,7 @@ impl<I: Int + NumInteger> Ratio<I> {
 
 macro_rules! impl_ops {
     ($a: tt, $b: tt, $c: tt, $d:tt, $e: tt, $f:tt) => {
-        impl<I: Int + NumInteger> $a for Ratio<I> {
+        impl<I: Int + NumInteger> $a for Fraction<I> {
             type Output = Self;
         
             fn $b(self, rhs: Self) -> Self::Output {
@@ -301,7 +303,7 @@ macro_rules! impl_ops {
             }
         }
         
-        impl<I: Int + NumInteger> $d for Ratio<I> {
+        impl<I: Int + NumInteger> $d for Fraction<I> {
             fn $e(&mut self, rhs: Self) {
                 self.0 $f rhs.0
             }
@@ -316,11 +318,11 @@ impl_ops!(Div, div, /, DivAssign, div_assign, /=);
 impl_ops!(Rem, rem, %, RemAssign, rem_assign, %=);
 
 
-impl<I: Int + NumInteger + Clone> Float for Ratio<I> {
-    const ZERO: Self = Ratio::new_raw(I::ZERO, I::ONE);
-    const ONE: Self = Ratio::new_raw(I::ONE, I::ONE);
-    const MIN_VALUE: Self = Ratio::new_raw(I::MIN_VALUE, I::ONE);
-    const MAX_VALUE: Self = Ratio::new_raw(I::MAX_VALUE, I::ONE);
+impl<I: Int + NumInteger + Clone> Float for Fraction<I> {
+    const ZERO: Self = Fraction::new_raw(I::ZERO, I::ONE);
+    const ONE: Self = Fraction::new_raw(I::ONE, I::ONE);
+    const MIN_VALUE: Self = Fraction::new_raw(I::MIN_VALUE, I::ONE);
+    const MAX_VALUE: Self = Fraction::new_raw(I::MAX_VALUE, I::ONE);
 
     fn min(self, other: Self) -> Self {
         Ord::min(self, other)

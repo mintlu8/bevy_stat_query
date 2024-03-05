@@ -31,6 +31,36 @@ impl StatValuePair<'_> {
             false
         }
     }
+
+    /// Extend the stat value with a stateless stream.
+    pub fn extend<Q: QualifierFlag>(&mut self, qualifier: &QualifierQuery<Q>, extend: impl StatelessStream<Q>) {
+        extend.stat_extend(qualifier, self)
+    }
+
+    /// Extend the stat value with a stateful stream.
+    pub fn stateful_extend<Q: QualifierFlag>(&mut self, qualifier: &QualifierQuery<Q>, querier: &mut QuerierRef<'_, Q>, extend: impl StatelessStream<Q>) {
+        extend.stream(qualifier, self, querier)
+    }
+}
+
+/// A generalized object safe stat relation.
+pub trait StatelessStream<Q: QualifierFlag>: Send + Sync + 'static {
+    fn stat_extend (
+        &self,
+        qualifier: &QualifierQuery<Q>,
+        stat: &mut StatValuePair,
+    );
+}
+
+impl<T, Q: QualifierFlag> StatStream<Q> for T where T: StatelessStream<Q> {
+    fn stream (
+        &self,
+        qualifier: &QualifierQuery<Q>,
+        stat: &mut StatValuePair,
+        _: &mut QuerierRef<'_, Q>,
+    ) {
+        self.stat_extend(qualifier, stat)
+    }
 }
 
 /// A generalized object safe stat relation.
@@ -100,9 +130,12 @@ pub trait ComponentStream<Q: QualifierFlag>: 'static {
     );
 }
 
-impl<Q: QualifierFlag> BaseStatMap<Q> {
-    /// Write qualified entries to a [`StatValuePair`].
-    pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
+impl<Q: QualifierFlag> StatelessStream<Q> for BaseStatMap<Q> {
+    fn stat_extend (
+        &self,
+        qualifier: &QualifierQuery<Q>,
+        pair: &mut StatValuePair,
+    ) {
         let StatValuePair(stat, data) = pair;
         self.iter_dyn(*stat)
             .filter(|(q, _)| q.qualifies_as(qualifier))
@@ -110,9 +143,13 @@ impl<Q: QualifierFlag> BaseStatMap<Q> {
     }
 }
 
-impl<Q: QualifierFlag> FullStatMap<Q> {
-    /// Write qualified entries to a [`StatValuePair`].
-    pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
+
+impl<Q: QualifierFlag> StatelessStream<Q> for FullStatMap<Q> {
+    fn stat_extend (
+        &self,
+        qualifier: &QualifierQuery<Q>,
+        pair: &mut StatValuePair,
+    ) {
         let StatValuePair(stat, data) = pair;
         self.iter_dyn(*stat)
             .filter(|(q, _)| q.qualifies_as(qualifier))
@@ -120,9 +157,12 @@ impl<Q: QualifierFlag> FullStatMap<Q> {
     }
 }
 
-impl<Q: QualifierFlag> StatOperationsMap<Q> {
-    /// Write qualified entries to a [`StatValuePair`].
-    pub fn iter_write(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
+impl<Q: QualifierFlag>  StatelessStream<Q> for StatOperationsMap<Q> {
+    fn stat_extend (
+        &self,
+        qualifier: &QualifierQuery<Q>,
+        pair: &mut StatValuePair,
+    ) {
         let StatValuePair(stat, data) = pair;
         self.iter_dyn(*stat)
             .filter(|(q, _)| q.qualifies_as(qualifier))
@@ -141,7 +181,7 @@ impl<Q: QualifierFlag> ComponentStream<Q> for BaseStatMap<Q> {
         pair: &mut StatValuePair,
         _: &mut QuerierRef<'_, Q>,
     ){
-        this.iter_write(qualifier, pair);
+        this.stat_extend(qualifier, pair);
     }
 }
 
@@ -156,7 +196,7 @@ impl<Q: QualifierFlag> ComponentStream<Q> for FullStatMap<Q> {
         pair: &mut StatValuePair,
         _: &mut QuerierRef<'_, Q>,
     ){
-        this.iter_write(qualifier, pair);
+        this.stat_extend(qualifier, pair);
     }
 }
 
@@ -171,7 +211,7 @@ impl<Q: QualifierFlag> ComponentStream<Q> for StatOperationsMap<Q> {
         pair: &mut StatValuePair,
         _: &mut QuerierRef<'_, Q>,
     ){
-        this.iter_write(qualifier, pair);
+        this.stat_extend(qualifier, pair);
     }
 }
 

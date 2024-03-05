@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use bevy_reflect::TypePath;
-use crate::Ratio;
+use crate::Fraction;
 use serde::{Deserialize, Serialize};
 use crate::{rounding::{Rounding, Truncate}, Float, Int, Serializable, StatOperation};
 use super::{StatValue, Unsupported};
@@ -13,7 +13,7 @@ pub struct StatIntFraction<T: Int, R: Rounding=Truncate> {
     addend: T,
     min: T,
     max: T,
-    mult: Ratio<T::PrimInt>,
+    mult: Fraction<T::PrimInt>,
     rounding: PhantomData<R>,
 }
 
@@ -47,7 +47,7 @@ impl<T: Int + Serializable, R: Rounding> StatValue for StatIntFraction<T, R> {
 
     type Add = T;
 
-    type Mul = Ratio<T::PrimInt>;
+    type Mul = Fraction<T::PrimInt>;
 
     type Bit = Unsupported;
 

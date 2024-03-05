@@ -52,8 +52,6 @@ trait DynQuerier<Q: QualifierFlag> {
     fn query_distance(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>>;
 }
 
-
-
 impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> DynQuerier<Q> for QueryStack<'_, '_, '_, '_, '_, Q, D, A> {
     fn query(&mut self, qualifier: &QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>> {
         let entity = self.stack.last().expect("Must call query_other on the first call.").2;
@@ -108,23 +106,44 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
     }
 }
 
-/// Erased querier.
+/// Erased querier with a typed interface.
 pub struct QuerierRef<'t, Q: QualifierFlag>(&'t mut dyn DynQuerier<Q>);
 
+type SOut<S> = <<S as Stat>::Data as StatValue>::Out;
+
 impl<Q: QualifierFlag> QuerierRef<'_, Q> {
+
+    /// Look for a [`StatValue`] on this entity, returns `None` if entity is missing.
     fn query<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
         self.0.query(qualifier, stat)
             .map(|x| *x.downcast().expect(TYPE_ERROR))
     }
 
+    /// Look for a stat output on this entity, returns `None` if entity is missing.
+    fn query_eval<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
+        self.query(qualifier, stat).map(|x| x.eval())
+    }
+
+    /// Look for a [`StatValue`] on another entity, returns `None` if entity is missing.
     fn query_other<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
         self.0.query_other(entity, qualifier, stat)
             .map(|x| *x.downcast().expect(TYPE_ERROR))    
     }
 
+    /// Look for a stat output on another entity, returns `None` if entity is missing.
+    fn query_eval_other<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
+        self.query_other(entity, qualifier, stat).map(|x| x.eval())    
+    }
+
+    /// Look for a relation between two entities, returns `None` if an entity is missing or no intrinsic component provided results.
     fn query_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
         self.0.query_other(entity, qualifier, stat)
             .map(|x| *x.downcast().expect(TYPE_ERROR))    
+    }
+
+    /// Look for a relation between two entities, returns `None` if an entity is missing or no intrinsic component provided results.
+    fn query_eval_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
+        self.query_other(entity, qualifier, stat).map(|x| x.eval())   
     }
 }
 
@@ -169,7 +188,7 @@ impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> +
 }
 
 /// Type erased but non-dynamic [`StatQuerier`] with no generics.
-pub trait ErasedQuerier: SystemParam + 'static {
+pub trait GenericQuerier: SystemParam + 'static {
     type Qualifier: QualifierFlag;
     fn query<S: Stat>(&mut self,
         entity: Entity,
@@ -183,7 +202,7 @@ pub trait ErasedQuerier: SystemParam + 'static {
     ) -> Option<S::Data>;
 }
 
-impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> ErasedQuerier for StatQuerier<'static, 'static, Q, D, A> {
+impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> GenericQuerier for StatQuerier<'static, 'static, Q, D, A> {
     type Qualifier = Q;
 
     fn query<S: Stat>(&mut self,
@@ -205,7 +224,7 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
 
 #[allow(unused)]
 pub use crate::stream::{ComponentStream, IntrinsicStream};
-/// Construct a [`Querier`] type alias from arguments.
+/// Construct a [`StatQuerier`] type alias from arguments.
 /// The result can be used as a [`SystemParam`].
 ///
 /// # Syntax

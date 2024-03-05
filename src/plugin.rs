@@ -2,7 +2,7 @@ use std::{marker::PhantomData, str::FromStr};
 use bevy_app::App;
 use bevy_ecs::{entity::Entity, system::{Resource, SystemId}, world::World};
 use crate::{Data, StatInstances};
-use crate::{calc::StatDefaults, querier::ErasedQuerier, types::DynStatValue, QualifierFlag, QualifierQuery, Stat, StatOperation, StatValue};
+use crate::{calc::StatDefaults, querier::GenericQuerier, types::DynStatValue, QualifierFlag, QualifierQuery, Stat, StatOperation, StatValue};
 
 #[derive(Debug, Resource)]
 pub struct QuerySysId<Q: QualifierFlag, S: Stat>(SystemId<(Entity, QualifierQuery<Q>, S), Option<S::Data>>, PhantomData<(Q, S)>);
@@ -17,8 +17,7 @@ pub trait StatExtension {
     fn register_stat_parser<T: Stat + FromStr>(&mut self) -> &mut Self;
     /// Register a default stat value.
     ///
-    /// Since a component can be supplied instead of a raw value,
-    /// this is the standard way
+    /// This is the standard way
     /// to add default bounds to a stat, e.g, in `1..15`.
     fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Data) -> &mut Self;
 
@@ -29,7 +28,7 @@ pub trait StatExtension {
     fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self;
 
     /// Query for a stat on an [`Entity`] with [`World`] access.
-    fn query_stat<E: ErasedQuerier, S: Stat>(
+    fn query_stat<E: GenericQuerier, S: Stat>(
         &mut self,
         entity: Entity,
         qualifier: &QualifierQuery<E::Qualifier>,
@@ -37,7 +36,7 @@ pub trait StatExtension {
     ) -> Option<S::Data>;
 
     /// Query for a stat on an [`Entity`] with [`World`] access.
-    fn query_eval_stat<E: ErasedQuerier, S: Stat>(
+    fn query_eval_stat<E: GenericQuerier, S: Stat>(
         &mut self,
         entity: Entity,
         qualifier: &QualifierQuery<E::Qualifier>,
@@ -87,7 +86,7 @@ impl StatExtension for World {
         self
     }
 
-    fn query_stat<E: ErasedQuerier, S: Stat>(
+    fn query_stat<E: GenericQuerier, S: Stat>(
         &mut self,
         entity: Entity,
         qualifier: &QualifierQuery<E::Qualifier>,
@@ -130,7 +129,7 @@ impl StatExtension for App {
         self
     }
 
-    fn query_stat<E: ErasedQuerier, S: Stat>(
+    fn query_stat<E: GenericQuerier, S: Stat>(
         &mut self,
         entity: Entity,
         qualifier: &QualifierQuery<E::Qualifier>,

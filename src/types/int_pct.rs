@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use bevy_reflect::TypePath;
-use crate::Ratio;
+use crate::Fraction;
 use serde::{Deserialize, Serialize};
 use crate::{rounding::{Rounding, Truncate}, Float, Int, StatOperation};
 use super::{StatValue, Unsupported};
@@ -82,7 +82,7 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, 
 #[serde(bound(serialize = "", deserialize = ""))]
 pub struct StatIntPercent<T: Int, R: Rounding=Truncate, const SCALE: i64=100> {
     addend: T,
-    mult: Ratio<T::PrimInt>,
+    mult: Fraction<T::PrimInt>,
     min: T,
     max: T,
     rounding: PhantomData<R>,
