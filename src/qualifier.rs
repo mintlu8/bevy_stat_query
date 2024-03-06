@@ -6,7 +6,7 @@ use crate::Shareable;
 
 /// A flags like [`Qualifier`] for stats, normally bitflags or a set.
 ///
-/// An application should idealy implement one [`QualifierFlag`] and multiple [`Stat`]s,
+/// An application should ideally implement one [`QualifierFlag`] and multiple [`Stat`]s,
 /// since different types of stats can still interop if they use the same [`QualifierFlag`].
 pub trait QualifierFlag: BitOr<Self, Output=Self> + Ord + Hash + Shareable {
     fn contains(&self, other: &Self) -> bool;

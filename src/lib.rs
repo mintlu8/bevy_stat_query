@@ -1,6 +1,6 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
-//! An over-engineered RPG stat query system for the bevy engine.
+//! A pedantic RPG stat system for the bevy engine.
 //!
 //! # Qualified Stats
 //!
@@ -156,7 +156,7 @@
 #[allow(unused)]
 use bevy_ecs::{query::QueryData, component::Component, system::SystemParam};
 
-pub(crate) static TYPE_ERROR: &str = "Error: a stat does not have the approprate type. \
+pub(crate) static TYPE_ERROR: &str = "Error: a stat does not have the appropriate type. \
 This is almost certainly a bug since we do not provide a type erased api.";
 
 #[doc(hidden)]

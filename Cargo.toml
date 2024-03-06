@@ -1,7 +1,17 @@
 [package]
 name = "bevy_stat_query"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+
+authors = ["Mincong Lu <mintlux667@gmail.com>"]
+license = "MIT OR Apache-2.0"
+
+readme = "../README.md"
+repository = "https://github.com/mintlu8/bevy_stat_query"
+description = """
+An over-engineered RPG stat query system for the bevy engine.
+"""
+keywords = ["bevy", "stat", "serialize"]
 
 [lib]
 doctest = false

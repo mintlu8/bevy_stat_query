@@ -23,7 +23,7 @@ struct QuerierInner<'w, 's,
 /// A [`SystemParam`] that allows the user to query stats by [`Entity`].
 ///
 /// This requires immutable access to many components and entities,
-/// assume all relavent components are not mutably accessble within the same system.
+/// assume all relevant components are not mutably accessible within the same system.
 ///
 /// Alternatively this can be ran with world access with [`query_stat`](crate::StatExtension::query_stat).
 #[derive(SystemParam)]
