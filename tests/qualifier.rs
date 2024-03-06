@@ -1,4 +1,4 @@
-use bevy_stat_engine::{types::StatIntPercentAdditive, BaseStatMap, Qualifier, QualifierFlag, QualifierQuery, Stat, StatOperation, StatOperationsMap, StatValue, StatValuePair, StatelessStream};
+use bevy_stat_query::{types::StatIntPercentAdditive, BaseStatMap, Qualifier, QualifierFlag, QualifierQuery, Stat, StatOperation, StatOperationsMap, StatValue, StatValuePair, StatelessStream};
 
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]

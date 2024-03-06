@@ -7,6 +7,8 @@ use crate::{types::{DynStatValue, StatValue}, DynStat, Stat, TYPE_ERROR};
 
 /// An single step unordered operation on a [`StatValue`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Serialize, Deserialize, TypePath)]
+#[type_path = "bevy_stat_query"]
+#[type_name = "Op"]
 pub enum StatOperation<S: StatValue> {
     Add(S::Add),
     Mul(S::Mul),

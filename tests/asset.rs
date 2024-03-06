@@ -3,7 +3,7 @@ use bevy_asset::{Asset, AssetApp, AssetPlugin, AssetServer, Assets, Handle};
 use bevy_ecs::{component::Component, entity::Entity, query::With, system::{Commands, Query, Res}};
 use bevy_hierarchy::BuildChildren;
 use bevy_reflect::TypePath;
-use bevy_stat_engine::{querier, types::StatFloat, ExternalStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatValue};
+use bevy_stat_query::{querier, types::StatFloat, ExternalStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatValue};
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -62,7 +62,7 @@ impl ExternalStream<MyQualifier> for Weapon {
         assets: &<Self::Ctx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         (handle, state): <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<MyQualifier>,
-        stat: &mut bevy_stat_engine::StatValuePair,
+        stat: &mut bevy_stat_query::StatValuePair,
         _: &mut QuerierRef<'_, MyQualifier>
     ) {
         if let Some(value) = stat.is(&Damage) {

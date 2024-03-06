@@ -4,7 +4,7 @@ use bevy_ecs::{entity::Entity, query::With, system::{In, Query, Res, StaticSyste
 use bevy_hierarchy::Children;
 use bevy_utils::hashbrown::HashMap;
 use dyn_clone::clone_box;
-use crate::{param::IntrinsicParam, sealed::Sealed, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, StatParam, StatValuePair, TYPE_ERROR};
+use crate::{param::IntrinsicParam, types::DynStatValue, DynStat, QualifierFlag, QualifierQuery, Stat, StatDefaults, StatParam, StatValuePair, TYPE_ERROR};
 use crate::{StatCache, StatEntity, StatValue};
 
 #[derive(SystemParam)]
@@ -42,9 +42,6 @@ struct QueryStack<'w, 's, 'w2, 's2, 't, Q: QualifierFlag, D: IntrinsicParam<Q> +
     querier: &'t QuerierInner<'w, 's, Q, D, A>,
     stack: Vec<(QualifierQuery<Q>, Box<dyn DynStat>, Entity)>,
 }
-
-impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> Sealed
-    for QueryStack<'_, '_, '_, '_, '_, Q, D, A> {}
 
 trait DynQuerier<Q: QualifierFlag> {
     fn query(&mut self, qualifier: &QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>>;
@@ -138,13 +135,13 @@ impl<Q: QualifierFlag> QuerierRef<'_, Q> {
         self.query_other(entity, qualifier, stat).map(|x| x.eval())    
     }
 
-    /// Look for a relation between two entities, returns `None` if an entity is missing or no intrinsic component provided results.
+    /// Look for a relation between two entities, returns `None` if an entity is missing.
     pub fn query_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
         self.0.query_distance(entity, qualifier, stat)
             .map(|x| *x.downcast().expect(TYPE_ERROR))    
     }
 
-    /// Look for a relation between two entities, returns `None` if an entity is missing or no intrinsic component provided results.
+    /// Look for a relation between two entities, returns `None` if an entity is missing.
     pub fn query_eval_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
         self.query_distance(entity, qualifier, stat).map(|x| x.eval())   
     }

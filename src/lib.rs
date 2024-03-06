@@ -12,14 +12,14 @@
 //! For example in `FireMagicDamage`, `Fire|Magic` is the qualifier,
 //! `Damage` is the `Stat`.
 //! 
-//! What this means if an effect boosts `Fire Damage`, `Magic Damage`,
+//! What this means if an effect boosts `Fire|Damage`, `Magic|Damage`,
 //! or simply just `Damage`, the effect will be applied to the stat,
-//! but an effect on `Sword Damage` or `Fire Range` won't be applied to the stat.
+//! but an effect on `Sword|Damage` or `Fire|Range` won't be applied to the stat.
 //!
 //! ## Qualifier
 //! 
-//! [`Qualifier`] is tied to effects, and provides the aforementioned `all_of`,
-//! and in addition `any_of`, useful for modelling conditional effects like
+//! [`Qualifier`] is tied to effects, and provides the aforementioned `all_of`.
+//! In addition `any_of` is provided for modelling conditional effects like
 //! `Elemental|Damage`, which means `Fire or Water Damage` instead of `Fire and Water Damage`.
 //! 
 //! Each [`Qualifier`] can only have one group of `any_of` which is a limitation currently.
@@ -45,12 +45,13 @@
 //! * `((), Damage)` qualifies.
 //! * `(Fire, Damage)` qualifies.
 //! * `(Fire|Magic, Damage)` qualifies.
+//! * `(Fire|Burn|Magic, Damage)` qualifies.
 //! * `(Elemental, Damage)` qualifies.
 //! * `(Fire|Sword, Damage)` does not qualify.
 //! * `(Fire|Burn|Magic, Defense)` does not qualify.
 //!
 //! [`QualifierQuery::Exact`] allows us to deny
-//! more generalized qualifiers..
+//! more generalized qualifiers.
 //!
 //! For example, in order to model a statement like so:
 //!
@@ -70,7 +71,7 @@
 //! }
 //! ```
 //! 
-//! * What do you mean? `DarkFire` and `Fire` and totally different things and should be independent.
+//! * What do you mean? My `DarkFire` and `Fire` and totally different things and should be independent.
 //! 
 //! Create a new qualifier `DarkFire` instead of `Dark`|`Fire`.
 //!
@@ -80,8 +81,8 @@
 //! If you need caching, add a [`StatCache`] as well.
 //! You need to manually clear the cache when the state is changed, however.
 //! 
-//! *Implement [`IntrinsicStream`] to make components on the entity queryable.
-//! *Implement [`ExternalStream`] to make components on child entities queryable.
+//! * Implement [`IntrinsicStream`] to make components on the entity queryable.
+//! * Implement [`ExternalStream`] to make components on child entities queryable.
 //! 
 //! For example we can add [`BaseStatMap`] to the `Entity` as base stats, if we include
 //! it in the `intrinsic` section of the [`querier!`] macro.
@@ -92,10 +93,28 @@
 //! define one manually so the recommended way is to define a `type` with the
 //! [`querier!`] macro. Additionally we can also use the [`StatExtension`] with `World` access
 //! for similar functionalities.
+//! 
+//! ## Example
+//!
+//! ```
+//! querier!(pub UnitStatQuerier {
+//!     qualifier: MyQualifier,
+//!     intrinsic: {
+//!         Allegiance,
+//!         Position
+//!     },
+//!     external: {
+//!         Weapon,
+//!         Ability,
+//!         Effect,
+//!         Potion,
+//!     }
+//! });
+//! ```
 //!
 //! # Unordered StatStream
 //!
-//! `bevy_stat_engine` uses unordered operations to build up stats. This includes
+//! `bevy_stat_query` uses unordered operations to build up stats. This includes
 //! `add`, `multiply`, `min`, `max` and `or`. This ensures no explicit ordering is
 //! ever needed when querying for stats.
 //!
@@ -108,7 +127,7 @@
 //!
 //! We can create relations between different
 //! stats using either their components form or their evaluated form.
-//! [`StatStream`]s are allowed to query other stats or stats on other entities.
+//! [`StatStream`]s are allowed to query other stats or other entities.
 //! Since stat operations are unordered, dependency cycles cannot be resolved.
 //! If a cycle is detected, an error will be thrown.
 //!
@@ -127,8 +146,13 @@
 //! might be advisable in this case.
 //! 
 //! * The crate heavily utilizes dynamic dispatch under the hood, and is therefore
-//! not fully reflect compatible. The sole supported serialization method is
+//! not fully reflect compatible. The supported serialization method is
 //! through the [`bevy_serde_project`] crate, Check out that crate for more information.
+//! 
+//! * if [`StatValue::Bounds`] is a float, their default values are likely `-inf` and `inf`,
+//! which are not valid values in `json`. This means `serde_json` will serialize them as
+//! `null` and fail when deserialized. 
+//! If [`FullStatMap`] is used (optional btw), choose a different format.
 #[allow(unused)]
 use bevy_ecs::{query::QueryData, component::Component, system::SystemParam};
 
@@ -173,13 +197,9 @@ pub use stat_map::{BaseStatMap, FullStatMap, Unqualified, StatOperationsMap};
 use std::fmt::Debug;
 
 mod sealed {
-    pub struct SealToken;
-
     pub trait Sealed {}
 
-    pub trait SealedAll {}
-
-    impl<T: ?Sized> SealedAll for T {}
+    impl<T: ?Sized> Sealed for T {}
 }
 
 /// Alias for `Clone + Debug + Send + Sync + 'static`.

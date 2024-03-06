@@ -18,8 +18,8 @@ use crate::StatInstances;
 /// will be used as the base stats of the unit.
 ///
 /// This stores the output value of a stat and uses
-/// [`StatComponents::from_out`] to covert back into
-/// [`StatComponents`] or [`StatOperation`](crate::StatOperation)
+/// [`StatValue::from_out`] to covert back into
+/// [`StatValue`] or [`StatOperation`](crate::StatOperation)
 ///
 /// The map is optimized for looking up all qualifiers with a specific [`Stat`].
 ///

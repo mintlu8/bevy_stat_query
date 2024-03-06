@@ -7,12 +7,12 @@ use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
 use dyn_hash::DynHash;
 
-use crate::{sealed::SealedAll, types::DynStatValue, Data, Shareable, StatValue, TYPE_ERROR};
+use crate::{sealed::Sealed, types::DynStatValue, Data, Shareable, StatValue, TYPE_ERROR};
 
 /// Implement this on your types to qualify them as a [`Stat`].
 ///
 /// Similar to bevy's labels, you can either use one instance per stat,
-/// or use one type per [`StatComponents`].
+/// or use one type per [`StatValue`].
 ///
 /// # Example
 /// ```
@@ -40,7 +40,7 @@ pub trait Stat: Shareable + Hash + Debug + Eq + Ord {
     fn values() -> impl IntoIterator<Item = Self>;
 
     /// Equality comparison between all stat implementors.
-    fn is<S: Stat + SealedAll>(&self, other: &S) -> bool{
+    fn is<S: Stat + Sealed>(&self, other: &S) -> bool{
         self as &dyn DynStat == other as &dyn DynStat
     }
 }

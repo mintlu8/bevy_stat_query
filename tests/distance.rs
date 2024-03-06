@@ -1,7 +1,7 @@
 use bevy_ecs::{component::Component, entity::Entity, world::World};
 use bevy_hierarchy::BuildWorldChildren;
 use bevy_reflect::TypePath;
-use bevy_stat_engine::{querier, types::{StatInt, StatOnce}, ExternalStream, IntrinsicStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatValue};
+use bevy_stat_query::{querier, types::{StatInt, StatOnce}, ExternalStream, IntrinsicStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatValue};
 use serde::{Deserialize, Serialize};
 
 
@@ -64,7 +64,7 @@ impl ExternalStream<bool> for Position {
         _: &<Self::Ctx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<bool>,
-        _: &mut bevy_stat_engine::StatValuePair,
+        _: &mut bevy_stat_query::StatValuePair,
         _: &mut QuerierRef<'_, bool>
     ) {}
 }
@@ -75,7 +75,7 @@ impl IntrinsicStream<bool> for Position {
         this: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         other: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<bool>,
-        stat: &mut bevy_stat_engine::StatValuePair,
+        stat: &mut bevy_stat_query::StatValuePair,
         _: &mut QuerierRef<bool>
     ) {
         stat.is_then(&StatDistance, |v| 
@@ -91,7 +91,7 @@ impl ExternalStream<bool> for Allegiance {
         _: &<Self::Ctx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<bool>,
-        _: &mut bevy_stat_engine::StatValuePair,
+        _: &mut bevy_stat_query::StatValuePair,
         _: &mut QuerierRef<'_, bool>
     ) {}
 }
@@ -102,7 +102,7 @@ impl IntrinsicStream<bool> for Allegiance {
         this: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         other: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<bool>,
-        stat: &mut bevy_stat_engine::StatValuePair,
+        stat: &mut bevy_stat_query::StatValuePair,
         _: &mut QuerierRef<bool>
     ) {
         stat.is_then(&StatAllegiance, |v| 
@@ -151,7 +151,7 @@ impl ExternalStream<bool> for DistanceAura {
         _: &<Self::Ctx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         component: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<bool>,
-        stat: &mut bevy_stat_engine::StatValuePair,
+        stat: &mut bevy_stat_query::StatValuePair,
         querier: &mut QuerierRef<'_, bool>,
     ) {
         dbg!(&stat);
@@ -173,7 +173,7 @@ impl ExternalStream<bool> for AllegianceAura {
         _: &<Self::Ctx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         component: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<bool>,
-        stat: &mut bevy_stat_engine::StatValuePair,
+        stat: &mut bevy_stat_query::StatValuePair,
         querier: &mut QuerierRef<'_, bool>,
     ) {
         stat.is_then(&StatEffects::Allegiance, |s| {
