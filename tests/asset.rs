@@ -65,10 +65,10 @@ impl ExternalStream<MyQualifier> for Weapon {
         stat: &mut bevy_stat_engine::StatValuePair,
         _: &mut QuerierRef<'_, MyQualifier>
     ) {
-        stat.is_then(&Damage, |w| {
+        if let Some(value) = stat.is(&Damage) {
             let Some(weapon) = assets.get(handle) else {return};
-            w.add(weapon.damage * state.durability)
-        });
+            value.add(weapon.damage * state.durability)
+        }
     }
 }
 

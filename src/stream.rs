@@ -15,6 +15,15 @@ impl<'t> StatValuePair<'t> {
         StatValuePair(stat, value)
     }
 
+    pub fn is<'a, S: Stat>(&'a mut self, is: &S) -> Option<&'a mut S::Data> {
+        let StatValuePair(stat, data) = self;
+        if *stat == is as &dyn DynStat {
+            Some(data.downcast_mut::<S::Data>().expect(TYPE_ERROR))
+        } else {
+            None
+        }
+    }
+
     /// If stat is a concrete stat, downcast value.
     pub fn is_then<'a, S: Stat>(&'a mut self, is: &S, then: impl FnOnce(&'a mut S::Data)) -> bool {
         let StatValuePair(stat, data) = self;
@@ -26,8 +35,19 @@ impl<'t> StatValuePair<'t> {
         }
     }
 
+
+    pub fn cast<S: Stat>(&mut self) -> Option<(&S, &mut S::Data)> {
+        let StatValuePair(stat, data) = self;
+        if let Some(stat) = stat.downcast_ref::<S>() {
+            Some((stat, data.downcast_mut::<S::Data>().expect(TYPE_ERROR)))
+        } else {
+            None
+        }
+    }
+
+
     /// If stat is of a type, downcast the stat and value.
-    pub fn as_then<'a, S: Stat>(&'a mut self, then: impl FnOnce(&S, &'a mut S::Data)) -> bool {
+    pub fn cast_then<'a, S: Stat>(&'a mut self, then: impl FnOnce(&S, &'a mut S::Data)) -> bool {
         let StatValuePair(stat, data) = self;
         if let Some(stat) = stat.downcast_ref::<S>() {
             then(stat, data.downcast_mut::<S::Data>().expect(TYPE_ERROR));
@@ -43,7 +63,7 @@ impl<'t> StatValuePair<'t> {
     }
 
     /// Extend the stat value with a stateful stream.
-    pub fn stateful_extend<Q: QualifierFlag>(&mut self, qualifier: &QualifierQuery<Q>, querier: &mut QuerierRef<'_, Q>, extend: impl StatelessStream<Q>) {
+    pub fn stateful_extend<Q: QualifierFlag>(&mut self, qualifier: &QualifierQuery<Q>, querier: &mut QuerierRef<'_, Q>, extend: impl StatStream<Q>) {
         extend.stream(qualifier, self, querier)
     }
 }

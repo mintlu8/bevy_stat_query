@@ -10,8 +10,7 @@ use super::{StatValue, Unsupported};
 /// A flags based on a type that supports bitwise operations,
 /// like integer, `bitflgs` or `enumset`.
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, TypePath)]
-#[serde(bound(serialize = ""))]
-#[serde(bound(deserialize = ""))]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct StatFlags<T: Flags> {
     pub not: T,
     pub or: T,
@@ -51,8 +50,7 @@ impl<T: Flags> StatValue for StatFlags<T> {
 /// A stat flags backed by a `HashSet`.
 /// Use [`StatFlags`] if possible for better performance.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TypePath)]
-#[serde(bound(serialize = ""))]
-#[serde(bound(deserialize = ""))]
+#[serde(bound(serialize = "", deserialize = ""))]
 pub struct StatSet<T: Serializable + Hash + Eq + Default> {
     pub not: HashSet<T>,                                                     
     pub or: HashSet<T>,

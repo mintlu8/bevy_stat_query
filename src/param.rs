@@ -57,7 +57,6 @@ impl<T: IntrinsicStream<Q>, Q: QualifierFlag> IntrinsicParam<Q> for ChildStatPar
         stat: &mut StatValuePair,
         querier: &mut QuerierRef<'_, Q>,
     ) {
-        dbg!("Ooohhh");
         if let Ok((a, b)) = item.query.get(this).and_then(|x| Ok((x, item.query.get(other)?))){
             T::distance(&*item.ctx, a, b, qualifier, stat, querier);
         }
@@ -108,7 +107,6 @@ impl<A, B, Q: QualifierFlag> IntrinsicParam<Q> for (A, B) where A: IntrinsicPara
         stat: &mut StatValuePair,
         querier: &mut QuerierRef<'_, Q>,
     ) {
-        dbg!("Ahhhh");
         A::distance_stream(&item.0, this, other, qualifier, stat, querier);
         B::distance_stream(&item.1, this, other, qualifier, stat, querier);
     }

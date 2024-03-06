@@ -13,7 +13,7 @@ use bevy_serde_project::typetagged::{BevyTypeTagged, FromTypeTagged};
 use downcast_rs::impl_downcast;
 use dyn_clone::clone_trait_object;
 pub use int_pct::{StatIntPercentAdditive, StatIntPercent};
-pub use int_ratio::StatIntFraction;
+pub use int_ratio::{StatInt, StatIntFraction, StatIntFloatMul};
 pub use float::{StatFloat, StatFloatAdditive, StatMult};
 pub use flags::{StatFlags, StatSet};
 use serde::{Deserialize, Serialize};
