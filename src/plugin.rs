@@ -15,8 +15,16 @@ type Bounds<T> = <<T as Stat>::Data as StatValue>::Bounds;
 /// Extension on [`World`] and [`App`]
 pub trait StatExtension {
     /// Register associated serialization routine for a stat.
+    /// 
+    /// # Panics
+    /// 
+    /// If trying to replace a previous stat entry with a different value.
     fn register_stat<T: Stat>(&mut self) -> &mut Self;
     /// Register associated serialization routine for a stat that uses [`FromStr`].
+    /// 
+    /// # Panics
+    /// 
+    /// If trying to replace a previous stat entry with a different value.
     fn register_stat_parser<T: Stat + FromStr>(&mut self) -> &mut Self;
     /// Register a default stat value.
     ///

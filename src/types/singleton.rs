@@ -37,14 +37,14 @@ impl StatValue for StatExists {
 /// Finds a single entry of a given stat.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
-pub enum StatOnce<T: PartialEq + Serializable> {
+pub enum StatOnce<T: Serializable> {
     #[default]
     NotFound,
     Found(T),
     FoundMultiple,
 }
 
-impl<T: PartialEq + Serializable> StatOnce<T> {
+impl<T: Serializable> StatOnce<T> {
     pub fn unwrap(self) -> T {
         self.into_option().unwrap()
     }
@@ -82,27 +82,37 @@ impl<T: PartialEq + Serializable> StatOnce<T> {
             _ => None
         }
     }
+
+    /// Try setting the value, alias for 'or'.
+    pub fn set(&mut self, item: T) {
+        self.or(item);
+    }
+
+    /// Never sets to `FoundMultiple`, if found, return false.
+    pub fn try_set(&mut self, item: T) -> bool{
+        match self {
+            StatOnce::NotFound => {
+                *self = Self::Found(item);
+                true
+            },
+            _ => false
+        }
+    }
 }
 
-impl<T: PartialEq + Serializable> StatValue for StatOnce<T> {
+impl<T: Serializable> StatValue for StatOnce<T> {
     type Out = StatOnce<T>;
 
     fn join(&mut self, other: Self) {
         match (&self, other) {
+            (_, StatOnce::NotFound) => (),
+            (StatOnce::NotFound, other) => {
+                *self = other;
+            }
             (StatOnce::FoundMultiple, _) => (),
-            (_, StatOnce::FoundMultiple) => {
+            (StatOnce::Found(_), _) => {
                 *self = StatOnce::FoundMultiple
             },
-            (StatOnce::Found(a), StatOnce::Found(b)) => {
-                if a != &b {
-                    *self = StatOnce::FoundMultiple
-                }
-            },
-            (StatOnce::Found(_), StatOnce::NotFound) => (),
-            (StatOnce::NotFound, StatOnce::Found(a)) => {
-                *self = StatOnce::Found(a);
-            }
-            (StatOnce::NotFound, StatOnce::NotFound) => (),
         }
     }
 
@@ -119,10 +129,8 @@ impl<T: PartialEq + Serializable> StatValue for StatOnce<T> {
     fn or(&mut self, other: Self::Bit) {
         match self {
             StatOnce::NotFound => *self = Self::Found(other),
-            StatOnce::Found(val) => {
-                if val != &other {
-                    *self = StatOnce::FoundMultiple;
-                }
+            StatOnce::Found(_) => {
+                *self = StatOnce::FoundMultiple;
             },
             StatOnce::FoundMultiple => (),
         }

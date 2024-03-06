@@ -79,7 +79,7 @@ impl IntrinsicStream<bool> for Position {
         _: &mut QuerierRef<bool>
     ) {
         stat.is_then(&StatDistance, |v| 
-            v.or((this.0[0] - other.0[0]).abs() + (this.0[1] - other.0[1]).abs())
+            v.set((this.0[0] - other.0[0]).abs() + (this.0[1] - other.0[1]).abs())
         );
     }
 }
@@ -107,9 +107,9 @@ impl IntrinsicStream<bool> for Allegiance {
     ) {
         stat.is_then(&StatAllegiance, |v| 
             if this == other {
-                v.or(Relation::Ally)
+                v.set(Relation::Ally)
             } else {
-                v.or(Relation::Enemy)
+                v.set(Relation::Enemy)
             }
         );
     }
@@ -132,8 +132,8 @@ impl Stat for StatEffects {
 
     fn name(&self) -> &str {
         match self {
-            StatEffects::Distance => "Distance",
-            StatEffects::Allegiance => "Allegiance",
+            StatEffects::Distance => "DistanceEffect",
+            StatEffects::Allegiance => "AllegianceEffect",
         }
     }
 

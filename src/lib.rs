@@ -117,6 +117,8 @@
 //! [`IntrinsicStream`] can be used to provide bi-entity relationship 
 //! like `distance` or `allegiance`. This can be used to model range based effects.
 //! 
+//! You may find [`StatOnce`](types::StatOnce) useful in implementing these.
+//! 
 //! # Note
 //!
 //! * [`StatQuerier`] requires read access to all components in stat system so we cannot mutate

@@ -169,16 +169,47 @@ impl Debug for StatInstances {
 }
 
 impl StatInstances {
+
+    /// Register all members of a [`Stat`].
+    /// 
+    /// # Panics
+    /// 
+    /// If a stat registered conflicts with a previous entry.
     pub fn register<T: Stat>(&mut self) {
+        T::values().into_iter().for_each(|x| {
+            if let Some(prev) = self.concrete.get(x.name()) {
+                assert_eq!(prev.as_ref(), &x, "duplicate key {}", x.name())
+            } else {
+                self.concrete.insert(x.name().to_owned(), Box::new(x));
+            }
+        })
+    }
+
+    /// Register all members of a [`Stat`].
+    ///
+    /// Always replaces a registered [`Stat`] of the same key.
+    pub fn register_replace<T: Stat>(&mut self) {
         T::values().into_iter().for_each(|x| {
             self.concrete.insert(x.name().to_owned(), Box::new(x));
         })
     }
 
+    /// Register all members of a [`Stat`] if applicable and a [`FromStr`] parser.
+    ///
+    /// # Panics
+    /// 
+    /// If a stat registered conflicts with a previous entry.
     pub fn register_parser<T: Stat + FromStr>(&mut self) {
-        T::values().into_iter().for_each(|x| {
-            self.concrete.insert(x.name().to_owned(), Box::new(x));
-        });
+        self.register::<T>();
+        self.any.push(|s| T::from_str(s).map(|x| Box::new(x) as Box<dyn DynStat>).ok())
+    }
+
+
+    /// Register all members of a [`Stat`] if applicable and a [`FromStr`] parser.
+    ///
+    /// Always replaces a registered [`Stat`] of the same key.
+    pub fn register_parser_replace<T: Stat + FromStr>(&mut self) {
+        self.register_replace::<T>();
         self.any.push(|s| T::from_str(s).map(|x| Box::new(x) as Box<dyn DynStat>).ok())
     }
 }
