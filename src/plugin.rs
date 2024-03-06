@@ -1,8 +1,11 @@
 use std::{marker::PhantomData, str::FromStr};
 use bevy_app::App;
-use bevy_ecs::{entity::Entity, system::{Resource, SystemId}, world::World};
-use crate::{Data, StatInstances};
+use bevy_ecs::{entity::Entity, query::With, system::{Query, Resource, SystemId}, world::World};
+use crate::{Data, StatCache, StatEntity, StatInstances};
 use crate::{calc::StatDefaults, querier::GenericQuerier, types::DynStatValue, QualifierFlag, QualifierQuery, Stat, StatOperation, StatValue};
+
+#[derive(Debug, Resource)]
+pub struct ClearCacheId(SystemId);
 
 #[derive(Debug, Resource)]
 pub struct QuerySysId<Q: QualifierFlag, S: Stat>(SystemId<(Entity, QualifierQuery<Q>, S), Option<S::Data>>, PhantomData<(Q, S)>);
@@ -45,6 +48,9 @@ pub trait StatExtension {
         self.query_stat::<E, S>(entity, qualifier, stat)
             .map(|x| x.eval())
     }
+
+    fn clear_stat_cache<Q: QualifierFlag>(&mut self);
+
 }
 
 impl StatExtension for World {
@@ -101,7 +107,21 @@ impl StatExtension for World {
         };
         self.run_system_with_input(id, (entity, qualifier.clone(), stat.clone())).unwrap()
     }
+
+    fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
+        let id = if let Some(res) = self.get_resource::<ClearCacheId>() {
+            res.0
+        } else {
+            let id = self.register_system(|mut query: Query<&mut StatCache<Q>, With<StatEntity>>| {
+                query.iter_mut().for_each(|mut x| x.invalidate_all())
+            });
+            self.insert_resource(ClearCacheId(id));
+            id
+        };
+        self.run_system(id).unwrap();
+    }
 }
+
 
 impl StatExtension for App {
     fn register_stat<T: Stat>(&mut self) -> &mut Self {
@@ -136,5 +156,9 @@ impl StatExtension for App {
         stat: &S,
     ) -> Option<S::Data> {
         self.world.query_stat::<E, S>(entity, qualifier, stat)
+    }
+
+    fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
+        self.world.clear_stat_cache::<Q>()
     }
 }

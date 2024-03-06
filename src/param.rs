@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, marker::PhantomData};
-use bevy_ecs::{entity::Entity, query::Without, system::{Query, StaticSystemParam, SystemParam}};
-use crate::{querier::QuerierRef, stream::ExternalStream, IntrinsicStream, QualifierFlag, QualifierQuery, StatCache, StatValuePair};
+use bevy_ecs::{entity::Entity, system::{Query, StaticSystemParam, SystemParam}};
+use crate::{querier::QuerierRef, stream::ExternalStream, IntrinsicStream, QualifierFlag, QualifierQuery, StatValuePair};
 
 /// [`SystemParam`] that can be aggregated as stat components.
 pub trait StatParam<Q: QualifierFlag>: SystemParam {
@@ -23,14 +23,14 @@ pub trait IntrinsicParam<Q: QualifierFlag>: StatParam<Q> {
         qualifier: &QualifierQuery<Q>,
         stat: &mut StatValuePair,
         querier: &mut QuerierRef<'_, Q>,
-    ) -> bool;
+    );
 }
 
 /// [`SystemParam`] that queries for a specific [`StatStream`] in an entity.
 #[derive(SystemParam)]
 pub struct ChildStatParam<'w, 's, T: ExternalStream<Q>, Q: QualifierFlag> {
     pub ctx: StaticSystemParam<'w, 's, <T as ExternalStream<Q>>::Ctx>,
-    pub query: Query<'w, 's, <T as ExternalStream<Q>>::QueryData, Without<StatCache<Q>>>,
+    pub query: Query<'w, 's, <T as ExternalStream<Q>>::QueryData>,
     p: PhantomData<Q>,
 }
 
@@ -56,12 +56,10 @@ impl<T: IntrinsicStream<Q>, Q: QualifierFlag> IntrinsicParam<Q> for ChildStatPar
         qualifier: &QualifierQuery<Q>,
         stat: &mut StatValuePair,
         querier: &mut QuerierRef<'_, Q>,
-    ) -> bool {
+    ) {
+        dbg!("Ooohhh");
         if let Ok((a, b)) = item.query.get(this).and_then(|x| Ok((x, item.query.get(other)?))){
             T::distance(&*item.ctx, a, b, qualifier, stat, querier);
-            true
-        } else {
-            false
         }
     }
 }
@@ -84,9 +82,7 @@ impl<Q: QualifierFlag> IntrinsicParam<Q> for () {
         _: &QualifierQuery<Q>,
         _: &mut StatValuePair,
         _: &mut QuerierRef<'_, Q>,
-    ) -> bool {
-        false
-    }
+    ) {}
 }
 
 impl<A, B, Q: QualifierFlag> StatParam<Q> for (A, B) where A: StatParam<Q>, B: StatParam<Q> {
@@ -111,8 +107,9 @@ impl<A, B, Q: QualifierFlag> IntrinsicParam<Q> for (A, B) where A: IntrinsicPara
         qualifier: &QualifierQuery<Q>,
         stat: &mut StatValuePair,
         querier: &mut QuerierRef<'_, Q>,
-    ) -> bool {
-        A::distance_stream(&item.0, this, other, qualifier, stat, querier) ||
-        B::distance_stream(&item.1, this, other, qualifier, stat, querier)
+    ) {
+        dbg!("Ahhhh");
+        A::distance_stream(&item.0, this, other, qualifier, stat, querier);
+        B::distance_stream(&item.1, this, other, qualifier, stat, querier);
     }
 }

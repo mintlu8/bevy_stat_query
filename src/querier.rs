@@ -97,12 +97,15 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
 
     fn query_distance(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>> {
         let curr = self.stack.last().expect("Must call query_other on first call.").2;
+        if !self.querier.units.contains(entity) || !self.querier.units.contains(curr) {
+            return None;
+        }
         let mut stat_value = self.querier.defaults.as_ref()
             .map(|x| x.get_dyn(stat))
             .unwrap_or_else(||stat.default_value());        
         let mut pair = StatValuePair(stat as &dyn DynStat, stat_value.as_mut());
-        let ok = D::distance_stream(&*self.querier.intrinsic, curr, entity, qualifier, &mut pair, &mut QuerierRef(self));
-        ok.then_some(stat_value)
+        D::distance_stream(&*self.querier.intrinsic, curr, entity, qualifier, &mut pair, &mut QuerierRef(self));
+        Some(stat_value)
     }
 }
 
@@ -114,36 +117,36 @@ type SOut<S> = <<S as Stat>::Data as StatValue>::Out;
 impl<Q: QualifierFlag> QuerierRef<'_, Q> {
 
     /// Look for a [`StatValue`] on this entity, returns `None` if entity is missing.
-    fn query<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
+    pub fn query<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
         self.0.query(qualifier, stat)
             .map(|x| *x.downcast().expect(TYPE_ERROR))
     }
 
     /// Look for a stat output on this entity, returns `None` if entity is missing.
-    fn query_eval<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
+    pub fn query_eval<S: Stat>(&mut self, qualifier: &QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
         self.query(qualifier, stat).map(|x| x.eval())
     }
 
     /// Look for a [`StatValue`] on another entity, returns `None` if entity is missing.
-    fn query_other<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
+    pub fn query_other<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
         self.0.query_other(entity, qualifier, stat)
             .map(|x| *x.downcast().expect(TYPE_ERROR))    
     }
 
     /// Look for a stat output on another entity, returns `None` if entity is missing.
-    fn query_eval_other<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
+    pub fn query_eval_other<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
         self.query_other(entity, qualifier, stat).map(|x| x.eval())    
     }
 
     /// Look for a relation between two entities, returns `None` if an entity is missing or no intrinsic component provided results.
-    fn query_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
-        self.0.query_other(entity, qualifier, stat)
+    pub fn query_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
+        self.0.query_distance(entity, qualifier, stat)
             .map(|x| *x.downcast().expect(TYPE_ERROR))    
     }
 
     /// Look for a relation between two entities, returns `None` if an entity is missing or no intrinsic component provided results.
-    fn query_eval_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
-        self.query_other(entity, qualifier, stat).map(|x| x.eval())   
+    pub fn query_eval_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
+        self.query_distance(entity, qualifier, stat).map(|x| x.eval())   
     }
 }
 
@@ -255,12 +258,13 @@ pub use crate::stream::{ExternalStream, IntrinsicStream};
 /// ```
 #[macro_export]
 macro_rules! querier {
-    (@hints $($name:ident: $ignored: expr),* $(,)?) => {
+    (@hints $qualifier: ident: $ty: ty, $($name: ident: $ignored: tt),* $(,)?) => {
         #[automatically_derived]
         #[allow(unused, clippy::needless_update)]
         const _: () = {
             || {
                 $crate::hints::ImplQuerier {
+                    $qualifier: ::std::default::Default::default(),
                     $($name: ::std::default::Default::default(),)*
                     ..::std::default::Default::default()
                 };

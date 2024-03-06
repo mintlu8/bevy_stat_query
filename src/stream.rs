@@ -131,7 +131,7 @@ pub trait IntrinsicStream<Qualifier: QualifierFlag>: ExternalStream<Qualifier> {
         qualifier: &QualifierQuery<Qualifier>,
         stat: &mut StatValuePair,
         querier: &mut QuerierRef<Qualifier>
-    ) -> bool;
+    );
 }
 
 
@@ -251,9 +251,7 @@ impl<Q: QualifierFlag> IntrinsicStream<Q> for BaseStatMap<Q> {
         _: &QualifierQuery<Q>,
         _: &mut StatValuePair,
         _: &mut QuerierRef<Q>
-    ) -> bool {
-        false
-    }
+    ) {}
 }
 
 impl<Q: QualifierFlag> IntrinsicStream<Q> for FullStatMap<Q> {
@@ -264,9 +262,7 @@ impl<Q: QualifierFlag> IntrinsicStream<Q> for FullStatMap<Q> {
         _: &QualifierQuery<Q>,
         _: &mut StatValuePair,
         _: &mut QuerierRef<Q>
-    ) -> bool {
-        false
-    }
+    ) {}
 }
 
 impl<Q: QualifierFlag> IntrinsicStream<Q> for StatOperationsMap<Q> {
@@ -277,8 +273,6 @@ impl<Q: QualifierFlag> IntrinsicStream<Q> for StatOperationsMap<Q> {
         _: &QualifierQuery<Q>,
         _: &mut StatValuePair,
         _: &mut QuerierRef<Q>
-    ) -> bool {
-        false
-    }
+    ) {}
 }
 

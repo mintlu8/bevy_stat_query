@@ -17,7 +17,7 @@ pub use int_ratio::StatIntFraction;
 pub use float::{StatFloat, StatFloatAdditive, StatMult};
 pub use flags::{StatFlags, StatSet};
 use serde::{Deserialize, Serialize};
-pub use singleton::StatSingleton;
+pub use singleton::StatOnce;
 
 /// A never type indicating an operation is not supported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize)]

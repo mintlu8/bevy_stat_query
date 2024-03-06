@@ -1,4 +1,4 @@
-use std::{any::type_name, fmt::Debug};
+use std::fmt::Debug;
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 use crate::{calc::StatOperation, Serializable};
@@ -35,59 +35,79 @@ impl StatValue for StatExists {
 }
 
 /// Finds a single entry of a given stat.
-///
-/// # Panics
-///
-/// If no value or more than one value found if `eval` is called.
-/// This behavior depends on the const generic values supplied.
-/// if not, returns the default value.
-#[derive(Debug, Default, Clone, Copy, TypePath, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
-pub enum StatSingleton<T: PartialEq + Serializable + Default, const PANIC_NOT_FOUND: bool=true, const PANIC_MULTIPLE_FOUND: bool=true> {
+pub enum StatOnce<T: PartialEq + Serializable> {
     #[default]
     NotFound,
     Found(T),
     FoundMultiple,
 }
 
-impl<T: PartialEq + Serializable + Default, const PNF: bool, const PMF: bool> StatValue for StatSingleton<T, PNF, PMF> {
-    type Out = T;
+impl<T: PartialEq + Serializable> StatOnce<T> {
+    pub fn unwrap(self) -> T {
+        self.into_option().unwrap()
+    }
+
+    pub fn unwrap_or(self, or: T) -> T {
+        self.into_option().unwrap_or(or)
+    }
+
+    pub fn unwrap_or_else(self, or: impl Fn() -> T) -> T {
+        self.into_option().unwrap_or_else(or)
+    }
+
+    pub fn expect(self, msg: &str) -> T {
+        self.into_option().expect(msg)
+    }
+
+    pub fn is_some(&self) -> bool {
+        matches!(self, StatOnce::Found(_))
+    }
+
+    pub fn is_none(&self) -> bool {
+        !matches!(self, StatOnce::Found(_))
+    }
+
+    pub fn into_option(self) -> Option<T> {
+        match self {
+            StatOnce::Found(r) => Some(r),
+            _ => None
+        }
+    }
+
+    pub fn as_ref(&self) -> Option<&T> {
+        match self {
+            StatOnce::Found(r) => Some(r),
+            _ => None
+        }
+    }
+}
+
+impl<T: PartialEq + Serializable> StatValue for StatOnce<T> {
+    type Out = StatOnce<T>;
 
     fn join(&mut self, other: Self) {
         match (&self, other) {
-            (StatSingleton::FoundMultiple, _) => (),
-            (_, StatSingleton::FoundMultiple) => {
-                *self = StatSingleton::FoundMultiple
+            (StatOnce::FoundMultiple, _) => (),
+            (_, StatOnce::FoundMultiple) => {
+                *self = StatOnce::FoundMultiple
             },
-            (StatSingleton::Found(a), StatSingleton::Found(b)) => {
+            (StatOnce::Found(a), StatOnce::Found(b)) => {
                 if a != &b {
-                    *self = StatSingleton::FoundMultiple
+                    *self = StatOnce::FoundMultiple
                 }
             },
-            (StatSingleton::Found(_), StatSingleton::NotFound) => (),
-            (StatSingleton::NotFound, StatSingleton::Found(a)) => {
-                *self = StatSingleton::Found(a);
+            (StatOnce::Found(_), StatOnce::NotFound) => (),
+            (StatOnce::NotFound, StatOnce::Found(a)) => {
+                *self = StatOnce::Found(a);
             }
-            (StatSingleton::NotFound, StatSingleton::NotFound) => (),
+            (StatOnce::NotFound, StatOnce::NotFound) => (),
         }
     }
 
     fn eval(&self) -> Self::Out {
-        match self {
-            StatSingleton::NotFound => if PNF {panic!(
-                "StatSingleton<{}> found no matching value.",
-                type_name::<T>()
-            )} else {
-                Default::default()
-            },
-            StatSingleton::Found(some) => some.clone(),
-            StatSingleton::FoundMultiple => if PMF {panic!(
-                "StatSingleton<{}> found multiple matching values.",
-                type_name::<T>()
-            )} else {
-                Default::default()
-            }
-        }
+        self.clone()
     }
 
     type Add = Unsupported;
@@ -98,17 +118,20 @@ impl<T: PartialEq + Serializable + Default, const PNF: bool, const PMF: bool> St
 
     fn or(&mut self, other: Self::Bit) {
         match self {
-            StatSingleton::NotFound => *self = Self::Found(other),
-            StatSingleton::Found(val) => {
+            StatOnce::NotFound => *self = Self::Found(other),
+            StatOnce::Found(val) => {
                 if val != &other {
-                    *self = StatSingleton::FoundMultiple;
+                    *self = StatOnce::FoundMultiple;
                 }
             },
-            StatSingleton::FoundMultiple => (),
+            StatOnce::FoundMultiple => (),
         }
     }
 
     fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Or(out)
+        match out {
+            StatOnce::Found(f) => StatOperation::Or(f),
+            _ => panic!("Base stat has to be a concrete value."),
+        }
     }
 }
