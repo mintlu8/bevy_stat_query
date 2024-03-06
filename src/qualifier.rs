@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Debug, hash::Hash, ops::{BitAnd, BitOr}};
+use std::{fmt::Debug, hash::Hash, ops::{BitAnd, BitOr}};
 use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 
@@ -76,41 +76,6 @@ impl<Q: QualifierFlag> Default for Qualifier<Q> {
     }
 }
 
-pub trait IntoQualifierQuery<Q: QualifierFlag> {
-    fn into_flags(self) -> QualifierQuery<Q>;
-    fn to_flags_ref(&self) -> Cow<'_, QualifierQuery<Q>>;
-}
-
-impl<Q: QualifierFlag> IntoQualifierQuery<Q> for Qualifier<Q> {
-    fn into_flags(self) -> QualifierQuery<Q> {
-        QualifierQuery::Exact {
-            any_of: self.any_of,
-            all_of: self.all_of,
-        }
-    }
-    fn to_flags_ref(&self) -> Cow<'_, QualifierQuery<Q>>{
-        Cow::Owned(self.clone().into_flags())
-    }
-}
-
-impl<Q: QualifierFlag> IntoQualifierQuery<Q> for Q {
-    fn into_flags(self) -> QualifierQuery<Q> {
-        QualifierQuery::Aggregate(self)
-    }
-    fn to_flags_ref(&self) -> Cow<'_, QualifierQuery<Q>>{
-        Cow::Owned(self.clone().into_flags())
-    }
-}
-
-impl<Q: QualifierFlag> IntoQualifierQuery<Q> for QualifierQuery<Q> {
-    fn into_flags(self) -> QualifierQuery<Q> {
-        self
-    }
-    fn to_flags_ref(&self) -> Cow<'_, QualifierQuery<Q>>{
-        Cow::Borrowed(self)
-    }
-}
-
 impl<Q: QualifierFlag> Qualifier<Q> {
 
     pub fn none() -> Self {
@@ -158,9 +123,8 @@ impl<Q: QualifierFlag> Qualifier<Q> {
     /// * `fire_damage` does not qualify as `elemental_damage`.
     /// * `fire_water_earth_air_damage` does not qualify as `elemental_damage`,
     ///     since left hand side is `all_of`, right hand side is `any_of`.
-    pub fn qualifies_as(&self, queried: &impl IntoQualifierQuery<Q>) -> bool {
-        let queried = queried.to_flags_ref();
-        match queried.as_ref() {
+    pub fn qualifies_as(&self, queried: &QualifierQuery<Q>) -> bool {
+        match queried {
             QualifierQuery::Aggregate(some_of) => {
                 some_of.contains(&self.all_of) &&
                 self.any_of.is_none_or_intersects(some_of)
