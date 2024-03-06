@@ -26,7 +26,7 @@ pub trait IntrinsicParam<Q: QualifierFlags>: StatParam<Q> {
     );
 }
 
-/// [`SystemParam`] that queries for a specific [`StatStream`] in an entity.
+/// [`SystemParam`] that queries for a specific [`ExternalStream`] in an entity.
 #[derive(SystemParam)]
 pub struct ChildStatParam<'w, 's, T: ExternalStream<Q>, Q: QualifierFlags> {
     pub ctx: StaticSystemParam<'w, 's, <T as ExternalStream<Q>>::Ctx>,

@@ -71,7 +71,7 @@
 //! }
 //! ```
 //! 
-//! * What do you mean? My `DarkFire` and `Fire` and totally different things and should be independent.
+//! * What do you mean? My `DarkFire` and `Fire` are totally different things and should be independent.
 //! 
 //! Create a new qualifier `DarkFire` instead of `Dark`|`Fire`.
 //!
@@ -200,7 +200,7 @@ mod sealed {
 pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 
-/// Alias for `Clone + Debug + Send + Sync + 'static`.
+/// Alias for `Shareable + Serialize + DeserializeOwned + TypePath`.
 pub trait Serializable: Clone + Debug + Send + Sync + Serialize + DeserializeOwned + TypePath + 'static {}
 impl<T> Serializable for T where T: Clone + Debug + Send + Sync + Sync + Serialize + DeserializeOwned + TypePath + 'static {}
 

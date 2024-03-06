@@ -250,7 +250,7 @@ pub use crate::stream::{ExternalStream, IntrinsicStream};
 /// });
 /// ```
 /// 
-/// * qualifier: implements [`QualifierFlag`]
+/// * qualifier: implements [`QualifierFlags`]
 /// * intrinsic: { implements [`IntrinsicStream`], .. }
 /// * components: { implements [`ExternalStream`], .. }
 ///
@@ -340,7 +340,7 @@ pub mod hints {
     #[doc(hidden)]
     #[derive(Default)]
     pub struct ImplQuerier {
-        /// The qualifier of the type, should be a [`QualifierFlag`](crate::QualifierFlag)
+        /// The qualifier of the type, should be a [`QualifierFlags`](crate::QualifierFlag)
         pub qualifier: impl_QualifierFlags,
         /// A list of [`IntrinsicStream`] types to pull data from a `StatEntity`'s components.
         pub intrinsic: List<impl_IntrinsicStream>,

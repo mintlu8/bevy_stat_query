@@ -4,10 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Shareable;
 
-/// A flags like [`Qualifier`] for stats, normally bitflags or a set.
-///
-/// An application should ideally implement one [`QualifierFlag`] and multiple [`Stat`]s,
-/// since different types of stats can still interop if they use the same [`QualifierFlag`].
+/// A flags like [`Qualifier`] for stats, normally `bitflags` or a set.
 pub trait QualifierFlags: BitOr<Self, Output=Self> + Ord + Hash + Shareable {
     fn contains(&self, other: &Self) -> bool;
     fn intersects(&self, other: &Self) -> bool;
