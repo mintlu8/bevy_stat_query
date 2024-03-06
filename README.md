@@ -1,6 +1,6 @@
 # bevy-stat-query
 
-An over-engineered RPG stat query system for the bevy engine.
+An over-engineered RPG stat system for the bevy engine.
 
 ## Qualified Stats
 

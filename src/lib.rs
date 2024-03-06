@@ -1,6 +1,6 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
-//! A pedantic RPG stat system for the bevy engine.
+//! An over-engineered RPG stat system for the bevy engine.
 //!
 //! # Qualified Stats
 //!
@@ -119,8 +119,7 @@
 //! ever needed when querying for stats.
 //!
 //! Each stat has its components form [`StatValue`], e.g. `(12 * 4).min(99).max(0)`,
-//! and its evaluated form, e.g. `48`. You can implement your own `StatValue`
-//! to achieve custom behaviors. [`StatOperation`] stores a single operation
+//! and its evaluated form, e.g. `48`. [`StatOperation`] stores a single operation
 //! that can be written to a [`StatValue`].
 //! 
 //! ## Stat Relation
@@ -140,7 +139,7 @@
 //! 
 //! # Note
 //!
-//! * [`StatQuerier`] requires read access to all components in stat system so we cannot mutate
+//! * [`StatQuerier`] requires read access to all components in the stat system so we cannot mutate
 //! anything while having it as a parameter.
 //! Using system piping or some kind of deferred command queue for mutations 
 //! might be advisable in this case.
