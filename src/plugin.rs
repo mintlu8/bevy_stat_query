@@ -1,14 +1,14 @@
 use std::{marker::PhantomData, str::FromStr};
 use bevy_app::App;
 use bevy_ecs::{entity::Entity, query::With, system::{Query, Resource, SystemId}, world::World};
-use crate::{Data, StatCache, StatEntity, StatInstances};
-use crate::{calc::StatDefaults, querier::GenericQuerier, types::DynStatValue, QualifierFlag, QualifierQuery, Stat, StatOperation, StatValue};
+use crate::{Data, StatCache, StatDefaultRelations, StatEntity, StatInstances, StatStream};
+use crate::{calc::StatDefaults, querier::GenericQuerier, types::DynStatValue, QualifierFlags, QualifierQuery, Stat, StatOperation, StatValue};
 
 #[derive(Debug, Resource)]
 pub struct ClearCacheId(SystemId);
 
 #[derive(Debug, Resource)]
-pub struct QuerySysId<Q: QualifierFlag, S: Stat>(SystemId<(Entity, QualifierQuery<Q>, S), Option<S::Data>>, PhantomData<(Q, S)>);
+pub struct QuerySysId<Q: QualifierFlags, S: Stat>(SystemId<(Entity, QualifierQuery<Q>, S), Option<S::Data>>, PhantomData<(Q, S)>);
 
 type Bounds<T> = <<T as Stat>::Data as StatValue>::Bounds;
 
@@ -38,6 +38,9 @@ pub trait StatExtension {
     /// Register the maximum value of a stat.
     fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self;
 
+    /// Register a relation that is applied to every stat.
+    fn register_stat_relation<Q: QualifierFlags>(&mut self, relation: impl StatStream<Q>) -> &mut Self;
+
     /// Query for a stat on an [`Entity`] with [`World`] access.
     fn query_stat<E: GenericQuerier, S: Stat>(
         &mut self,
@@ -57,7 +60,7 @@ pub trait StatExtension {
             .map(|x| x.eval())
     }
 
-    fn clear_stat_cache<Q: QualifierFlag>(&mut self);
+    fn clear_stat_cache<Q: QualifierFlags>(&mut self);
 
 }
 
@@ -100,6 +103,12 @@ impl StatExtension for World {
         self
     }
 
+    fn register_stat_relation<Q: QualifierFlags>(&mut self, relation: impl StatStream<Q>) -> &mut Self {
+        self.get_resource_or_insert_with::<StatDefaultRelations<Q>>(Default::default)
+            .push(relation);
+        self
+    }
+
     fn query_stat<E: GenericQuerier, S: Stat>(
         &mut self,
         entity: Entity,
@@ -116,12 +125,12 @@ impl StatExtension for World {
         self.run_system_with_input(id, (entity, qualifier.clone(), stat.clone())).unwrap()
     }
 
-    fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
+    fn clear_stat_cache<Q: QualifierFlags>(&mut self) {
         let id = if let Some(res) = self.get_resource::<ClearCacheId>() {
             res.0
         } else {
             let id = self.register_system(|mut query: Query<&mut StatCache<Q>, With<StatEntity>>| {
-                query.iter_mut().for_each(|mut x| x.invalidate_all())
+                query.iter_mut().for_each(|mut x| x.clear())
             });
             self.insert_resource(ClearCacheId(id));
             id
@@ -157,6 +166,11 @@ impl StatExtension for App {
         self
     }
 
+    fn register_stat_relation<Q: QualifierFlags>(&mut self, relation: impl StatStream<Q>) -> &mut Self {
+        self.world.register_stat_relation(relation);
+        self
+    }
+
     fn query_stat<E: GenericQuerier, S: Stat>(
         &mut self,
         entity: Entity,
@@ -166,7 +180,7 @@ impl StatExtension for App {
         self.world.query_stat::<E, S>(entity, qualifier, stat)
     }
 
-    fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
+    fn clear_stat_cache<Q: QualifierFlags>(&mut self) {
         self.world.clear_stat_cache::<Q>()
     }
 }

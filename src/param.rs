@@ -1,9 +1,9 @@
 use std::{borrow::Borrow, marker::PhantomData};
 use bevy_ecs::{entity::Entity, system::{Query, StaticSystemParam, SystemParam}};
-use crate::{querier::QuerierRef, stream::ExternalStream, IntrinsicStream, QualifierFlag, QualifierQuery, StatValuePair};
+use crate::{querier::QuerierRef, stream::ExternalStream, IntrinsicStream, QualifierFlags, QualifierQuery, StatValuePair};
 
 /// [`SystemParam`] that can be aggregated as stat components.
-pub trait StatParam<Q: QualifierFlag>: SystemParam {
+pub trait StatParam<Q: QualifierFlags>: SystemParam {
     fn stream<E: Borrow<Entity>>(
         this: &Self::Item<'_, '_>,
         entities: impl IntoIterator<Item = E> + Clone,
@@ -14,7 +14,7 @@ pub trait StatParam<Q: QualifierFlag>: SystemParam {
 }
 
 /// [`SystemParam`] that can be used to query relation.
-pub trait IntrinsicParam<Q: QualifierFlag>: StatParam<Q> {
+pub trait IntrinsicParam<Q: QualifierFlags>: StatParam<Q> {
     /// Returns false if either entity is missing.
     fn distance_stream (
         item: &Self::Item<'_, '_>,
@@ -28,13 +28,13 @@ pub trait IntrinsicParam<Q: QualifierFlag>: StatParam<Q> {
 
 /// [`SystemParam`] that queries for a specific [`StatStream`] in an entity.
 #[derive(SystemParam)]
-pub struct ChildStatParam<'w, 's, T: ExternalStream<Q>, Q: QualifierFlag> {
+pub struct ChildStatParam<'w, 's, T: ExternalStream<Q>, Q: QualifierFlags> {
     pub ctx: StaticSystemParam<'w, 's, <T as ExternalStream<Q>>::Ctx>,
     pub query: Query<'w, 's, <T as ExternalStream<Q>>::QueryData>,
     p: PhantomData<Q>,
 }
 
-impl<T: ExternalStream<Q>, Q: QualifierFlag> StatParam<Q> for ChildStatParam<'_, '_, T, Q> {
+impl<T: ExternalStream<Q>, Q: QualifierFlags> StatParam<Q> for ChildStatParam<'_, '_, T, Q> {
     fn stream<E: Borrow<Entity>>(
         this: &Self::Item<'_, '_>,
         entities: impl IntoIterator<Item = E> + Clone,
@@ -48,7 +48,7 @@ impl<T: ExternalStream<Q>, Q: QualifierFlag> StatParam<Q> for ChildStatParam<'_,
     }
 }
 
-impl<T: IntrinsicStream<Q>, Q: QualifierFlag> IntrinsicParam<Q> for ChildStatParam<'_, '_, T, Q> {
+impl<T: IntrinsicStream<Q>, Q: QualifierFlags> IntrinsicParam<Q> for ChildStatParam<'_, '_, T, Q> {
     fn distance_stream (
         item: &Self::Item<'_, '_>,
         this: Entity,
@@ -63,7 +63,7 @@ impl<T: IntrinsicStream<Q>, Q: QualifierFlag> IntrinsicParam<Q> for ChildStatPar
     }
 }
 
-impl<Q: QualifierFlag> StatParam<Q> for () {
+impl<Q: QualifierFlags> StatParam<Q> for () {
     fn stream<E: Borrow<Entity>>(
         _: &Self::Item<'_, '_>,
         _: impl IntoIterator<Item = E> + Clone,
@@ -73,7 +73,7 @@ impl<Q: QualifierFlag> StatParam<Q> for () {
     ) {}
 }
 
-impl<Q: QualifierFlag> IntrinsicParam<Q> for () {
+impl<Q: QualifierFlags> IntrinsicParam<Q> for () {
     fn distance_stream (
         _: &Self::Item<'_, '_>,
         _: Entity,
@@ -84,7 +84,7 @@ impl<Q: QualifierFlag> IntrinsicParam<Q> for () {
     ) {}
 }
 
-impl<A, B, Q: QualifierFlag> StatParam<Q> for (A, B) where A: StatParam<Q>, B: StatParam<Q> {
+impl<A, B, Q: QualifierFlags> StatParam<Q> for (A, B) where A: StatParam<Q>, B: StatParam<Q> {
     fn stream<E: Borrow<Entity>>(
         this: &Self::Item<'_, '_>,
         entities: impl IntoIterator<Item = E> + Clone,
@@ -98,7 +98,7 @@ impl<A, B, Q: QualifierFlag> StatParam<Q> for (A, B) where A: StatParam<Q>, B: S
 }
 
 
-impl<A, B, Q: QualifierFlag> IntrinsicParam<Q> for (A, B) where A: IntrinsicParam<Q>, B: IntrinsicParam<Q> {
+impl<A, B, Q: QualifierFlags> IntrinsicParam<Q> for (A, B) where A: IntrinsicParam<Q>, B: IntrinsicParam<Q> {
     fn distance_stream (
         item: &Self::Item<'_, '_>,
         this: Entity,
