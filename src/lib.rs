@@ -148,11 +148,6 @@
 //! * The crate heavily utilizes dynamic dispatch under the hood, and is therefore
 //! not fully reflect compatible. The supported serialization method is
 //! through the [`bevy_serde_project`] crate, Check out that crate for more information.
-//! 
-//! * if [`StatValue::Bounds`] is a float, their default values are likely `-inf` and `inf`,
-//! which are not valid values in `json`. This means `serde_json` will serialize them as
-//! `null` and fail when deserialized. 
-//! If [`FullStatMap`] is used (optional btw), choose a different format.
 #[allow(unused)]
 use bevy_ecs::{query::QueryData, component::Component, system::SystemParam};
 

@@ -198,8 +198,8 @@ pub trait Float: NumOps + PartialOrd + Default + Copy + Serializable {
 impl Float for f32 {
     const ZERO: Self = 0.0;
     const ONE: Self = 1.0;
-    const MIN_VALUE: Self = f32::NEG_INFINITY;
-    const MAX_VALUE: Self = f32::INFINITY;
+    const MIN_VALUE: Self = f32::MIN;
+    const MAX_VALUE: Self = f32::MAX;
 
     fn min(self, other: Self) -> Self {
         self.min(other)
@@ -229,8 +229,8 @@ impl Float for f32 {
 impl Float for f64 {
     const ZERO: Self = 0.0;
     const ONE: Self = 1.0;
-    const MIN_VALUE: Self = f64::NEG_INFINITY;
-    const MAX_VALUE: Self = f64::INFINITY;
+    const MIN_VALUE: Self = f64::MIN;
+    const MAX_VALUE: Self = f64::MAX;
 
     fn min(self, other: Self) -> Self {
         self.min(other)
