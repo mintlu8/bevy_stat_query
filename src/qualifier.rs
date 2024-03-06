@@ -122,7 +122,6 @@ impl<Q: QualifierFlag> Qualifier<Q> {
     /// * `fire_sword_damage` does not qualify as `fire_damage`.
     /// * `fire_damage` does not qualify as `elemental_damage`.
     /// * `fire_water_earth_air_damage` does not qualify as `elemental_damage`,
-    ///     since left hand side is `all_of`, right hand side is `any_of`.
     pub fn qualifies_as(&self, queried: &QualifierQuery<Q>) -> bool {
         match queried {
             QualifierQuery::Aggregate(some_of) => {
