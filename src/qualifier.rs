@@ -4,8 +4,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::Shareable;
 
-/// A flags like [`Qualifier`] for stats, normally `bitflags` or a set.
-pub trait QualifierFlags: BitOr<Self, Output=Self> + Ord + Hash + Shareable {
+/// A flags like [`Qualifier`] for stats, normally bitflags or a set.
+///
+/// An application should ideally implement one [`QualifierFlag`] and multiple [`Stat`]s,
+/// since different types of stats can still interop if they use the same [`QualifierFlag`].
+pub trait QualifierFlag: BitOr<Self, Output=Self> + Ord + Hash + Shareable {
     fn contains(&self, other: &Self) -> bool;
     fn intersects(&self, other: &Self) -> bool;
     fn is_none_or_intersects(&self, other: &Self) -> bool {
@@ -16,7 +19,7 @@ pub trait QualifierFlags: BitOr<Self, Output=Self> + Ord + Hash + Shareable {
     fn is_none(&self) -> bool;
 }
 
-impl<T> QualifierFlags for T where T: BitOr<Self, Output=Self> + Ord + Hash + BitAnd<Self, Output = Self> + Default + Shareable + Copy{
+impl<T> QualifierFlag for T where T: BitOr<Self, Output=Self> + Ord + Hash + BitAnd<Self, Output = Self> + Default + Shareable + Copy{
     fn contains(&self, other: &Self) -> bool {
         (*self & *other) == *other
     }
@@ -59,12 +62,12 @@ impl<T> QualifierFlags for T where T: BitOr<Self, Output=Self> + Ord + Hash + Bi
 ///     .and_all_of(Piercing);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect, Serialize, Deserialize)]
-pub struct Qualifier<Q: QualifierFlags> {
+pub struct Qualifier<Q: QualifierFlag> {
     pub any_of: Q,
     pub all_of: Q,
 }
 
-impl<Q: QualifierFlags> Default for Qualifier<Q> {
+impl<Q: QualifierFlag> Default for Qualifier<Q> {
     fn default() -> Self {
         Self {
             any_of: Q::none(),
@@ -73,7 +76,7 @@ impl<Q: QualifierFlags> Default for Qualifier<Q> {
     }
 }
 
-impl<Q: QualifierFlags> Qualifier<Q> {
+impl<Q: QualifierFlag> Qualifier<Q> {
 
     pub fn none() -> Self {
         Self { 
@@ -136,7 +139,7 @@ impl<Q: QualifierFlags> Qualifier<Q> {
 
 /// Query version of [`Qualifier`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
-pub enum QualifierQuery<Q: QualifierFlags> {
+pub enum QualifierQuery<Q: QualifierFlag> {
     /// Look for qualifier that qualifies as this.
     ///
     /// Queried `any_of` intersects this (or is none) and this contains Queried `all_of`.
@@ -150,13 +153,13 @@ pub enum QualifierQuery<Q: QualifierFlags> {
     }
 }
 
-impl<Q: QualifierFlags> Default for QualifierQuery<Q> {
+impl<Q: QualifierFlag> Default for QualifierQuery<Q> {
     fn default() -> Self {
         Self::Aggregate(Q::none())
     }
 }
 
-impl<Q: QualifierFlags> QualifierQuery<Q> {
+impl<Q: QualifierFlag> QualifierQuery<Q> {
     pub fn none() -> Self {
         Self::Aggregate(Q::none())
     }

@@ -6,7 +6,7 @@ use crate::{rounding::{Rounding, Truncate}, Float, Int, Serializable, StatOperat
 use super::{StatValue, Unsupported};
 
 
-/// A stat represented by an integer.
+/// A stat represented by a floating point number or a fraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
 #[serde(bound(serialize = "", deserialize = ""))]
 pub struct StatInt<T: Int> {

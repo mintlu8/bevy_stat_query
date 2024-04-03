@@ -1,11 +1,9 @@
-use std::fmt::Debug;
-
 use bevy_ecs::system::Resource;
 use bevy_reflect::TypePath;
 use bevy_utils::HashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{types::{DynStatValue, StatValue}, DynStat, QualifierFlags, Stat, StatStream, TYPE_ERROR};
+use crate::{types::{DynStatValue, StatValue}, DynStat, Stat, TYPE_ERROR};
 
 /// An single step unordered operation on a [`StatValue`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Serialize, Deserialize, TypePath)]
@@ -80,47 +78,5 @@ impl StatDefaults {
         self.stats.get(stat as &dyn DynStat)
             .cloned()
             .unwrap_or(stat.default_value())
-    }
-}
-
-
-/// [`Resource`] that stores default [`StatValue`]s per [`Stat`].
-///
-/// Stats that are not registered are still returned with [`Default::default()`] instead.
-#[derive(Resource, TypePath)]
-pub struct StatDefaultRelations<Q: QualifierFlags> {
-    stats: Vec<Box<dyn StatStream<Q>>>,
-}
-
-impl<Q: QualifierFlags> StatDefaultRelations<Q> {
-    pub fn push(&mut self, relation: impl StatStream<Q>) {
-        self.stats.push(Box::new(relation))
-    }
-    
-    pub fn clear(&mut self) {
-        self.stats.clear()
-    }
-}
-
-impl<Q: QualifierFlags> Default for StatDefaultRelations<Q> {
-    fn default() -> Self {
-        Self { stats: Vec::new() }
-    }
-}
-
-impl<Q: QualifierFlags> StatStream<Q> for StatDefaultRelations<Q> {
-    fn stream (
-        &self,
-        qualifier: &crate::QualifierQuery<Q>,
-        stat: &mut crate::StatValuePair,
-        querier: &mut crate::QuerierRef<'_, Q>,
-    ) {
-        self.stats.iter().for_each(|s| s.stream(qualifier, stat, querier))
-    }
-}
-
-impl<Q: QualifierFlags> Debug for StatDefaultRelations<Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StatDefaultRelations").field("stats", &self.stats.len()).finish()
     }
 }

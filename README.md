@@ -1,6 +1,6 @@
 # bevy-stat-query
 
-An over-engineered RPG stat system for the bevy engine.
+An over-engineered RPG stat query system for the bevy engine.
 
 ## Qualified Stats
 
@@ -137,7 +137,7 @@ If a cycle is detected, an error will be thrown.
 `IntrinsicStream` can be used to provide bi-entity relationship
 like `distance` or `allegiance`. This can be used to model range based effects.
 
-You may find `StatOnce` useful in implementing these.
+You may find `StatOnce`(types::StatOnce) useful in implementing these.
 
 ## Note
 
@@ -149,6 +149,11 @@ might be advisable in this case.
 * The crate heavily utilizes dynamic dispatch under the hood, and is therefore
 not fully reflect compatible. The supported serialization method is
 through the `bevy-serde-project` crate, Check out that crate for more information.
+
+* if `StatValue::Bounds` is a float, their default values are likely `-inf` and `inf`,
+which are not valid values in `json`. This means `serde_json` will serialize them as
+`null` and fail when deserialized.
+If `FullStatMap` is used, choose a different format.
 
 ## Versions
 

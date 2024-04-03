@@ -160,10 +160,11 @@ pub fn operations() {
         map.insert(q_false, SIntFrac, Default::default());
         map.insert(q_false, SIntPct, Default::default());
         map.insert(q_false, SFracMul, Default::default());
-        map.insert(q_false, SFloat32, Default::default());
-        map.insert(q_false, SFloat64, Default::default());
-        map.insert(q_false, SFlags, Default::default());
-        map.insert(q_false, SMul, Default::default());
+        // Note floats cannot go through json due to inf being used as min/max
+        // map.insert(q_false, SFloat32, Default::default());
+        // map.insert(q_false, SFloat64, Default::default());
+        // map.insert(q_false, SFlags, Default::default());
+        // map.insert(q_false, SMul, Default::default());
         map
     }));
     let value = world.save::<FullMarker, _>(serde_json::value::Serializer).unwrap();
@@ -171,4 +172,36 @@ pub fn operations() {
     world.load::<FullMarker, _>(&value).unwrap();
     let value2 = world.save::<FullMarker, _>(serde_json::value::Serializer).unwrap();
     assert_eq!(value, value2);
+    world.despawn_bound_objects::<FullMarker>();
+
+    world.spawn((FullMarker, {
+        let mut map = FullStatMap::new();
+        map.insert(q_false, SInt, Default::default());
+        map.insert(q_false, SUInt, Default::default());
+        map.insert(q_false, SString, Default::default());
+        map.insert(q_false, SSet, Default::default());
+        map.insert(q_false, SIntFrac, Default::default());
+        map.insert(q_false, SIntPct, Default::default());
+        map.insert(q_false, SFracMul, Default::default());
+        map.insert(q_false, SFloat32, Default::default());
+        map.insert(q_false, SFloat64, Default::default());
+        map.insert(q_false, SFlags, Default::default());
+        map.insert(q_false, SMul, Default::default());
+        map
+    }));
+    use postcard::ser_flavors::Flavor;
+    let mut vec = postcard::Serializer{
+        output: postcard::ser_flavors::AllocVec::new(),
+    };
+    world.save::<FullMarker, _>(&mut vec).unwrap();
+    let result = vec.output.finalize().unwrap();
+    world.despawn_bound_objects::<FullMarker>();
+    world.load::<FullMarker, _>(&mut postcard::Deserializer::from_bytes(&result)).unwrap();
+
+    let mut vec2 = postcard::Serializer{
+        output: postcard::ser_flavors::AllocVec::new(),
+    };
+    world.save::<FullMarker, _>(&mut vec2).unwrap();
+    let result2 = vec2.output.finalize().unwrap();
+    assert_eq!(result, result2);
 }

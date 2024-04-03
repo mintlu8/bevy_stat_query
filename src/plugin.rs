@@ -163,7 +163,7 @@ pub trait StatExtension {
             .map(|x| x.eval())
     }
 
-    fn clear_stat_cache<Q: QualifierFlags>(&mut self);
+    fn clear_stat_cache<Q: QualifierFlag>(&mut self);
 
 }
 
@@ -240,7 +240,7 @@ impl StatExtension for World {
         queriers.async_query_stat::<Q, S>(self, input)
     }
 
-    fn clear_stat_cache<Q: QualifierFlags>(&mut self) {
+    fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
         let id = if let Some(res) = self.get_resource::<ClearCacheId>() {
             res.0
         } else {
@@ -309,7 +309,7 @@ impl StatExtension for App {
         self.world.async_query_stat::<Q, S>(entity, qualifier, stat)
     }
 
-    fn clear_stat_cache<Q: QualifierFlags>(&mut self) {
+    fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
         self.world.clear_stat_cache::<Q>()
     }
 }

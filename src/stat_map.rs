@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use bevy_ecs::change_detection::Mut;
 use crate::types::DynStatValue;
-use crate::{Data, Stat, Qualifier, QualifierFlags, DynStat, StatValue, StatOperation, TYPE_ERROR};
+use crate::{Data, Stat, Qualifier, QualifierFlag, DynStat, StatValue, StatOperation, TYPE_ERROR};
 use crate::StatInstances;
 
 /// A map-like, type erased storage for stats.
@@ -26,11 +26,11 @@ use crate::StatInstances;
 /// Although the implementation is type erased,
 /// the public interface is completely type safe.
 #[derive(Debug, Clone, Component, TypePath)]
-struct StatMapInner<Q: QualifierFlags, D>{
+struct StatMapInner<Q: QualifierFlag, D>{
     inner: BTreeMap<(Box<dyn DynStat>, Qualifier<Q>), D>,
 }
 
-impl<Q: QualifierFlags, D> Default for StatMapInner<Q, D> {
+impl<Q: QualifierFlag, D> Default for StatMapInner<Q, D> {
     fn default() -> Self {
         StatMapInner { inner: BTreeMap::new() }
     }
@@ -40,7 +40,7 @@ type SData<T> = <T as Stat>::Data;
 type SOut<T> = <<T as Stat>::Data as StatValue>::Out;
 type SOp<T> = StatOperation<<T as Stat>::Data>;
 
-impl<Q: QualifierFlags, D> StatMapInner<Q, D> {
+impl<Q: QualifierFlag, D> StatMapInner<Q, D> {
     pub fn new() -> Self {
         Self {
             inner: BTreeMap::default(),
@@ -122,9 +122,9 @@ macro_rules! impl_stat_map {
     ) => {
         $(#[$($attrs)*])*
         #[derive(Debug, Clone, Default, Component, TypePath)]
-        pub struct $name<Q: QualifierFlags>(StatMapInner<Q, Box<dyn $trait_obj>>);
+        pub struct $name<Q: QualifierFlag>(StatMapInner<Q, Box<dyn $trait_obj>>);
 
-        impl<Q: QualifierFlags> $name<Q> {
+        impl<Q: QualifierFlag> $name<Q> {
             pub fn new() -> Self {
                 Self(StatMapInner::new())
             }
@@ -188,7 +188,7 @@ macro_rules! impl_stat_map {
             }
         }
 
-        impl<Q: QualifierFlags> Unqualified<$name<Q>> {
+        impl<Q: QualifierFlag> Unqualified<$name<Q>> {
             pub fn insert<S: Stat>(&mut self, stat: S, value: $value) {
                 self.0.0.inner.insert((Box::new(stat), Qualifier::default()), Box::new(value));
             }
@@ -214,7 +214,7 @@ macro_rules! impl_stat_map {
 
         const _: () = {
             #[derive(Serialize)]
-            pub struct SerEntry<'t, Q: QualifierFlags + Serialize + DeserializeOwned> {
+            pub struct SerEntry<'t, Q: QualifierFlag + Serialize + DeserializeOwned> {
                 qualifier: &'t Qualifier<Q>,
                 stat: <Box<dyn DynStat> as SerdeProject>::Ser<'t>,
                 data: <TypeTagged<Box<dyn $trait_obj>> as SerdeProject>::Ser<'t>,
@@ -222,13 +222,13 @@ macro_rules! impl_stat_map {
 
             #[derive(Deserialize)]
             #[serde(bound = "'t: 'de")]
-            pub struct DeEntry<'t, Q: QualifierFlags + Serialize + DeserializeOwned> {
+            pub struct DeEntry<'t, Q: QualifierFlag + Serialize + DeserializeOwned> {
                 qualifier: Qualifier<Q>,
                 stat: <Box<dyn DynStat> as SerdeProject>::De<'t>,
                 data: <TypeTagged<Box<dyn $trait_obj>> as SerdeProject>::De<'t>,
             }
 
-            impl<Q: QualifierFlags + Serialize + DeserializeOwned> SerdeProject for $name<Q> {
+            impl<Q: QualifierFlag + Serialize + DeserializeOwned> SerdeProject for $name<Q> {
                 type Ctx = StatInstances;
     
                 type Ser<'t> = Vec<SerEntry<'t, Q>>;
@@ -271,7 +271,7 @@ impl_stat_map!(
     StatOperationsMap, S, SOp<S>, Data
 );
 
-impl<Q: QualifierFlags> BaseStatMap<Q> {
+impl<Q: QualifierFlag> BaseStatMap<Q> {
     pub fn modify<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S, f: impl FnOnce(&mut SOut<S>)){
         if let Some(val) = self.get_mut(qualifier, stat){
             f(val)
@@ -283,7 +283,7 @@ impl<Q: QualifierFlags> BaseStatMap<Q> {
     }
 }
 
-impl<Q: QualifierFlags> FullStatMap<Q> {
+impl<Q: QualifierFlag> FullStatMap<Q> {
     pub fn modify<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S, f: impl FnOnce(&mut SData<S>)){
         if let Some(val) = self.get_mut(qualifier, stat){
             f(val)
@@ -295,7 +295,7 @@ impl<Q: QualifierFlags> FullStatMap<Q> {
     }
 }
 
-trait QueryStatEntry<Q: QualifierFlags> {
+trait QueryStatEntry<Q: QualifierFlag> {
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>>;
     fn stat(&self) -> &dyn DynStat;
 }
@@ -307,28 +307,28 @@ enum QuerySort<T> {
     End,
 }
 
-impl<Q: QualifierFlags> PartialEq for dyn QueryStatEntry<Q> + '_ {
+impl<Q: QualifierFlag> PartialEq for dyn QueryStatEntry<Q> + '_ {
     fn eq(&self, other: &Self) -> bool {
         self.qualifier() == other.qualifier() && self.stat() == other.stat()
     }
 }
 
-impl<Q: QualifierFlags> Eq for dyn QueryStatEntry<Q> + '_ {}
+impl<Q: QualifierFlag> Eq for dyn QueryStatEntry<Q> + '_ {}
 
-impl<Q: QualifierFlags> PartialOrd for dyn QueryStatEntry<Q> + '_ {
+impl<Q: QualifierFlag> PartialOrd for dyn QueryStatEntry<Q> + '_ {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<Q: QualifierFlags> Ord for dyn QueryStatEntry<Q> + '_ {
+impl<Q: QualifierFlag> Ord for dyn QueryStatEntry<Q> + '_ {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.stat().cmp(other.stat())
             .then(self.qualifier().cmp(&other.qualifier()))
     }
 }
 
-impl<Q: QualifierFlags> Hash for dyn QueryStatEntry<Q> + '_ {
+impl<Q: QualifierFlag> Hash for dyn QueryStatEntry<Q> + '_ {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.qualifier().hash(state);
         self.stat().hash(state);
@@ -336,7 +336,7 @@ impl<Q: QualifierFlags> Hash for dyn QueryStatEntry<Q> + '_ {
 }
 
 
-impl<Q: QualifierFlags> QueryStatEntry<Q> for (Box<dyn DynStat>, Qualifier<Q>){
+impl<Q: QualifierFlag> QueryStatEntry<Q> for (Box<dyn DynStat>, Qualifier<Q>){
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
         QuerySort::Value(&self.1)
     }
@@ -346,7 +346,7 @@ impl<Q: QualifierFlags> QueryStatEntry<Q> for (Box<dyn DynStat>, Qualifier<Q>){
     }
 }
 
-impl<'t, Q: QualifierFlags> QueryStatEntry<Q> for (&'t dyn DynStat, &'t Qualifier<Q>){
+impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (&'t dyn DynStat, &'t Qualifier<Q>){
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
         QuerySort::Value(self.1)
     }
@@ -356,7 +356,7 @@ impl<'t, Q: QualifierFlags> QueryStatEntry<Q> for (&'t dyn DynStat, &'t Qualifie
     }
 }
 
-impl<'t, Q: QualifierFlags> QueryStatEntry<Q> for (&'t dyn DynStat, QuerySort<&'t Qualifier<Q>>){
+impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (&'t dyn DynStat, QuerySort<&'t Qualifier<Q>>){
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
         match &self.1 {
             QuerySort::Begin => QuerySort::Begin,
@@ -370,13 +370,13 @@ impl<'t, Q: QualifierFlags> QueryStatEntry<Q> for (&'t dyn DynStat, QuerySort<&'
     }
 }
 
-impl<'a, Q: QualifierFlags> Borrow<dyn QueryStatEntry<Q> + 'a> for (Box<dyn DynStat>, Qualifier<Q>){
+impl<'a, Q: QualifierFlag> Borrow<dyn QueryStatEntry<Q> + 'a> for (Box<dyn DynStat>, Qualifier<Q>){
     fn borrow(&self) -> &(dyn QueryStatEntry<Q> + 'a) {
         self
     }
 }
 
-impl<'a, Q: QualifierFlags> Borrow<dyn QueryStatEntry<Q> + 'a> for (&'a dyn DynStat, &'a Qualifier<Q>){
+impl<'a, Q: QualifierFlag> Borrow<dyn QueryStatEntry<Q> + 'a> for (&'a dyn DynStat, &'a Qualifier<Q>){
     fn borrow(&self) -> &(dyn QueryStatEntry<Q> + 'a) {
         self
     }
@@ -390,7 +390,7 @@ struct Begin<T>(T);
 #[repr(transparent)]
 struct End<T>(T);
 
-impl<Q: QualifierFlags> QueryStatEntry<Q> for Begin<&dyn DynStat>{
+impl<Q: QualifierFlag> QueryStatEntry<Q> for Begin<&dyn DynStat>{
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
         QuerySort::Begin
     }
@@ -400,7 +400,7 @@ impl<Q: QualifierFlags> QueryStatEntry<Q> for Begin<&dyn DynStat>{
     }
 }
 
-impl<Q: QualifierFlags> QueryStatEntry<Q> for End<&dyn DynStat>{
+impl<Q: QualifierFlag> QueryStatEntry<Q> for End<&dyn DynStat>{
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
         QuerySort::End
     }
@@ -410,7 +410,7 @@ impl<Q: QualifierFlags> QueryStatEntry<Q> for End<&dyn DynStat>{
     }
 }
 
-impl<'a, Q: QualifierFlags> RangeBounds<dyn QueryStatEntry<Q> + 'a> for &'a dyn DynStat {
+impl<'a, Q: QualifierFlag> RangeBounds<dyn QueryStatEntry<Q> + 'a> for &'a dyn DynStat {
     fn start_bound(&self) -> Bound<&(dyn QueryStatEntry<Q> + 'a)> {
         Bound::Excluded(Begin::ref_cast(self))
     }

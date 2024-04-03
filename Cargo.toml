@@ -1,12 +1,12 @@
 [package]
 name = "bevy_stat_query"
-version = "0.0.2"
+version = "0.0.1"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
 license = "MIT OR Apache-2.0"
 
-readme = "README.md"
+readme = "../README.md"
 repository = "https://github.com/mintlu8/bevy_stat_query"
 description = """
 An over-engineered RPG stat query system for the bevy engine.
@@ -43,4 +43,5 @@ futures = { version = "0.3.30", default-features = false, features = ["std"], op
 [dev-dependencies]
 bevy_asset = "0.13.0"
 bitflags = "2.4.2"
+postcard = { version = "1.0.8", features = ["alloc"], default-features = false }
 serde_json = "1.0.114"
