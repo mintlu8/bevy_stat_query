@@ -1,6 +1,6 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
-//! A pedantic RPG stat system for the bevy engine.
+//! An over-engineered RPG stat system for the bevy engine.
 //!
 //! # Qualified Stats
 //!
@@ -71,7 +71,7 @@
 //! }
 //! ```
 //! 
-//! * What do you mean? My `DarkFire` and `Fire` and totally different things and should be independent.
+//! * What do you mean? My `DarkFire` and `Fire` are totally different things and should be independent.
 //! 
 //! Create a new qualifier `DarkFire` instead of `Dark`|`Fire`.
 //!
@@ -119,8 +119,7 @@
 //! ever needed when querying for stats.
 //!
 //! Each stat has its components form [`StatValue`], e.g. `(12 * 4).min(99).max(0)`,
-//! and its evaluated form, e.g. `48`. You can implement your own `StatValue`
-//! to achieve custom behaviors. [`StatOperation`] stores a single operation
+//! and its evaluated form, e.g. `48`. [`StatOperation`] stores a single operation
 //! that can be written to a [`StatValue`].
 //! 
 //! ## Stat Relation
@@ -140,7 +139,7 @@
 //! 
 //! # Note
 //!
-//! * [`StatQuerier`] requires read access to all components in stat system so we cannot mutate
+//! * [`StatQuerier`] requires read access to all components in the stat system so we cannot mutate
 //! anything while having it as a parameter.
 //! Using system piping or some kind of deferred command queue for mutations 
 //! might be advisable in this case.
@@ -148,11 +147,6 @@
 //! * The crate heavily utilizes dynamic dispatch under the hood, and is therefore
 //! not fully reflect compatible. The supported serialization method is
 //! through the [`bevy_serde_project`] crate, Check out that crate for more information.
-//! 
-//! * if [`StatValue::Bounds`] is a float, their default values are likely `-inf` and `inf`,
-//! which are not valid values in `json`. This means `serde_json` will serialize them as
-//! `null` and fail when deserialized. 
-//! If [`FullStatMap`] is used (optional btw), choose a different format.
 #[allow(unused)]
 use bevy_ecs::{query::QueryData, component::Component, system::SystemParam};
 
@@ -171,16 +165,16 @@ use serde::{de::DeserializeOwned, Serialize};
 pub use stream::StatValuePair;
 mod num_traits;
 pub use num_traits::{Int, Float, Flags, Fraction};
-pub use stream::{ExternalStream, IntrinsicStream, StatStream, StatStreamObject, StatelessStream};
+pub use stream::{ExternalStream, IntrinsicStream, StatStream, StatStreamObject, StatExtend};
 pub mod types;
 pub use types::StatValue;
 mod qualifier;
-pub use qualifier::{Qualifier, QualifierFlag, QualifierQuery};
+pub use qualifier::{Qualifier, QualifierFlags, QualifierQuery};
 mod stat;
 pub use stat::Stat;
 pub(crate) use stat::{StatInstances, DynStat};
 mod calc;
-pub use calc::{StatOperation, StatDefaults};
+pub use calc::{StatOperation, StatDefaults, StatDefaultRelations};
 mod entity;
 pub use entity::{StatCache, StatEntity};
 pub mod rounding;
@@ -206,7 +200,7 @@ mod sealed {
 pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 
-/// Alias for `Clone + Debug + Send + Sync + 'static`.
+/// Alias for `Shareable + Serialize + DeserializeOwned + TypePath`.
 pub trait Serializable: Clone + Debug + Send + Sync + Serialize + DeserializeOwned + TypePath + 'static {}
 impl<T> Serializable for T where T: Clone + Debug + Send + Sync + Sync + Serialize + DeserializeOwned + TypePath + 'static {}
 
