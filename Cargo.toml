@@ -13,9 +13,6 @@ An over-engineered RPG stat query system for the bevy engine.
 """
 keywords = ["bevy", "stat", "serialize"]
 
-[features]
-default = ["futures"]
-
 [lib]
 doctest = false
 
@@ -26,7 +23,7 @@ bevy_app = { version = "^0.13" }
 bevy_reflect = { version = "^0.13" }
 bevy_utils = { version = "^0.13" }
 downcast-rs = "^1.2"
-dyn-hash = "0.2"
+dyn-hash = "^0.1.2"
 dyn-clone = "1.0.17"
 serde = { version = "^1", features = ["derive"] }
 erased-serde = "0.4.3"
@@ -36,9 +33,6 @@ num-integer = { version = "^0.1", default-features = false }
 num-rational = { version = "^0.4.1", default-features = false, features = ["serde"] }
 num-traits = { version = "0.2.18", default-features = false }
 bevy_serde_project = { version = "^0.1.2" }
-parking_lot = "0.12.1"
-smallbox = "0.8.2"
-futures = { version = "0.3.30", default-features = false, features = ["std"], optional = true}
 
 [dev-dependencies]
 bevy_asset = "0.13.0"

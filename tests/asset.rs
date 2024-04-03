@@ -3,7 +3,7 @@ use bevy_asset::{Asset, AssetApp, AssetPlugin, AssetServer, Assets, Handle};
 use bevy_ecs::{component::Component, entity::Entity, query::With, system::{Commands, Query, Res}};
 use bevy_hierarchy::BuildChildren;
 use bevy_reflect::TypePath;
-use bevy_stat_query::{querier, types::StatFloat, ExternalStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatQueryPlugin, StatValue};
+use bevy_stat_query::{querier, types::StatFloat, ExternalStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatValue};
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -84,7 +84,6 @@ querier!(pub MyQuerier {
 pub fn main() {
     App::new()
         .add_plugins(AssetPlugin::default())
-        .add_plugins(StatQueryPlugin)
         .init_asset::<Weapon>()
         .register_stat::<Damage>()
         .register_stat::<Defense>()
@@ -133,7 +132,7 @@ fn init(mut commands: Commands, assets: Res<AssetServer>){
 }
 
 fn query(
-    querier: MyQuerier,
+    mut querier: MyQuerier,
     a: Query<Entity, (With<StatEntity>, With<A>)>,
     b: Query<Entity, (With<StatEntity>, With<B>)>,
 ){

@@ -2,7 +2,6 @@ use std::borrow::Borrow;
 use std::{fmt::Debug, hash::Hash};
 use bevy_ecs::component::Component;
 use bevy_utils::hashbrown::HashMap;
-use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use crate::types::DynStatValue;
 use crate::{Stat, TYPE_ERROR};
@@ -18,11 +17,11 @@ pub struct StatEntity;
 ///
 /// If using this component
 /// the user must manually invalidate the cache if something has changed.
-#[derive(Debug, Component, Serialize, Deserialize)]
+#[derive(Debug, Component, Clone, Serialize, Deserialize)]
 #[serde(bound(serialize="", deserialize=""))]
 pub struct StatCache<Q: QualifierFlag>{
     #[serde(skip)]
-    pub(crate) cache: Mutex<HashMap<StatQuery<Q>, Box<dyn DynStatValue>>>
+    pub(crate) cache: HashMap<StatQuery<Q>, Box<dyn DynStatValue>>
 }
 
 impl<Q: QualifierFlag> Default for StatCache<Q> {
@@ -33,50 +32,49 @@ impl<Q: QualifierFlag> Default for StatCache<Q> {
 
 impl<Q: QualifierFlag> StatCache<Q> {
     pub fn new() -> Self {
-        Self { cache: Mutex::default() }
+        Self { cache: HashMap::default() }
     }
 
-    pub fn cache<S: Stat>(&self,
+    pub fn cache<S: Stat>(&mut self,
         query: QualifierQuery<Q>,
         stat: S,
         value: S::Data
     ) {
-        self.cache.lock().insert((query, Box::new(stat)), Box::new(value));
+        self.cache.insert((query, Box::new(stat)), Box::new(value));
     }
 
     pub fn try_get_cached<S: Stat>(
         &self,
         query: &QualifierQuery<Q>,
         stat: &S,
-    ) -> Option<S::Data> {
-        self.cache.lock().get(&(query, stat as &dyn DynStat) as &dyn StatQueryKey<Q>)
+    ) -> Option<&S::Data> {
+        self.cache.get(&(query, stat as &dyn DynStat) as &dyn StatQueryKey<Q>)
             .map(|value| value.downcast_ref::<S::Data>().expect(TYPE_ERROR))
-            .cloned()
     }
 
-    pub(crate) fn cache_dyn(&self,
+    pub(crate) fn cache_dyn(&mut self,
         query: QualifierQuery<Q>,
         stat: Box<dyn DynStat>,
         value: Box<dyn DynStatValue>
     ) {
-        self.cache.lock().insert((query, stat), value);
+        self.cache.insert((query, stat), value);
     }
 
     pub(crate) fn try_get_cached_dyn(
         &self,
         query: &QualifierQuery<Q>,
         stat: &dyn DynStat,
-    ) -> Option<Box<dyn DynStatValue>> {
-        self.cache.lock().get(&(query, stat) as &dyn StatQueryKey<Q>)
-            .cloned()
+    ) -> Option<&dyn DynStatValue> {
+        self.cache.get(&(query, stat) as &dyn StatQueryKey<Q>)
+            .map(|x| x.as_ref())
     }
 
-    pub fn invalidate_all(&self) {
-        self.cache.lock().clear();
+    pub fn invalidate_all(&mut self) {
+        self.cache.clear();
     }
 
-    pub fn invalidate_stat<S: Stat>(&self, stat: &S) {
-        self.cache.lock().retain(|(_, s), _| s == stat);
+    pub fn invalidate_stat<S: Stat>(&mut self, stat: &S) {
+        self.cache.retain(|(_, s), _| s == stat);
     }
 }
 

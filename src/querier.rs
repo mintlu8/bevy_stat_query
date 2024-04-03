@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use bevy_ecs::{entity::Entity, query::With, system::{In, Query, ReadOnlySystem, ReadOnlySystemParam, Res, StaticSystemParam, SystemParam}};
+use bevy_ecs::{entity::Entity, query::With, system::{In, Query, Res, StaticSystemParam, SystemParam}};
 use bevy_hierarchy::Children;
 use bevy_utils::hashbrown::HashMap;
 use dyn_clone::clone_box;
@@ -33,11 +33,11 @@ pub struct StatQuerier<'w, 's,
     Components: StatParam<Qualifier> + 'static
 > {
     querier: QuerierInner<'w, 's, Qualifier, Intrinsic, Components>,
-    cache: Query<'w, 's, &'static StatCache<Qualifier>, With<StatEntity>>,
+    cache: Query<'w, 's, &'static mut StatCache<Qualifier>, With<StatEntity>>,
 }
 
 struct QueryStack<'w, 's, 'w2, 's2, 't, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> {
-    world_cache: &'t Query<'w2, 's2, &'static StatCache<Q>, With<StatEntity>>,
+    world_cache: &'t mut Query<'w2, 's2, &'static mut StatCache<Q>, With<StatEntity>>,
     current_cache: HashMap<(Entity, QualifierQuery<Q>, Box<dyn DynStat>), Box<dyn DynStatValue>>,
     querier: &'t QuerierInner<'w, 's, Q, D, A>,
     stack: Vec<(QualifierQuery<Q>, Box<dyn DynStat>, Entity)>,
@@ -69,7 +69,7 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
             Ok(cache) => cache.try_get_cached_dyn(qualifier, stat),
             Err(_) => None,
         } {
-            return Some(cached)
+            return Some(clone_box(cached))
         }
         let queried = match children {
             Some(children) => children.iter(),
@@ -81,7 +81,7 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
         let mut pair = StatValuePair(stat, stat_value.as_mut());
         A::stream(&*self.querier.items, queried, qualifier, &mut pair, &mut QuerierRef(self));
         let Some(_) = self.stack.pop() else {panic!("Stack mismatch.")};
-        if let Ok(cache) = self.world_cache.get(entity) {
+        if let Ok(mut cache) = self.world_cache.get_mut(entity) {
             cache.cache_dyn(qualifier.clone(), clone_box(stat), stat_value.clone());
         } else {
             self.current_cache.insert(
@@ -148,7 +148,7 @@ impl<Q: QualifierFlag> QuerierRef<'_, Q> {
 }
 
 impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> QuerierInner<'w, 's, Q, D, A> {
-    fn as_query_stack<'w2, 's2, 't>(&'t self, cache: &'t Query<'w2, 's2, &'static StatCache<Q>, With<StatEntity>>) -> QueryStack<'w, 's, 'w2, 's2, 't, Q, D, A> {
+    fn as_query_stack<'w2, 's2, 't>(&'t self, cache: &'t mut Query<'w2, 's2, &'static mut StatCache<Q>, With<StatEntity>>) -> QueryStack<'w, 's, 'w2, 's2, 't, Q, D, A> {
         QueryStack {
             querier: self,
             stack: Vec::new(),
@@ -158,7 +158,7 @@ impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> +
     }
 
     pub fn query<S: Stat>(&self,
-        cache: &Query<'_, '_, &'static StatCache<Q>, With<StatEntity>>,
+        cache: &mut Query<'_, '_, &'static mut StatCache<Q>, With<StatEntity>>,
         entity: Entity,
         qualifier: &QualifierQuery<Q>,
         stat: &S
@@ -170,15 +170,15 @@ impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> +
 
 
 impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> StatQuerier<'w, 's, Q, D, A> {
-    pub fn query<S: Stat>(&self,
+    pub fn query<S: Stat>(&mut self,
         entity: Entity,
         qualifier: &QualifierQuery<Q>,
         stat: &S
     ) -> Option<S::Data> {
-        self.querier.query(&self.cache, entity, qualifier, stat)
+        self.querier.query(&mut self.cache, entity, qualifier, stat)
     }
 
-    pub fn query_eval<S: Stat>(&self,
+    pub fn query_eval<S: Stat>(&mut self,
         entity: Entity,
         qualifier: &QualifierQuery<Q>,
         stat: &S
@@ -187,12 +187,10 @@ impl<'w, 's, Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> +
     }
 }
 
-pub type QuerierIn<Q, S> = (Entity, QualifierQuery<Q>, S);
-
 /// Type erased but non-dynamic [`StatQuerier`] with no generics.
-pub trait GenericQuerier: ReadOnlySystemParam + 'static {
+pub trait GenericQuerier: SystemParam + 'static {
     type Qualifier: QualifierFlag;
-    fn query<S: Stat>(&self,
+    fn query<S: Stat>(&mut self,
         entity: Entity,
         qualifier: &QualifierQuery<Self::Qualifier>,
         stat: &S
@@ -202,27 +200,22 @@ pub trait GenericQuerier: ReadOnlySystemParam + 'static {
         input: In<(Entity, QualifierQuery<Self::Qualifier>, S)>,
         this: StaticSystemParam<Self>,
     ) -> Option<S::Data>;
-
-    fn as_boxed_readonly_system<S: Stat>() -> Box<dyn ReadOnlySystem<In=(Entity, QualifierQuery<Self::Qualifier>, S), Out=Option<S::Data>>> {
-        use bevy_ecs::system::IntoSystem;
-        Box::new(IntoSystem::into_system(Self::system::<S>))
-    }
 }
 
 impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> GenericQuerier for StatQuerier<'static, 'static, Q, D, A> {
     type Qualifier = Q;
 
-    fn query<S: Stat>(&self,
+    fn query<S: Stat>(&mut self,
         entity: Entity,
         qualifier: &QualifierQuery<Self::Qualifier>,
         stat: &S
     ) -> Option<S::Data> {
-        StatQuerier::query(self, entity, qualifier, stat)
+        self.query(entity, qualifier, stat)
     }
 
     fn system<S: Stat>(
         input: In<(Entity, QualifierQuery<Self::Qualifier>, S)>,
-        this: StaticSystemParam<Self>,
+        mut this: StaticSystemParam<Self>,
     ) -> Option<S::Data> {
         let (entity, qualifier, stat) = input.0;
         this.query(entity, &qualifier, &stat)
