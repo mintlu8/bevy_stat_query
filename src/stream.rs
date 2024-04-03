@@ -38,11 +38,7 @@ impl<'t> StatValuePair<'t> {
 
     pub fn cast<S: Stat>(&mut self) -> Option<(&S, &mut S::Data)> {
         let StatValuePair(stat, data) = self;
-        if let Some(stat) = stat.downcast_ref::<S>() {
-            Some((stat, data.downcast_mut::<S::Data>().expect(TYPE_ERROR)))
-        } else {
-            None
-        }
+        stat.downcast_ref::<S>().map(|stat| (stat, data.downcast_mut::<S::Data>().expect(TYPE_ERROR)))
     }
 
 

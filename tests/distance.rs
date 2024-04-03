@@ -1,7 +1,9 @@
+use bevy_app::App;
+use bevy_defer::{world, AsyncExtension, AsyncPlugin};
 use bevy_ecs::{component::Component, entity::Entity, world::World};
 use bevy_hierarchy::BuildWorldChildren;
 use bevy_reflect::TypePath;
-use bevy_stat_query::{querier, types::{StatInt, StatOnce}, ExternalStream, IntrinsicStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatValue};
+use bevy_stat_query::{querier, types::{StatInt, StatOnce}, CachedQueriers, ExternalStream, IntrinsicStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatQueryPlugin, StatValue};
 use serde::{Deserialize, Serialize};
 
 
@@ -204,6 +206,7 @@ querier!(pub MyQuerier {
 #[test]
 pub fn main() {
     let mut world = World::new();
+    world.init_non_send_resource::<CachedQueriers>();
     world.register_stat::<StatAllegiance>();
     world.register_stat::<StatDistance>();
     let a = world.spawn((
@@ -232,21 +235,76 @@ pub fn main() {
             AllegianceAura(7, a),
         ));
     });
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(7));
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(7));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(7));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(7));
     world.entity_mut(a).get_mut::<Position>().unwrap().0[1] = -7;
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(7));
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(7));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(7));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(7));
     world.clear_stat_cache::<bool>();
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(17));
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(17));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(17));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance), Some(17));
 
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(0));
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(0));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(0));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(0));
     *world.entity_mut(b).get_mut::<Allegiance>().unwrap() = Allegiance::Player;
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(0));
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(0));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(0));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(0));
     world.clear_stat_cache::<bool>();
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(5));
-    assert_eq!(world.query_eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(7));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(5));
+    assert_eq!(world.eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(7));
+}
+
+
+#[test]
+#[cfg(feature = "futures")]
+pub fn async_main() {
+    use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+
+    let mut app = App::new();
+    app.add_plugins(bevy::prelude::MinimalPlugins);
+    app.add_plugins(StatQueryPlugin);
+    app.add_plugins(AsyncPlugin::default_settings().with_world_access());
+
+    app.init_non_send_resource::<CachedQueriers>();
+    app.register_stat::<StatAllegiance>();
+    app.register_stat::<StatDistance>();
+    let a = app.world.spawn((
+        StatEntity,
+        StatCache::<bool>::default(),
+        Position([-1, 7]),
+        Allegiance::Player,
+        A,
+    )).id();
+    let b = app.world.spawn((
+        StatEntity,
+        StatCache::<bool>::default(),
+        Position([4, 5]),
+        Allegiance::AI,
+        B,
+    )).id();
+    app.world.entity_mut(a).with_children(|f| {
+        f.spawn((
+            DistanceAura(b),
+            AllegianceAura(5, b),
+        ));
+    });
+    app.world.entity_mut(b).with_children(|f| {
+        f.spawn((
+            DistanceAura(a),
+            AllegianceAura(7, a),
+        ));
+    });
+    let lock = Arc::new(AtomicBool::new(false));
+    let lock2 = lock.clone();
+    app.spawn_task(async move {
+        let fut = world().with_world_ref(move |w| {
+            w.async_eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance)
+        }).ok().unwrap();
+        assert_eq!(fut.await, Some(7));
+        lock.store(true, Ordering::Relaxed);
+        world().quit().await;
+        Ok(())
+    });
+    app.run();
+    assert!(lock2.load(Ordering::Relaxed));
 }

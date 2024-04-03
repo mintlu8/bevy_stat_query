@@ -185,7 +185,7 @@ mod entity;
 pub use entity::{StatCache, StatEntity};
 pub mod rounding;
 mod plugin;
-pub use plugin::StatExtension;
+pub use plugin::{StatExtension, StatQueryPlugin, CachedQueriers};
 mod querier;
 pub use querier::{StatQuerier, hints, QuerierRef};
 mod param;

@@ -47,16 +47,6 @@ impl<Q: QualifierFlag, D> StatMapInner<Q, D> {
         }
     }
 
-    /// Obtain an unqualified view of a [`StatMap`].
-    pub fn unqualified(&self) -> &Unqualified<Self> {
-        Unqualified::ref_cast(self)
-    }
-
-    /// Obtain an mutable unqualified view of a [`StatMap`].
-    pub fn unqualified_mut(&mut self) -> &mut Unqualified<Self> {
-        Unqualified::ref_cast_mut(self)
-    }
-
     pub fn clear(&mut self) {
         self.inner.clear()
     }
@@ -81,14 +71,14 @@ impl<Q: QualifierFlag, D> StatMapInner<Q, D> {
         self.inner.retain(|(s, q), _| f(q, s.as_any()));
     }
 
-    /// Iterate over a particulat stat.
+    /// Iterate over a particular stat.
     pub fn iter(&self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &D)> {
         self.inner
             .range(stat)
             .map(|((_, q), v)| (q, v))
     }
 
-    /// Iterate over a particulat stat.
+    /// Iterate over a particular stat.
     pub fn iter_mut(&mut self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &mut D)> {
         self.inner
             .range_mut(stat)
@@ -163,25 +153,26 @@ macro_rules! impl_stat_map {
                 self.0.retain(f);
             }
 
-            /// Iterate over a particulat stat.
+            /// Iterate over a particular stat.
             pub fn iter<S: Stat>(&self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &$value)> {
                 self.0.iter(stat)
                     .map(|(q, v)| (q, v.downcast_ref().expect(TYPE_ERROR)))
             }
 
-            /// Iterate over a particulat stat.
+            /// Iterate over a particular stat.
             pub fn iter_mut<S: Stat>(&mut self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &mut $value)> {
                 self.0.iter_mut(stat)
                     .map(|(q, v)| (q, v.downcast_mut().expect(TYPE_ERROR)))
             }
 
-            /// Iterate over a particulat stat.
+            /// Iterate over a particular stat.
             pub(crate) fn iter_dyn(&self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &dyn $trait_obj)> {
                 self.0.iter(stat)
                     .map(|(q, v)| (q, v.as_ref()))
             }
 
-            /// Iterate over a particulat stat.
+            #[allow(unused)]
+            /// Iterate over a particular stat.
             pub(crate) fn iter_dyn_mut(&mut self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &mut dyn $trait_obj)> {
                 self.0.iter_mut(stat)
                     .map(|(q, v)| (q, v.as_mut()))

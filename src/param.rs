@@ -1,9 +1,9 @@
 use std::{borrow::Borrow, marker::PhantomData};
-use bevy_ecs::{entity::Entity, system::{Query, StaticSystemParam, SystemParam}};
+use bevy_ecs::{entity::Entity, system::{Query, ReadOnlySystemParam, StaticSystemParam, SystemParam}};
 use crate::{querier::QuerierRef, stream::ExternalStream, IntrinsicStream, QualifierFlag, QualifierQuery, StatValuePair};
 
 /// [`SystemParam`] that can be aggregated as stat components.
-pub trait StatParam<Q: QualifierFlag>: SystemParam {
+pub trait StatParam<Q: QualifierFlag>: ReadOnlySystemParam {
     fn stream<E: Borrow<Entity>>(
         this: &Self::Item<'_, '_>,
         entities: impl IntoIterator<Item = E> + Clone,
