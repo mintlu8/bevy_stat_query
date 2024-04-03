@@ -1,6 +1,6 @@
 [package]
 name = "bevy_stat_query"
-version = "0.0.1"
+version = "0.0.3"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -37,7 +37,6 @@ num-rational = { version = "^0.4.1", default-features = false, features = ["serd
 num-traits = { version = "0.2.18", default-features = false }
 bevy_serde_project = { version = "^0.1.2" }
 parking_lot = "0.12.1"
-smallbox = "0.8.2"
 futures = { version = "0.3.30", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
