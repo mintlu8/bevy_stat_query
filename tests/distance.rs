@@ -1,7 +1,8 @@
+use bevy_app::App;
 use bevy_ecs::{component::Component, entity::Entity, world::World};
 use bevy_hierarchy::BuildWorldChildren;
 use bevy_reflect::TypePath;
-use bevy_stat_query::{querier, types::{StatInt, StatOnce}, ExternalStream, IntrinsicStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatValue};
+use bevy_stat_query::{querier, types::{StatInt, StatOnce}, ExternalStream, IntrinsicStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatQueryPlugin, StatValue};
 use serde::{Deserialize, Serialize};
 
 
@@ -203,7 +204,9 @@ querier!(pub MyQuerier {
 
 #[test]
 pub fn main() {
-    let mut world = World::new();
+    let mut app = App::new();
+    app.add_plugins(StatQueryPlugin);
+    let mut world: World = app.world;
     world.register_stat::<StatAllegiance>();
     world.register_stat::<StatDistance>();
     let a = world.spawn((
