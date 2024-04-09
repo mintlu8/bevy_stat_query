@@ -138,12 +138,14 @@ pub trait StatExtension {
     /// 
     /// If trying to replace a previous stat entry with a different value.
     fn register_stat<T: Stat>(&mut self) -> &mut Self;
+
     /// Register associated serialization routine for a stat that uses [`FromStr`].
     /// 
     /// # Panics
     /// 
     /// If trying to replace a previous stat entry with a different value.
     fn register_stat_parser<T: Stat + FromStr>(&mut self) -> &mut Self;
+    
     /// Register a default stat value.
     ///
     /// This is the standard way
@@ -230,9 +232,8 @@ pub trait StatExtension {
         AsyncQueryEvalFuture(self.async_query_stat::<Q, S>(entity, qualifier, stat))
     }
 
-
+    /// Clear all cached stats.
     fn clear_stat_cache<Q: QualifierFlag>(&mut self);
-
 }
 
 impl StatExtension for World {

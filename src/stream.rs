@@ -3,7 +3,7 @@ use bevy_reflect::TypePath;
 use bevy_serde_project::typetagged::{BevyTypeTagged, FromTypeTagged};
 use dyn_clone::{clone_trait_object, DynClone};
 use serde::{de::DeserializeOwned, Serialize};
-use crate::{QuerierRef, FullStatMap, types::DynStatValue, BaseStatMap, DynStat, QualifierFlag, QualifierQuery, Stat, StatOperationsMap, TYPE_ERROR};
+use crate::{types::DynStatValue, BaseStatMap, DynStat, FullStatMap, QualifierFlag, QualifierQuery, QuerierRef, Stat, StatOperationsMap, TYPE_ERROR};
 
 /// Opaque type that contains a stat and a mutable value.
 #[derive(Debug)]
