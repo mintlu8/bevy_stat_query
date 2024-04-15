@@ -6,13 +6,13 @@ use bevy_reflect::TypePath;
 use bevy_serde_project::typetagged::TypeTagged;
 use bevy_serde_project::{Error, SerdeProject};
 use ref_cast::RefCast;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use bevy_ecs::change_detection::Mut;
+use bevy_ecs::prelude::World;
 use crate::types::DynStatValue;
 use crate::{Data, Stat, Qualifier, QualifierFlag, DynStat, StatValue, StatOperation, TYPE_ERROR};
 use crate::StatInstances;
-
+use bevy_serde_project::WorldAccess;
+use bevy_serde_project::FromWorldAccess;
 /// A map-like, type erased storage for stats.
 /// When present on an entity with [`StatEntity`](crate::StatEntity)
 /// will be used as the base stats of the unit.
@@ -104,6 +104,44 @@ impl<T> DerefMut for Unqualified<T> {
         &mut self.0
     }
 }
+
+#[derive(Debug, RefCast)]
+#[repr(transparent)]
+pub struct QualifierProject<Q: QualifierFlag>(pub Qualifier<Q>);
+
+const _: () = {
+    #[derive(Debug, Serialize)]
+    pub struct Ser<'t, Q: QualifierFlag + SerdeProject> {
+        any_of: Q::Ser<'t>,
+        all_of: Q::Ser<'t>,
+    }
+    
+    #[derive(Debug, Deserialize)]
+    pub struct De<'t, Q: QualifierFlag + SerdeProject> {
+        any_of: Q::De<'t>,
+        all_of: Q::De<'t>,
+    }
+    
+    impl<Q: QualifierFlag + SerdeProject> SerdeProject for QualifierProject<Q> {
+        type Ctx = Q::Ctx;
+        type Ser<'t> = Ser<'t, Q>;
+        type De<'de> = De<'de, Q>;
+    
+        fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as bevy_serde_project::FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, Box<Error>> {
+            Ok(Ser {
+                any_of: self.0.any_of.to_ser(ctx)?,
+                all_of: self.0.all_of.to_ser(ctx)?,
+            })
+        }
+    
+        fn from_de(ctx: &mut <Self::Ctx as bevy_serde_project::FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, Box<Error>> {
+            Ok(QualifierProject(Qualifier {
+                any_of: Q::from_de(ctx, de.any_of)?,
+                all_of: Q::from_de(ctx, de.all_of)?,
+            }))
+        }
+    }    
+};
 
 macro_rules! impl_stat_map {
     (
@@ -205,41 +243,43 @@ macro_rules! impl_stat_map {
 
         const _: () = {
             #[derive(Serialize)]
-            pub struct SerEntry<'t, Q: QualifierFlag + Serialize + DeserializeOwned> {
-                qualifier: &'t Qualifier<Q>,
+            #[serde(bound = "")]
+            pub struct SerEntry<'t, Q: QualifierFlag + SerdeProject> {
+                qualifier: <QualifierProject<Q> as SerdeProject>::Ser<'t>,
                 stat: <Box<dyn DynStat> as SerdeProject>::Ser<'t>,
                 data: <TypeTagged<Box<dyn $trait_obj>> as SerdeProject>::Ser<'t>,
             }
 
             #[derive(Deserialize)]
-            #[serde(bound = "'t: 'de")]
-            pub struct DeEntry<'t, Q: QualifierFlag + Serialize + DeserializeOwned> {
-                qualifier: Qualifier<Q>,
+            #[serde(bound = "'t: 'de, 'de: 't")]
+            pub struct DeEntry<'t, Q: QualifierFlag + SerdeProject> {
+                qualifier: <QualifierProject<Q> as SerdeProject>::De<'t>,
                 stat: <Box<dyn DynStat> as SerdeProject>::De<'t>,
                 data: <TypeTagged<Box<dyn $trait_obj>> as SerdeProject>::De<'t>,
             }
 
-            impl<Q: QualifierFlag + Serialize + DeserializeOwned> SerdeProject for $name<Q> {
-                type Ctx = StatInstances;
+            impl<Q: QualifierFlag + SerdeProject> SerdeProject for $name<Q> {
+                type Ctx = WorldAccess;
     
                 type Ser<'t> = Vec<SerEntry<'t, Q>>;
                 type De<'de> = Vec<DeEntry<'de, Q>>;
     
-                fn to_ser<'t>(&'t self, ctx: &&'t StatInstances) -> Result<Self::Ser<'t>, Box<Error>> {
+                fn to_ser<'t>(&'t self, ctx: &&'t World) -> Result<Self::Ser<'t>, Box<Error>> {
                     self.0.inner.iter().map(|((s, q), d)|{
                         Ok(SerEntry {
-                            qualifier: q,
-                            stat: s.to_ser(ctx)?,
+                            qualifier: QualifierProject::ref_cast(q).to_ser(&<Q::Ctx as FromWorldAccess>::from_world(ctx)?)?,
+                            stat: s.to_ser(&StatInstances::from_world(ctx)?)?,
                             data: TypeTagged::ref_cast(d).to_ser(&())?,
                         })
                     }).collect()
                 }
     
-                fn from_de(ctx: &mut Mut<StatInstances>, de: Self::De<'_>) -> Result<Self, Box<Error>> {
+                fn from_de(ctx: &mut &mut World, de: Self::De<'_>) -> Result<Self, Box<Error>> {
                     use bevy_serde_project::Convert;
                     Ok(Self(StatMapInner{
                         inner: de.into_iter().map(|DeEntry { qualifier, stat, data }| {
-                            Ok(((Box::<dyn DynStat>::from_de(ctx, stat)?, qualifier),
+                            Ok(((Box::<dyn DynStat>::from_de(&mut StatInstances::from_world_mut(ctx)?, stat)?, 
+                                QualifierProject::from_de(&mut <Q::Ctx as FromWorldAccess>::from_world_mut(ctx)?, qualifier)?.0),
                                 TypeTagged::from_de(&mut (), data)?.de()))
                         }).collect::<Result<_, Box<Error>>>()?
                     }))
