@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use crate::{calc::StatOperation, Data, Serializable, TYPE_ERROR};
 
 use bevy_reflect::TypePath;
-use bevy_serde_project::typetagged::{BevyTypeTagged, FromTypeTagged};
+use bevy_serde_lens::typetagged::{TraitObject, FromTypeTagged};
 use downcast_rs::impl_downcast;
 use dyn_clone::clone_trait_object;
 pub use int_pct::{StatIntPercentAdditive, StatIntPercent};
@@ -75,7 +75,7 @@ impl<T> DynStatValue for T where T: StatValue + TypePath + Serialize, StatOperat
     }
 }
 
-impl BevyTypeTagged for Box<dyn DynStatValue> {
+impl TraitObject for Box<dyn DynStatValue> {
     fn name(&self) -> impl AsRef<str> {
         <dyn DynStatValue>::name(self.as_ref())
     }

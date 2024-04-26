@@ -238,7 +238,7 @@ pub trait StatExtension {
 
 impl StatExtension for World {
     fn register_stat<T: Stat>(&mut self) -> &mut Self {
-        use bevy_serde_project::WorldExtension;
+        use bevy_serde_lens::WorldExtension;
         self.register_typetag::<Box<dyn DynStatValue>, T::Data>();
         self.register_typetag::<Box<dyn Data>, <T::Data as StatValue>::Out>();
         self.register_typetag::<Box<dyn Data>, StatOperation<T::Data>>();
@@ -248,7 +248,7 @@ impl StatExtension for World {
     }
 
     fn register_stat_parser<T: Stat + FromStr>(&mut self) -> &mut Self {
-        use bevy_serde_project::WorldExtension;
+        use bevy_serde_lens::WorldExtension;
         self.register_typetag::<Box<dyn DynStatValue>, T::Data>();
         self.register_typetag::<Box<dyn Data>, <T::Data as StatValue>::Out>();
         self.register_typetag::<Box<dyn Data>, StatOperation<T::Data>>();

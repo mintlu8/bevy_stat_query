@@ -1,6 +1,6 @@
 use bevy_ecs::{query::{ReadOnlyQueryData, WorldQuery}, system::{ReadOnlySystemParam, SystemParam}};
 use bevy_reflect::TypePath;
-use bevy_serde_project::typetagged::{BevyTypeTagged, FromTypeTagged};
+use bevy_serde_lens::typetagged::{TraitObject, FromTypeTagged};
 use dyn_clone::{clone_trait_object, DynClone};
 use serde::{de::DeserializeOwned, Serialize};
 use crate::{types::DynStatValue, BaseStatMap, DynStat, FullStatMap, QualifierFlag, QualifierQuery, QuerierRef, Stat, StatOperationsMap, TYPE_ERROR};
@@ -114,7 +114,7 @@ impl<Q: QualifierFlag, T: StatStream<Q>> StatStreamObject<Q> for T where T: Type
 
 clone_trait_object!(<Q: QualifierFlag> StatStreamObject<Q>);
 
-impl<Q: QualifierFlag> BevyTypeTagged for Box<dyn StatStreamObject<Q>>{
+impl<Q: QualifierFlag> TraitObject for Box<dyn StatStreamObject<Q>>{
     fn name(&self) -> impl AsRef<str> {
         self.as_ref().name()
     }
@@ -139,6 +139,7 @@ impl<Q, T> FromTypeTagged<T> for Box<dyn StatStreamObject<Q>> where Q: Qualifier
 ///
 /// The item also allows querying for "distance" or other relation between paired components on two entities.
 pub trait IntrinsicStream<Qualifier: QualifierFlag>: ExternalStream<Qualifier> {
+    #[allow(unused)]
     /// Write to `stat` and return true ***if a value is written***.
     fn distance (
         ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
@@ -147,7 +148,7 @@ pub trait IntrinsicStream<Qualifier: QualifierFlag>: ExternalStream<Qualifier> {
         qualifier: &QualifierQuery<Qualifier>,
         stat: &mut StatValuePair,
         querier: &mut QuerierRef<Qualifier>
-    );
+    ) {}
 }
 
 

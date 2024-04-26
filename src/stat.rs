@@ -1,11 +1,12 @@
 use std::{borrow::Cow, cmp::{Eq, Ord, Ordering}, fmt::Debug, hash::Hash, str::FromStr};
 
 use bevy_ecs::system::Resource;
-use bevy_serde_project::{Error, FromWorldAccess, SerdeProject};
+use bevy_serde_lens::with_world_mut;
 use bevy_utils::HashMap;
 use downcast_rs::{impl_downcast, Downcast};
 use dyn_clone::DynClone;
 use dyn_hash::DynHash;
+use serde::{Deserialize, Serialize};
 
 use crate::{sealed::Sealed, types::DynStatValue, Data, Shareable, StatValue, TYPE_ERROR};
 
@@ -214,23 +215,24 @@ impl StatInstances {
     }
 }
 
-impl SerdeProject for Box<dyn DynStat> {
-    type Ctx = StatInstances;
-    type Ser<'t> = &'t str;
-    type De<'de> = Cow<'de, str>;
-
-    fn to_ser<'t>(&'t self, _: &&StatInstances) -> Result<Self::Ser<'t>, Box<Error>> {
-        Ok(self.name())
+impl Serialize for Box<dyn DynStat> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+        self.name().serialize(serializer)
     }
+}
 
-    fn from_de(ctx: &mut <Self::Ctx as FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, Box<Error>> {
-        let s = de.as_ref();
-        if let Some(result) = ctx.concrete.get(s){
-            Ok(result.clone())
-        } else if let Some(result) = ctx.any.iter().find_map(|f| f(s)){
-            Ok(result.clone())
-        } else {
-            Err(Error::custom(format!("Unable to parse Stat \"{s}\".")))
-        }
+impl<'de> Deserialize<'de> for Box<dyn DynStat> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+        let s = <Cow<str>>::deserialize(deserializer)?;
+        with_world_mut::<_, D>(|world| {
+            let ctx = world.resource::<StatInstances>();
+            if let Some(result) = ctx.concrete.get(s.as_ref()){
+                Ok(result.clone())
+            } else if let Some(result) = ctx.any.iter().find_map(|f| f(&s)){
+                Ok(result.clone())
+            } else {
+                Err(serde::de::Error::custom(format!("Unable to parse Stat \"{s}\".")))
+            }
+        })?
     }
 }

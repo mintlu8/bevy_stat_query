@@ -3,16 +3,12 @@ use std::{borrow::Borrow, collections::BTreeMap, hash::Hash};
 use std::ops::{Bound, Deref, DerefMut, RangeBounds};
 use bevy_ecs::component::Component;
 use bevy_reflect::TypePath;
-use bevy_serde_project::typetagged::TypeTagged;
-use bevy_serde_project::{Error, SerdeProject};
 use ref_cast::RefCast;
+use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
-use bevy_ecs::prelude::World;
 use crate::types::DynStatValue;
 use crate::{Data, Stat, Qualifier, QualifierFlag, DynStat, StatValue, StatOperation, TYPE_ERROR};
-use crate::StatInstances;
-use bevy_serde_project::WorldAccess;
-use bevy_serde_project::FromWorldAccess;
+use bevy_serde_lens::typetagged::TypeTagged;
 /// A map-like, type erased storage for stats.
 /// When present on an entity with [`StatEntity`](crate::StatEntity)
 /// will be used as the base stats of the unit.
@@ -29,6 +25,36 @@ use bevy_serde_project::FromWorldAccess;
 struct StatMapInner<Q: QualifierFlag, D>{
     inner: BTreeMap<(Box<dyn DynStat>, Qualifier<Q>), D>,
 }
+
+impl<Q: QualifierFlag + Serialize, T: Serialize> Serialize for StatMapInner<Q, T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+        serializer.collect_seq(self.inner.iter().map(|((s, q), d)| (q, s, d)))
+    }
+}
+
+impl<'de, Q: QualifierFlag + Deserialize<'de>, T: Deserialize<'de>> Deserialize<'de> for StatMapInner<Q, T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+        let mut result = Self::new();
+        deserializer.deserialize_seq(&mut result)?;
+        Ok(result)
+    }
+}
+
+impl<'de, Q: QualifierFlag + Deserialize<'de>, T: Deserialize<'de>> Visitor<'de> for &mut StatMapInner<Q, T> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("stat map")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de>, {
+        while let Some((q, s, v)) = seq.next_element()? {
+            self.inner.insert((s, q), v);
+        }
+        Ok(())
+    }
+}
+
 
 impl<Q: QualifierFlag, D> Default for StatMapInner<Q, D> {
     fn default() -> Self {
@@ -105,52 +131,14 @@ impl<T> DerefMut for Unqualified<T> {
     }
 }
 
-#[derive(Debug, RefCast)]
-#[repr(transparent)]
-pub struct QualifierProject<Q: QualifierFlag>(pub Qualifier<Q>);
-
-const _: () = {
-    #[derive(Debug, Serialize)]
-    pub struct Ser<'t, Q: QualifierFlag + SerdeProject> {
-        any_of: Q::Ser<'t>,
-        all_of: Q::Ser<'t>,
-    }
-    
-    #[derive(Debug, Deserialize)]
-    pub struct De<'t, Q: QualifierFlag + SerdeProject> {
-        any_of: Q::De<'t>,
-        all_of: Q::De<'t>,
-    }
-    
-    impl<Q: QualifierFlag + SerdeProject> SerdeProject for QualifierProject<Q> {
-        type Ctx = Q::Ctx;
-        type Ser<'t> = Ser<'t, Q>;
-        type De<'de> = De<'de, Q>;
-    
-        fn to_ser<'t>(&'t self, ctx: &<Self::Ctx as bevy_serde_project::FromWorldAccess>::Ref<'t>) -> Result<Self::Ser<'t>, Box<Error>> {
-            Ok(Ser {
-                any_of: self.0.any_of.to_ser(ctx)?,
-                all_of: self.0.all_of.to_ser(ctx)?,
-            })
-        }
-    
-        fn from_de(ctx: &mut <Self::Ctx as bevy_serde_project::FromWorldAccess>::Mut<'_>, de: Self::De<'_>) -> Result<Self, Box<Error>> {
-            Ok(QualifierProject(Qualifier {
-                any_of: Q::from_de(ctx, de.any_of)?,
-                all_of: Q::from_de(ctx, de.all_of)?,
-            }))
-        }
-    }    
-};
-
 macro_rules! impl_stat_map {
     (
         $(#[$($attrs: tt)*])*
         $name: ident, $stat: ident, $value: ty, $trait_obj: ident
     ) => {
         $(#[$($attrs)*])*
-        #[derive(Debug, Clone, Default, Component, TypePath)]
-        pub struct $name<Q: QualifierFlag>(StatMapInner<Q, Box<dyn $trait_obj>>);
+        #[derive(Debug, Clone, Default, Component, TypePath, Serialize, Deserialize)]
+        pub struct $name<Q: QualifierFlag>(StatMapInner<Q, TypeTagged<Box<dyn $trait_obj>>>);
 
         impl<Q: QualifierFlag> $name<Q> {
             pub fn new() -> Self {
@@ -172,7 +160,7 @@ macro_rules! impl_stat_map {
             }
 
             pub fn insert<$stat: Stat>(&mut self, qualifier: Qualifier<Q>, stat: $stat, value: $value) {
-                self.0.insert(qualifier, stat, Box::new(value));
+                self.0.insert(qualifier, stat, TypeTagged(Box::new(value)));
             }
 
             pub fn get<$stat: Stat>(&self, qualifier: &Qualifier<Q>, stat: &$stat) -> Option<&$value> {
@@ -184,7 +172,7 @@ macro_rules! impl_stat_map {
             }
 
             pub fn remove<$stat: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &$stat) -> Option<$value> {
-                self.0.remove(qualifier, stat).map(|v| *v.downcast().expect(TYPE_ERROR))
+                self.0.remove(qualifier, stat).map(|v| *v.0.downcast().expect(TYPE_ERROR))
             }
 
             pub fn retain(&mut self, f: impl FnMut(&Qualifier<Q>, &dyn Any) -> bool) {
@@ -219,7 +207,7 @@ macro_rules! impl_stat_map {
 
         impl<Q: QualifierFlag> Unqualified<$name<Q>> {
             pub fn insert<S: Stat>(&mut self, stat: S, value: $value) {
-                self.0.0.inner.insert((Box::new(stat), Qualifier::default()), Box::new(value));
+                self.0.0.inner.insert((Box::new(stat), Qualifier::default()), TypeTagged(Box::new(value)));
             }
 
             pub fn get<S: Stat>(&self, stat: &S) -> Option<&$value> {
@@ -237,55 +225,9 @@ macro_rules! impl_stat_map {
             pub fn remove<S: Stat>(&mut self, stat: &S) -> Option<$value> {
                 self.0.0.inner
                     .remove(&(stat as &dyn DynStat, &Qualifier::default()) as &dyn QueryStatEntry<Q>)
-                    .map(|x| *x.downcast::<$value>().expect(TYPE_ERROR))
+                    .map(|x| *x.0.downcast::<$value>().expect(TYPE_ERROR))
             }
         }
-
-        const _: () = {
-            #[derive(Serialize)]
-            #[serde(bound = "")]
-            pub struct SerEntry<'t, Q: QualifierFlag + SerdeProject> {
-                qualifier: <QualifierProject<Q> as SerdeProject>::Ser<'t>,
-                stat: <Box<dyn DynStat> as SerdeProject>::Ser<'t>,
-                data: <TypeTagged<Box<dyn $trait_obj>> as SerdeProject>::Ser<'t>,
-            }
-
-            #[derive(Deserialize)]
-            #[serde(bound = "'t: 'de, 'de: 't")]
-            pub struct DeEntry<'t, Q: QualifierFlag + SerdeProject> {
-                qualifier: <QualifierProject<Q> as SerdeProject>::De<'t>,
-                stat: <Box<dyn DynStat> as SerdeProject>::De<'t>,
-                data: <TypeTagged<Box<dyn $trait_obj>> as SerdeProject>::De<'t>,
-            }
-
-            impl<Q: QualifierFlag + SerdeProject> SerdeProject for $name<Q> {
-                type Ctx = WorldAccess;
-    
-                type Ser<'t> = Vec<SerEntry<'t, Q>>;
-                type De<'de> = Vec<DeEntry<'de, Q>>;
-    
-                fn to_ser<'t>(&'t self, ctx: &&'t World) -> Result<Self::Ser<'t>, Box<Error>> {
-                    self.0.inner.iter().map(|((s, q), d)|{
-                        Ok(SerEntry {
-                            qualifier: QualifierProject::ref_cast(q).to_ser(&<Q::Ctx as FromWorldAccess>::from_world(ctx)?)?,
-                            stat: s.to_ser(&StatInstances::from_world(ctx)?)?,
-                            data: TypeTagged::ref_cast(d).to_ser(&())?,
-                        })
-                    }).collect()
-                }
-    
-                fn from_de(ctx: &mut &mut World, de: Self::De<'_>) -> Result<Self, Box<Error>> {
-                    use bevy_serde_project::Convert;
-                    Ok(Self(StatMapInner{
-                        inner: de.into_iter().map(|DeEntry { qualifier, stat, data }| {
-                            Ok(((Box::<dyn DynStat>::from_de(&mut StatInstances::from_world_mut(ctx)?, stat)?, 
-                                QualifierProject::from_de(&mut <Q::Ctx as FromWorldAccess>::from_world_mut(ctx)?, qualifier)?.0),
-                                TypeTagged::from_de(&mut (), data)?.de()))
-                        }).collect::<Result<_, Box<Error>>>()?
-                    }))
-                }
-            }
-        };
     };
 }
 

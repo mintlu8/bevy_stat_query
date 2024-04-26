@@ -163,7 +163,7 @@ This is almost certainly a bug since we do not provide a type erased api.";
 pub use bevy_app::{Plugin, App};
 
 use bevy_reflect::TypePath;
-use bevy_serde_project::typetagged::{BevyTypeTagged, FromTypeTagged};
+use bevy_serde_lens::typetagged::{TraitObject, FromTypeTagged};
 use downcast_rs::Downcast;
 mod stream;
 use dyn_clone::{clone_trait_object, DynClone};
@@ -228,7 +228,7 @@ impl<T> Data for T where T: Shareable + TypePath + serde::Serialize {
 
 clone_trait_object!(Data);
 
-impl BevyTypeTagged for Box<dyn Data> {
+impl TraitObject for Box<dyn Data> {
     fn name(&self) -> impl AsRef<str> {
         self.as_ref().name()
     }
