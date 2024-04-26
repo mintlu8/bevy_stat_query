@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::{fmt::Debug, hash::Hash};
 use bevy_ecs::component::Component;
+use bevy_reflect::TypePath;
 use bevy_utils::hashbrown::HashMap;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -11,14 +12,14 @@ use crate::{QualifierFlag, QualifierQuery, DynStat};
 pub type StatQuery<Q> = (QualifierQuery<Q>, Box<dyn DynStat>);
 
 /// The core marker component. Stat querying is only allowed on entities marked as [`StatEntity`].
-#[derive(Debug, Component, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Component, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TypePath)]
 pub struct StatEntity;
 
 /// This component acts as a cache to stats.
 ///
 /// If using this component
 /// the user must manually invalidate the cache if something has changed.
-#[derive(Debug, Component, Serialize, Deserialize)]
+#[derive(Debug, Component, Serialize, Deserialize, TypePath)]
 #[serde(bound(serialize="", deserialize=""))]
 pub struct StatCache<Q: QualifierFlag>{
     #[serde(skip)]
