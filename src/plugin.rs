@@ -1,4 +1,4 @@
-use std::{any::{Any, TypeId}, cell::RefCell, future::Future, ops::Deref, rc::Rc, str::FromStr, task::Poll};
+use std::{any::{Any, TypeId}, cell::RefCell, ops::Deref, rc::Rc, str::FromStr};
 use bevy_app::{App, First, Plugin};
 use bevy_ecs::{entity::Entity, query::With, system::{Query, ReadOnlySystem, Resource, SystemId}, world::World};
 use bevy_utils::HashMap;
@@ -27,42 +27,6 @@ impl Deref for CachedQueriers {
     }
 }
 
-#[cfg(feature = "futures")]
-pub enum AsyncQueryFuture<T> {
-    Ready(Option<T>),
-    Channel(futures::channel::oneshot::Receiver<Option<T>>),
-}
-
-#[cfg(feature = "futures")]
-pub struct AsyncQueryEvalFuture<T: StatValue>(AsyncQueryFuture<T>);
-
-#[cfg(feature = "futures")]
-const _ : () = {
-    impl<T> Unpin for AsyncQueryFuture<T> {}
-    impl<T: StatValue> Unpin for AsyncQueryEvalFuture<T> {}
-    
-    impl<T> Future for AsyncQueryFuture<T> {
-        type Output = Option<T>;
-    
-        fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
-            use futures::FutureExt;
-            match self.get_mut() {
-                AsyncQueryFuture::Ready(r) => Poll::Ready(r.take()),
-                AsyncQueryFuture::Channel(chan) => chan.poll_unpin(cx).map(|x| x.ok().flatten()),
-            }
-        }
-    }
-    
-    impl<T: StatValue> Future for AsyncQueryEvalFuture<T> {
-        type Output = Option<T::Out>;
-    
-        fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
-            use futures::FutureExt;
-            self.0.poll_unpin(cx).map(|x| x.map(|x| x.eval()))
-        }
-    }
-};
-
 type BoxSystem<Q, S> = Box<dyn ReadOnlySystem<In = QuerierIn<Q, S>, Out = Option<<S as Stat>::Data>>>;
 
 impl CachedQueriersInner {
@@ -90,30 +54,6 @@ impl CachedQueriersInner {
                 Box::new(sys)
             })));
             None
-        }
-    }
-
-    #[cfg(feature = "futures")]
-    pub fn async_query_stat<Q: GenericQuerier, S: Stat>(
-        &self, 
-        world: &World, 
-        input: QuerierIn<Q::Qualifier, S>
-    ) -> AsyncQueryFuture<S::Data> {
-        use futures::channel::oneshot::channel;
-        let mut lock = self.init.borrow_mut();
-        if let Some(state) = lock.get_mut(&TypeId::of::<(Q, S)>()) {
-            AsyncQueryFuture::Ready(
-                state.downcast_mut::<BoxSystem<Q::Qualifier, S>>().unwrap().run_readonly(input, world)
-            )
-        } else {
-            let (send, recv) = channel();
-            self.uninit.borrow_mut().push((TypeId::of::<(Q, S)>(), Box::new(move |w| {
-                let mut sys = Q::as_boxed_readonly_system::<S>();
-                sys.initialize(w);
-                let _ = send.send(sys.run_readonly(input, w));
-                Box::new(sys)
-            })));
-            AsyncQueryFuture::Channel(recv)
         }
     }
 
@@ -180,20 +120,6 @@ pub trait StatExtension {
         stat: &S,
     ) -> Option<Option<S::Data>>;
 
-    /// Query for a stat on an [`Entity`] with immutable [`World`] access
-    /// asynchronously. 
-    /// 
-    /// This completes instantly if `try_query_stat` can complete.
-    /// 
-    /// Returns `None` only if the entity is missing.
-    #[cfg(feature = "futures")]
-    fn async_query_stat<Q: GenericQuerier, S: Stat>(
-        &self,
-        entity: Entity,
-        qualifier: &QualifierQuery<Q::Qualifier>,
-        stat: &S,
-    ) -> AsyncQueryFuture<S::Data>;
-
     /// Query for a stat on an [`Entity`] with [`World`] access, then `eval` it.
     fn eval_stat<Q: GenericQuerier, S: Stat>(
         &mut self,
@@ -207,29 +133,13 @@ pub trait StatExtension {
 
     /// Query for a stat on an [`Entity`] with [`World`] access, then `eval` it.
     fn try_eval_stat<Q: GenericQuerier, S: Stat>(
-        &mut self,
+        &self,
         entity: Entity,
         qualifier: &QualifierQuery<Q::Qualifier>,
         stat: &S,
     ) -> Option<Option<<S::Data as StatValue>::Out>> {
         self.try_query_stat::<Q, S>(entity, qualifier, stat)
             .map(|x| x.map(|x| x.eval()))
-    }
-
-    /// Query for a stat on an [`Entity`] with immutable [`World`] access
-    /// asynchronously, then `eval` it.
-    /// 
-    /// This completes instantly if `try_query_stat` can complete.
-    /// 
-    /// Returns `None` only if the entity is missing.
-    #[cfg(feature = "futures")]
-    fn async_eval_stat<Q: GenericQuerier, S: Stat>(
-        &self,
-        entity: Entity,
-        qualifier: &QualifierQuery<Q::Qualifier>,
-        stat: &S,
-    ) -> AsyncQueryEvalFuture<S::Data> {
-        AsyncQueryEvalFuture(self.async_query_stat::<Q, S>(entity, qualifier, stat))
     }
 
     /// Clear all cached stats.
@@ -297,18 +207,6 @@ impl StatExtension for World {
         queriers.try_query_stat::<Q, S>(self, input)
     }
 
-    #[cfg(feature = "futures")]
-    fn async_query_stat<Q: GenericQuerier, S: Stat>(
-        &self,
-        entity: Entity,
-        qualifier: &QualifierQuery<Q::Qualifier>,
-        stat: &S,
-    ) -> AsyncQueryFuture<S::Data> {
-        let input = (entity, qualifier.clone(), stat.clone());
-        let queriers = self.non_send_resource::<CachedQueriers>().clone();
-        queriers.async_query_stat::<Q, S>(self, input)
-    }
-
     fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
         let id = if let Some(res) = self.get_resource::<ClearCacheId>() {
             res.0
@@ -366,16 +264,6 @@ impl StatExtension for App {
         stat: &S,
     ) -> Option<Option<S::Data>> {
         self.world.try_query_stat::<Q, S>(entity, qualifier, stat)
-    }
-
-    #[cfg(feature = "futures")]
-    fn async_query_stat<Q: GenericQuerier, S: Stat>(
-        &self,
-        entity: Entity,
-        qualifier: &QualifierQuery<Q::Qualifier>,
-        stat: &S,
-    ) -> AsyncQueryFuture<S::Data> {
-        self.world.async_query_stat::<Q, S>(entity, qualifier, stat)
     }
 
     fn clear_stat_cache<Q: QualifierFlag>(&mut self) {

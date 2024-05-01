@@ -1,9 +1,7 @@
-use bevy_app::App;
-use bevy_defer::{world, AsyncExtension, AsyncPlugin};
 use bevy_ecs::{component::Component, entity::Entity, world::World};
 use bevy_hierarchy::BuildWorldChildren;
 use bevy_reflect::TypePath;
-use bevy_stat_query::{querier, types::{StatInt, StatOnce}, CachedQueriers, ExternalStream, IntrinsicStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatQueryPlugin, StatValue};
+use bevy_stat_query::{querier, types::{StatInt, StatOnce}, CachedQueriers, ExternalStream, IntrinsicStream, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity, StatExtension, StatValue};
 use serde::{Deserialize, Serialize};
 
 
@@ -159,7 +157,7 @@ impl ExternalStream<bool> for DistanceAura {
         dbg!(&stat);
         stat.is_then(&StatEffects::Distance, |s| {
             // could panic or return default or write to ctx etc.
-            let distance = querier.query_distance(component.0, qualifier, &StatDistance)
+            let distance = querier.query_relation(component.0, qualifier, &StatDistance)
                 .unwrap().unwrap();
             s.add(distance);
         });
@@ -180,7 +178,7 @@ impl ExternalStream<bool> for AllegianceAura {
     ) {
         stat.is_then(&StatEffects::Allegiance, |s| {
             // could panic or return default or write to ctx etc.
-            let distance = querier.query_distance(component.1, qualifier, &StatAllegiance)
+            let distance = querier.query_relation(component.1, qualifier, &StatAllegiance)
                 .unwrap().unwrap();
             s.add(match distance {
                 Relation::Ally => component.0,
@@ -252,59 +250,4 @@ pub fn main() {
     world.clear_stat_cache::<bool>();
     assert_eq!(world.eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(5));
     assert_eq!(world.eval_stat::<MyQuerier, _>(b, &QualifierQuery::Aggregate(false), &StatEffects::Allegiance), Some(7));
-}
-
-
-#[test]
-#[cfg(feature = "futures")]
-pub fn async_main() {
-    use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
-
-    let mut app = App::new();
-    app.add_plugins(bevy::prelude::MinimalPlugins);
-    app.add_plugins(StatQueryPlugin);
-    app.add_plugins(AsyncPlugin::default_settings().with_world_access());
-
-    app.init_non_send_resource::<CachedQueriers>();
-    app.register_stat::<StatAllegiance>();
-    app.register_stat::<StatDistance>();
-    let a = app.world.spawn((
-        StatEntity,
-        StatCache::<bool>::default(),
-        Position([-1, 7]),
-        Allegiance::Player,
-        A,
-    )).id();
-    let b = app.world.spawn((
-        StatEntity,
-        StatCache::<bool>::default(),
-        Position([4, 5]),
-        Allegiance::AI,
-        B,
-    )).id();
-    app.world.entity_mut(a).with_children(|f| {
-        f.spawn((
-            DistanceAura(b),
-            AllegianceAura(5, b),
-        ));
-    });
-    app.world.entity_mut(b).with_children(|f| {
-        f.spawn((
-            DistanceAura(a),
-            AllegianceAura(7, a),
-        ));
-    });
-    let lock = Arc::new(AtomicBool::new(false));
-    let lock2 = lock.clone();
-    app.spawn_task(async move {
-        let fut = world().with_world_ref(move |w| {
-            w.async_eval_stat::<MyQuerier, _>(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance)
-        }).ok().unwrap();
-        assert_eq!(fut.await, Some(7));
-        lock.store(true, Ordering::Relaxed);
-        world().quit().await;
-        Ok(())
-    });
-    app.run();
-    assert!(lock2.load(Ordering::Relaxed));
 }

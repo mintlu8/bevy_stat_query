@@ -46,7 +46,7 @@ struct QueryStack<'w, 's, 'w2, 's2, 't, Q: QualifierFlag, D: IntrinsicParam<Q> +
 trait DynQuerier<Q: QualifierFlag> {
     fn query(&mut self, qualifier: &QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>>;
     fn query_other(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>>;
-    fn query_distance(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>>;
+    fn query_relation(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>>;
 }
 
 impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static> DynQuerier<Q> for QueryStack<'_, '_, '_, '_, '_, Q, D, A> {
@@ -92,7 +92,7 @@ impl<Q: QualifierFlag, D: IntrinsicParam<Q> + 'static, A: StatParam<Q> + 'static
         Some(stat_value)
     }
 
-    fn query_distance(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>> {
+    fn query_relation(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &dyn DynStat) -> Option<Box<dyn DynStatValue>> {
         let curr = self.stack.last().expect("Must call query_other on first call.").2;
         if !self.querier.units.contains(entity) || !self.querier.units.contains(curr) {
             return None;
@@ -136,14 +136,14 @@ impl<Q: QualifierFlag> QuerierRef<'_, Q> {
     }
 
     /// Look for a relation between two entities, returns `None` if an entity is missing.
-    pub fn query_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
-        self.0.query_distance(entity, qualifier, stat)
-            .map(|x| *x.downcast().expect(TYPE_ERROR))    
+    pub fn query_relation<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<S::Data> {
+        self.0.query_relation(entity, qualifier, stat)
+            .map(|x| *x.downcast().expect(TYPE_ERROR))
     }
 
     /// Look for a relation between two entities, returns `None` if an entity is missing.
-    pub fn query_eval_distance<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
-        self.query_distance(entity, qualifier, stat).map(|x| x.eval())   
+    pub fn query_eval_relation<S: Stat>(&mut self, entity: Entity, qualifier: &crate::QualifierQuery<Q>, stat: &S) -> Option<SOut<S>> {
+        self.query_relation(entity, qualifier, stat).map(|x| x.eval())   
     }
 }
 

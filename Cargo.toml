@@ -11,10 +11,9 @@ repository = "https://github.com/mintlu8/bevy_stat_query"
 description = """
 An over-engineered RPG stat query system for the bevy engine.
 """
-keywords = ["bevy", "stat", "serialize"]
+keywords = ["bevy", "stat"]
 
 [features]
-default = ["futures"]
 
 [lib]
 doctest = false
@@ -35,13 +34,11 @@ thiserror = "^1"
 num-integer = { version = "^0.1", default-features = false }
 num-rational = { version = "^0.4.1", default-features = false, features = ["serde"] }
 num-traits = { version = "0.2.18", default-features = false }
-bevy_serde_lens = { version = "^0.1.4" }
+bevy_serde_lens = { version = "0.2" }
 parking_lot = "0.12.1"
-futures = { version = "0.3.30", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
 bevy = "0.13.1"
-bevy_defer = { version = "0.10", default-features = false }
 bitflags = "2.4.2"
 postcard = { version = "1.0.8", features = ["alloc"], default-features = false }
 serde_json = "1.0.114"
