@@ -1,6 +1,6 @@
-use std::fmt::Debug;
-use bevy_reflect::TypePath;
 use crate::Float;
+use bevy_reflect::TypePath;
+use std::fmt::Debug;
 
 /// Rounding method for a floating point number.
 pub trait Rounding: TypePath + Default + Debug + Copy + Send + Sync + 'static {

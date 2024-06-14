@@ -1,18 +1,31 @@
-use std::{any::{Any, TypeId}, cell::RefCell, ops::Deref, rc::Rc, str::FromStr};
-use bevy_app::{App, First, Plugin};
-use bevy_ecs::{entity::Entity, query::With, system::{Query, ReadOnlySystem, Resource, SystemId}, world::World};
-use bevy_utils::HashMap;
+use crate::{
+    calc::StatDefaults, querier::GenericQuerier, types::DynStatValue, QualifierFlag,
+    QualifierQuery, Stat, StatOperation, StatValue,
+};
 use crate::{querier::QuerierIn, Data, StatCache, StatEntity, StatInstances};
-use crate::{calc::StatDefaults, querier::GenericQuerier, types::DynStatValue, QualifierFlag, QualifierQuery, Stat, StatOperation, StatValue};
+use bevy_app::{App, First, Plugin};
+use bevy_ecs::{
+    entity::Entity,
+    query::With,
+    system::{Query, ReadOnlySystem, Resource, SystemId},
+    world::World,
+};
+use bevy_utils::HashMap;
+use std::{
+    any::{Any, TypeId},
+    cell::RefCell,
+    ops::Deref,
+    rc::Rc,
+    str::FromStr,
+};
 
 #[derive(Debug, Resource)]
 pub struct ClearCacheId(SystemId);
 
-
 #[derive(Default)]
-pub struct CachedQueriersInner{
+pub struct CachedQueriersInner {
     init: RefCell<HashMap<TypeId, Box<dyn Any>>>,
-    uninit: RefCell<Vec<(TypeId, Box<dyn FnOnce(&mut World) -> Box<dyn Any>>)>>
+    uninit: RefCell<Vec<(TypeId, Box<dyn FnOnce(&mut World) -> Box<dyn Any>>)>>,
 }
 
 /// `!Send` resource for running stat queries on the [`World`]
@@ -27,13 +40,21 @@ impl Deref for CachedQueriers {
     }
 }
 
-type BoxSystem<Q, S> = Box<dyn ReadOnlySystem<In = QuerierIn<Q, S>, Out = Option<<S as Stat>::Data>>>;
+type BoxSystem<Q, S> =
+    Box<dyn ReadOnlySystem<In = QuerierIn<Q, S>, Out = Option<<S as Stat>::Data>>>;
 
 impl CachedQueriersInner {
-    pub fn query_stat<Q: GenericQuerier, S: Stat>(&self, world: &mut World, input: QuerierIn<Q::Qualifier, S>) -> Option<S::Data> {
+    pub fn query_stat<Q: GenericQuerier, S: Stat>(
+        &self,
+        world: &mut World,
+        input: QuerierIn<Q::Qualifier, S>,
+    ) -> Option<S::Data> {
         let mut lock = self.init.borrow_mut();
         if let Some(state) = lock.get_mut(&TypeId::of::<(Q, S)>()) {
-            state.downcast_mut::<BoxSystem<Q::Qualifier, S>>().unwrap().run_readonly(input, world)
+            state
+                .downcast_mut::<BoxSystem<Q::Qualifier, S>>()
+                .unwrap()
+                .run_readonly(input, world)
         } else {
             let mut state = Q::as_boxed_readonly_system::<S>();
             state.initialize(world);
@@ -43,16 +64,28 @@ impl CachedQueriersInner {
         }
     }
 
-    pub fn try_query_stat<Q: GenericQuerier, S: Stat>(&self, world: &World, input: QuerierIn<Q::Qualifier, S>) -> Option<Option<S::Data>> {
+    pub fn try_query_stat<Q: GenericQuerier, S: Stat>(
+        &self,
+        world: &World,
+        input: QuerierIn<Q::Qualifier, S>,
+    ) -> Option<Option<S::Data>> {
         let mut lock = self.init.borrow_mut();
         if let Some(state) = lock.get_mut(&TypeId::of::<(Q, S)>()) {
-            Some(state.downcast_mut::<BoxSystem<Q::Qualifier, S>>().unwrap().run_readonly(input, world))
+            Some(
+                state
+                    .downcast_mut::<BoxSystem<Q::Qualifier, S>>()
+                    .unwrap()
+                    .run_readonly(input, world),
+            )
         } else {
-            self.uninit.borrow_mut().push((TypeId::of::<(Q, S)>(), Box::new(|w| {
-                let mut sys = Q::as_boxed_readonly_system::<S>();
-                sys.initialize(w);
-                Box::new(sys)
-            })));
+            self.uninit.borrow_mut().push((
+                TypeId::of::<(Q, S)>(),
+                Box::new(|w| {
+                    let mut sys = Q::as_boxed_readonly_system::<S>();
+                    sys.initialize(w);
+                    Box::new(sys)
+                }),
+            ));
             None
         }
     }
@@ -60,11 +93,18 @@ impl CachedQueriersInner {
     pub fn init<Q: GenericQuerier, S: Stat>(&self, world: &mut World) {
         let mut state = Q::as_boxed_readonly_system::<S>();
         state.initialize(world);
-        self.init.borrow_mut().insert(TypeId::of::<(Q, S)>(), Box::new(state));
+        self.init
+            .borrow_mut()
+            .insert(TypeId::of::<(Q, S)>(), Box::new(state));
     }
 
     pub fn init_all(&self, world: &mut World) {
-        self.init.borrow_mut().extend(self.uninit.borrow_mut().drain(..).map(|(k, v)| (k, v(world))));
+        self.init.borrow_mut().extend(
+            self.uninit
+                .borrow_mut()
+                .drain(..)
+                .map(|(k, v)| (k, v(world))),
+        );
     }
 }
 
@@ -73,19 +113,19 @@ type Bounds<T> = <<T as Stat>::Data as StatValue>::Bounds;
 /// Extension on [`World`] and [`App`]
 pub trait StatExtension {
     /// Register associated serialization routine for a stat.
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// If trying to replace a previous stat entry with a different value.
     fn register_stat<T: Stat>(&mut self) -> &mut Self;
 
     /// Register associated serialization routine for a stat that uses [`FromStr`].
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// If trying to replace a previous stat entry with a different value.
     fn register_stat_parser<T: Stat + FromStr>(&mut self) -> &mut Self;
-    
+
     /// Register a default stat value.
     ///
     /// This is the standard way
@@ -98,7 +138,7 @@ pub trait StatExtension {
     /// Register the maximum value of a stat.
     fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self;
 
-    /// Query for a stat on an [`Entity`] with mutable [`World`] access. 
+    /// Query for a stat on an [`Entity`] with mutable [`World`] access.
     /// Returns `None` only if entity is missing.
     fn query_stat<Q: GenericQuerier, S: Stat>(
         &mut self,
@@ -108,10 +148,10 @@ pub trait StatExtension {
     ) -> Option<S::Data>;
 
     /// Query for a stat on an [`Entity`] with immutable [`World`] access.
-    /// 
-    /// Returns `None` if the querier system is not registered, 
+    ///
+    /// Returns `None` if the querier system is not registered,
     /// by default this is deferred and will be available the next frame.
-    /// 
+    ///
     /// Returns `Some(None)` if the entity is missing.
     fn try_query_stat<Q: GenericQuerier, S: Stat>(
         &self,
@@ -197,10 +237,10 @@ impl StatExtension for World {
     }
 
     fn try_query_stat<Q: GenericQuerier, S: Stat>(
-            &self,
-            entity: Entity,
-            qualifier: &QualifierQuery<Q::Qualifier>,
-            stat: &S,
+        &self,
+        entity: Entity,
+        qualifier: &QualifierQuery<Q::Qualifier>,
+        stat: &S,
     ) -> Option<Option<S::Data>> {
         let input = (entity, qualifier.clone(), stat.clone());
         let queriers = self.non_send_resource::<CachedQueriers>().clone();
@@ -220,7 +260,6 @@ impl StatExtension for World {
         self.run_system(id).unwrap();
     }
 }
-
 
 impl StatExtension for App {
     fn register_stat<T: Stat>(&mut self) -> &mut Self {

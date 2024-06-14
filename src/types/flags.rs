@@ -1,9 +1,9 @@
-use std::fmt::Debug;
+use crate::{calc::StatOperation, num_traits::Flags, Serializable};
 use bevy_reflect::TypePath;
 use bevy_utils::HashSet;
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 use std::hash::Hash;
-use crate::{calc::StatOperation, num_traits::Flags, Serializable};
 
 use super::{StatValue, Unsupported};
 
@@ -21,7 +21,7 @@ impl<T: Flags> StatValue for StatFlags<T> {
 
     fn join(&mut self, other: Self) {
         self.or |= other.or;
-        self.not |=  other.not;
+        self.not |= other.not;
     }
 
     fn eval(&self) -> Self::Out {
@@ -52,7 +52,7 @@ impl<T: Flags> StatValue for StatFlags<T> {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TypePath)]
 #[serde(bound(serialize = "", deserialize = ""))]
 pub struct StatSet<T: Serializable + Hash + Eq + Default> {
-    pub not: HashSet<T>,                                                     
+    pub not: HashSet<T>,
     pub or: HashSet<T>,
 }
 

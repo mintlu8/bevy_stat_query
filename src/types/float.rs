@@ -1,7 +1,7 @@
+use super::{StatValue, Unsupported};
+use crate::{Float, StatOperation};
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
-use crate::{StatOperation, Float};
-use super::{StatValue, Unsupported};
 
 /// A stat represented by a floating point number or a fraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
@@ -126,7 +126,6 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
         StatOperation::Add(out)
     }
 }
-
 
 /// An floating point or fraction based multiplier aggregation. Does not support addition.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TypePath)]

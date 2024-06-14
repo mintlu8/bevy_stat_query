@@ -1,10 +1,12 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{bind_object, DefaultInit, WorldExtension};
-use bevy_stat_query::{types::*, BaseStatMap, Fraction, FullStatMap, Qualifier, Stat, StatExtension, StatOperation, StatOperationsMap};
+use bevy_stat_query::{
+    types::*, BaseStatMap, Fraction, FullStatMap, Qualifier, Stat, StatExtension, StatOperation,
+    StatOperationsMap,
+};
 use bevy_utils::hashbrown::HashSet;
 use serde::{Deserialize, Serialize};
-
 
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Serialize, Deserialize, TypePath)]
@@ -64,7 +66,6 @@ bind_object!(
     }
 );
 
-
 #[derive(Debug, Component, Serialize, Deserialize, Default, TypePath)]
 pub struct OpMarker;
 
@@ -76,7 +77,6 @@ bind_object!(
         map: StatOperationsMap<bool>,
     }
 );
-
 
 #[derive(Debug, Component, Serialize, Deserialize, Default, TypePath)]
 pub struct FullMarker;
@@ -113,7 +113,11 @@ pub fn operations() {
         map.insert(q_false, SFloat32, 3.5);
         map.insert(q_false, SFloat64, -6.25);
         map.insert(q_false, SFlags, MyFlags::F);
-        map.insert(q_false, SString, StatOnce::Found("Ferris the Rustacean".to_owned()));
+        map.insert(
+            q_false,
+            SString,
+            StatOnce::Found("Ferris the Rustacean".to_owned()),
+        );
         // TODO: this is actually non-deterministic, maybe fix later?
         map.insert(q_false, SSet, HashSet::from(["foo".to_owned()]));
         map.insert(q_false, SIntFrac, 69);
@@ -122,10 +126,14 @@ pub fn operations() {
         map.insert(q_false, SFracMul, Fraction::new(44, 57));
         map
     }));
-    let value = world.save::<BaseMarker, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<BaseMarker, _>(serde_json::value::Serializer)
+        .unwrap();
     world.despawn_bound_objects::<BaseMarker>();
     world.load::<BaseMarker, _>(&value).unwrap();
-    let value2 = world.save::<BaseMarker, _>(serde_json::value::Serializer).unwrap();
+    let value2 = world
+        .save::<BaseMarker, _>(serde_json::value::Serializer)
+        .unwrap();
     assert_eq!(value, value2);
 
     world.spawn((OpMarker, {
@@ -150,7 +158,6 @@ pub fn operations() {
     let value2 = world.save::<Op, _>(serde_json::value::Serializer).unwrap();
     assert_eq!(value, value2);
 
-
     world.spawn((FullMarker, {
         let mut map = FullStatMap::new();
         map.insert(q_false, SInt, Default::default());
@@ -166,10 +173,14 @@ pub fn operations() {
         map.insert(q_false, SMul, Default::default());
         map
     }));
-    let value = world.save::<Full, _>(serde_json::value::Serializer).unwrap();
+    let value = world
+        .save::<Full, _>(serde_json::value::Serializer)
+        .unwrap();
     world.despawn_bound_objects::<Full>();
     world.load::<Full, _>(&value).unwrap();
-    let value2 = world.save::<Full, _>(serde_json::value::Serializer).unwrap();
+    let value2 = world
+        .save::<Full, _>(serde_json::value::Serializer)
+        .unwrap();
     assert_eq!(value, value2);
     world.despawn_bound_objects::<Full>();
 
@@ -189,15 +200,17 @@ pub fn operations() {
         map
     }));
     use postcard::ser_flavors::Flavor;
-    let mut vec = postcard::Serializer{
+    let mut vec = postcard::Serializer {
         output: postcard::ser_flavors::AllocVec::new(),
     };
     world.save::<Full, _>(&mut vec).unwrap();
     let result = vec.output.finalize().unwrap();
     world.despawn_bound_objects::<Full>();
-    world.load::<Full, _>(&mut postcard::Deserializer::from_bytes(&result)).unwrap();
+    world
+        .load::<Full, _>(&mut postcard::Deserializer::from_bytes(&result))
+        .unwrap();
 
-    let mut vec2 = postcard::Serializer{
+    let mut vec2 = postcard::Serializer {
         output: postcard::ser_flavors::AllocVec::new(),
     };
     world.save::<Full, _>(&mut vec2).unwrap();

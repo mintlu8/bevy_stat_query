@@ -3,7 +3,10 @@ use bevy_reflect::TypePath;
 use bevy_utils::HashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{types::{DynStatValue, StatValue}, DynStat, Stat, TYPE_ERROR};
+use crate::{
+    types::{DynStatValue, StatValue},
+    DynStat, Stat, TYPE_ERROR,
+};
 
 /// An single step unordered operation on a [`StatValue`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Serialize, Deserialize, TypePath)]
@@ -67,7 +70,8 @@ impl StatDefaults {
 
     /// Obtain a [`Stat`]'s default value.
     pub fn get<S: Stat>(&self, stat: &S) -> S::Data {
-        self.stats.get(stat as &dyn DynStat)
+        self.stats
+            .get(stat as &dyn DynStat)
             .and_then(|x| x.downcast_ref::<S::Data>())
             .cloned()
             .unwrap_or(Default::default())
@@ -75,7 +79,8 @@ impl StatDefaults {
 
     /// Obtain a [`Stat`]'s default value.
     pub(crate) fn get_dyn(&self, stat: &dyn DynStat) -> Box<dyn DynStatValue> {
-        self.stats.get(stat as &dyn DynStat)
+        self.stats
+            .get(stat as &dyn DynStat)
             .cloned()
             .unwrap_or(stat.default_value())
     }

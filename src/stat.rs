@@ -1,4 +1,10 @@
-use std::{borrow::Cow, cmp::{Eq, Ord, Ordering}, fmt::Debug, hash::Hash, str::FromStr};
+use std::{
+    borrow::Cow,
+    cmp::{Eq, Ord, Ordering},
+    fmt::Debug,
+    hash::Hash,
+    str::FromStr,
+};
 
 use bevy_ecs::system::Resource;
 use bevy_serde_lens::with_world_mut;
@@ -41,7 +47,7 @@ pub trait Stat: Shareable + Hash + Debug + Eq + Ord {
     fn values() -> impl IntoIterator<Item = Self>;
 
     /// Equality comparison between all stat implementors.
-    fn is<S: Stat + Sealed>(&self, other: &S) -> bool{
+    fn is<S: Stat + Sealed>(&self, other: &S) -> bool {
         self as &dyn DynStat == other as &dyn DynStat
     }
 }
@@ -74,36 +80,35 @@ impl<S: DynStat> PartialEq<S> for dyn DynStat {
     }
 }
 
-impl<S: DynStat> PartialEq<S> for Box<dyn DynStat>  {
+impl<S: DynStat> PartialEq<S> for Box<dyn DynStat> {
     fn eq(&self, other: &S) -> bool {
         self.dyn_eq(other)
     }
 }
 
-impl PartialEq<str> for dyn DynStat  {
+impl PartialEq<str> for dyn DynStat {
     fn eq(&self, other: &str) -> bool {
         self.name() == other
     }
 }
 
-impl PartialEq<str> for Box<dyn DynStat>  {
+impl PartialEq<str> for Box<dyn DynStat> {
     fn eq(&self, other: &str) -> bool {
         self.name() == other
     }
 }
 
-impl PartialEq<String> for dyn DynStat  {
+impl PartialEq<String> for dyn DynStat {
     fn eq(&self, other: &String) -> bool {
         self.name() == other.as_str()
     }
 }
 
-impl PartialEq<String> for Box<dyn DynStat>  {
+impl PartialEq<String> for Box<dyn DynStat> {
     fn eq(&self, other: &String) -> bool {
         self.name() == other.as_str()
     }
 }
-
 
 impl PartialOrd for dyn DynStat {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -117,26 +122,34 @@ impl Ord for dyn DynStat {
     }
 }
 
-impl<T> From<T> for Box<dyn DynStat> where T: Stat {
+impl<T> From<T> for Box<dyn DynStat>
+where
+    T: Stat,
+{
     fn from(value: T) -> Self {
         Box::new(value)
     }
 }
 
-impl<T> DynStat for T where T:Stat {
+impl<T> DynStat for T
+where
+    T: Stat,
+{
     fn name(&self) -> &str {
         self.name()
     }
 
     fn dyn_eq(&self, other: &dyn DynStat) -> bool {
-        other.downcast_ref::<Self>()
+        other
+            .downcast_ref::<Self>()
             .map(|x| x == self)
             .unwrap_or(false)
     }
 
     fn dyn_ord(&self, other: &dyn DynStat) -> Ordering {
         use std::any::Any;
-        other.downcast_ref::<Self>()
+        other
+            .downcast_ref::<Self>()
             .map(|x| x.cmp(self))
             .unwrap_or(self.type_id().cmp(&other.type_id()))
     }
@@ -146,11 +159,11 @@ impl<T> DynStat for T where T:Stat {
     }
 
     fn from_base(&self, out: &dyn Data) -> Box<dyn Data> {
-        Box::new(
-            <<T as Stat>::Data>::from_base(
-                out.downcast_ref::<<<T as Stat>::Data as StatValue>::Out>()
-                    .expect(TYPE_ERROR).clone())
-        )
+        Box::new(<<T as Stat>::Data>::from_base(
+            out.downcast_ref::<<<T as Stat>::Data as StatValue>::Out>()
+                .expect(TYPE_ERROR)
+                .clone(),
+        ))
     }
 }
 
@@ -170,11 +183,10 @@ impl Debug for StatInstances {
 }
 
 impl StatInstances {
-
     /// Register all members of a [`Stat`].
-    /// 
+    ///
     /// # Panics
-    /// 
+    ///
     /// If a stat registered conflicts with a previous entry.
     pub fn register<T: Stat>(&mut self) {
         T::values().into_iter().for_each(|x| {
@@ -198,40 +210,49 @@ impl StatInstances {
     /// Register all members of a [`Stat`] if applicable and a [`FromStr`] parser.
     ///
     /// # Panics
-    /// 
+    ///
     /// If a stat registered conflicts with a previous entry.
     pub fn register_parser<T: Stat + FromStr>(&mut self) {
         self.register::<T>();
-        self.any.push(|s| T::from_str(s).map(|x| Box::new(x) as Box<dyn DynStat>).ok())
+        self.any
+            .push(|s| T::from_str(s).map(|x| Box::new(x) as Box<dyn DynStat>).ok())
     }
-
 
     /// Register all members of a [`Stat`] if applicable and a [`FromStr`] parser.
     ///
     /// Always replaces a registered [`Stat`] of the same key.
     pub fn register_parser_replace<T: Stat + FromStr>(&mut self) {
         self.register_replace::<T>();
-        self.any.push(|s| T::from_str(s).map(|x| Box::new(x) as Box<dyn DynStat>).ok())
+        self.any
+            .push(|s| T::from_str(s).map(|x| Box::new(x) as Box<dyn DynStat>).ok())
     }
 }
 
 impl Serialize for Box<dyn DynStat> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
         self.name().serialize(serializer)
     }
 }
 
 impl<'de> Deserialize<'de> for Box<dyn DynStat> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
         let s = <Cow<str>>::deserialize(deserializer)?;
         with_world_mut::<_, D>(|world| {
             let ctx = world.resource::<StatInstances>();
-            if let Some(result) = ctx.concrete.get(s.as_ref()){
+            if let Some(result) = ctx.concrete.get(s.as_ref()) {
                 Ok(result.clone())
-            } else if let Some(result) = ctx.any.iter().find_map(|f| f(&s)){
+            } else if let Some(result) = ctx.any.iter().find_map(|f| f(&s)) {
                 Ok(result.clone())
             } else {
-                Err(serde::de::Error::custom(format!("Unable to parse Stat \"{s}\".")))
+                Err(serde::de::Error::custom(format!(
+                    "Unable to parse Stat \"{s}\"."
+                )))
             }
         })?
     }

@@ -1,55 +1,67 @@
-use std::{num::Wrapping, ops::*, fmt::Debug};
+use crate::Serializable;
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
-use crate::Serializable;
+use std::{fmt::Debug, num::Wrapping, ops::*};
 
 pub trait NumInteger: num_integer::Integer + num_traits::NumAssign {}
 impl<T> NumInteger for T where T: num_integer::Integer + num_traits::NumAssign {}
 
-pub trait NumOps: Sized +
-    Add<Self, Output = Self> +
-    Sub<Self, Output = Self> +
-    Mul<Self, Output = Self> +
-    AddAssign<Self> +
-    MulAssign<Self> {
+pub trait NumOps:
+    Sized
+    + Add<Self, Output = Self>
+    + Sub<Self, Output = Self>
+    + Mul<Self, Output = Self>
+    + AddAssign<Self>
+    + MulAssign<Self>
+{
 }
 
-impl<T> NumOps for T where T: Sized +
-    Add<Self, Output = Self> +
-    Sub<Self, Output = Self> +
-    Mul<Self, Output = Self> +
-    AddAssign<Self> +
-    MulAssign<Self>  {
+impl<T> NumOps for T where
+    T: Sized
+        + Add<Self, Output = Self>
+        + Sub<Self, Output = Self>
+        + Mul<Self, Output = Self>
+        + AddAssign<Self>
+        + MulAssign<Self>
+{
 }
 
-
-pub trait BitOps: Sized +
-    BitAnd<Self, Output = Self> +
-    BitOr<Self, Output = Self> +
-    BitXor<Self, Output = Self> +
-    BitAndAssign<Self> +
-    BitOrAssign<Self> +
-    BitXorAssign<Self> {
+pub trait BitOps:
+    Sized
+    + BitAnd<Self, Output = Self>
+    + BitOr<Self, Output = Self>
+    + BitXor<Self, Output = Self>
+    + BitAndAssign<Self>
+    + BitOrAssign<Self>
+    + BitXorAssign<Self>
+{
 }
 
-impl<T> BitOps for T where T: Sized +
-    BitAnd<Self, Output = Self> +
-    BitOr<Self, Output = Self> +
-    BitXor<Self, Output = Self> +
-    BitAndAssign<Self> +
-    BitOrAssign<Self> +
-    BitXorAssign<Self>  {
+impl<T> BitOps for T where
+    T: Sized
+        + BitAnd<Self, Output = Self>
+        + BitOr<Self, Output = Self>
+        + BitXor<Self, Output = Self>
+        + BitAndAssign<Self>
+        + BitOrAssign<Self>
+        + BitXorAssign<Self>
+{
 }
 
 /// A type that can be treated as flags.
 ///
 /// Automatically implemented on types implementing all three bitwise operations `&|^`.
-pub trait Flags: BitOr<Self, Output = Self> + BitOrAssign<Self> + Debug + Default + Serializable {
+pub trait Flags:
+    BitOr<Self, Output = Self> + BitOrAssign<Self> + Debug + Default + Serializable
+{
     /// Exclude a portion of the flags.
     fn exclude(self, other: Self) -> Self;
 }
 
-impl<T> Flags for T where T: BitOps + Debug + Default + Serializable{
+impl<T> Flags for T
+where
+    T: BitOps + Debug + Default + Serializable,
+{
     fn exclude(self, other: Self) -> Self {
         self.clone() ^ (self & other)
     }
@@ -113,20 +125,7 @@ macro_rules! impl_int {
     };
 }
 
-impl_int!(
-    u8,
-    u16,
-    u32,
-    u64,
-    u128,
-    usize,
-    i8,
-    i16,
-    i32,
-    i64,
-    i128,
-    isize,
-);
+impl_int!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize,);
 
 macro_rules! impl_int_newtype {
     ($($base: ident {$($ty: ty),* $(,)?}),* $(,)?) => {
@@ -168,8 +167,18 @@ macro_rules! impl_int_newtype {
 
 impl_int_newtype!(
     Wrapping {
-        u8, u16, u32, u64, u128, usize,
-        i8, i16, i32, i64, i128, isize,
+        u8,
+        u16,
+        u32,
+        u64,
+        u128,
+        usize,
+        i8,
+        i16,
+        i32,
+        i64,
+        i128,
+        isize,
     },
     // Blocked on serde.
     // Saturating {
@@ -258,9 +267,11 @@ impl Float for f64 {
 }
 
 /// Represents a fractional number.
-/// 
+///
 /// Newtype of [`num_rational::Ratio`].
-#[derive(Debug, Clone, Copy, Default, TypePath, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, TypePath, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
 #[repr(transparent)]
 #[serde(transparent, bound(serialize = "", deserialize = ""))]
 pub struct Fraction<I: Int + NumInteger>(num_rational::Ratio<I>);
@@ -280,11 +291,11 @@ impl<I: Int + NumInteger> DerefMut for Fraction<I> {
 }
 
 impl<I: Int + NumInteger> Fraction<I> {
-    pub fn new(numer: I, denom: I) -> Self{
+    pub fn new(numer: I, denom: I) -> Self {
         Self(num_rational::Ratio::new(numer, denom))
     }
 
-    pub(crate) const fn new_raw(numer: I, denom: I) -> Self{
+    pub(crate) const fn new_raw(numer: I, denom: I) -> Self {
         Self(num_rational::Ratio::new_raw(numer, denom))
     }
 
@@ -297,12 +308,12 @@ macro_rules! impl_ops {
     ($a: tt, $b: tt, $c: tt, $d:tt, $e: tt, $f:tt) => {
         impl<I: Int + NumInteger> $a for Fraction<I> {
             type Output = Self;
-        
+
             fn $b(self, rhs: Self) -> Self::Output {
                 Self(self.0 $c rhs.0)
             }
         }
-        
+
         impl<I: Int + NumInteger> $d for Fraction<I> {
             fn $e(&mut self, rhs: Self) {
                 self.0 $f rhs.0
@@ -316,7 +327,6 @@ impl_ops!(Sub, sub, -, SubAssign, sub_assign, -=);
 impl_ops!(Mul, mul, *, MulAssign, mul_assign, *=);
 impl_ops!(Div, div, /, DivAssign, div_assign, /=);
 impl_ops!(Rem, rem, %, RemAssign, rem_assign, %=);
-
 
 impl<I: Int + NumInteger + Clone> Float for Fraction<I> {
     const ZERO: Self = Fraction::new_raw(I::ZERO, I::ONE);

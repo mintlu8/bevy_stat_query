@@ -1,10 +1,12 @@
-use std::marker::PhantomData;
-use bevy_reflect::TypePath;
-use crate::Fraction;
-use serde::{Deserialize, Serialize};
-use crate::{rounding::{Rounding, Truncate}, Float, Int, Serializable, StatOperation};
 use super::{StatValue, Unsupported};
-
+use crate::Fraction;
+use crate::{
+    rounding::{Rounding, Truncate},
+    Float, Int, Serializable, StatOperation,
+};
+use bevy_reflect::TypePath;
+use serde::{Deserialize, Serialize};
+use std::marker::PhantomData;
 
 /// A stat represented by a floating point number or a fraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
@@ -68,11 +70,10 @@ impl<T: Int> StatValue for StatInt<T> {
     }
 }
 
-
 /// An integer stat that multiplies with rational numbers and rounds back to an integer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
-pub struct StatIntFraction<T: Int, R: Rounding=Truncate> {
+pub struct StatIntFraction<T: Int, R: Rounding = Truncate> {
     addend: T,
     min: T,
     max: T,
@@ -87,7 +88,7 @@ impl<T: Int, R: Rounding> Default for StatIntFraction<T, R> {
             min: T::MIN_VALUE,
             max: T::MAX_VALUE,
             mult: Float::ONE,
-            rounding: Default::default()
+            rounding: Default::default(),
         }
     }
 }
@@ -140,7 +141,7 @@ impl<T: Int + Serializable, R: Rounding> StatValue for StatIntFraction<T, R> {
 /// An integer stat that multiplies with floating point numbers and rounds back to an integer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
-pub struct StatIntFloatMul<T: Int, F: Float, R: Rounding=Truncate> {
+pub struct StatIntFloatMul<T: Int, F: Float, R: Rounding = Truncate> {
     addend: T,
     min: T,
     max: T,
@@ -148,19 +149,27 @@ pub struct StatIntFloatMul<T: Int, F: Float, R: Rounding=Truncate> {
     rounding: PhantomData<R>,
 }
 
-impl<T: Int, F: Float, R: Rounding> Default for StatIntFloatMul<T, F, R> where T: Into<F>, F: Into<T> {
+impl<T: Int, F: Float, R: Rounding> Default for StatIntFloatMul<T, F, R>
+where
+    T: Into<F>,
+    F: Into<T>,
+{
     fn default() -> Self {
         Self {
             addend: T::ZERO,
             min: T::MIN_VALUE,
             max: T::MAX_VALUE,
             mult: F::ONE,
-            rounding: Default::default()
+            rounding: Default::default(),
         }
     }
 }
 
-impl<T: Int, F: Float, R: Rounding> StatValue for StatIntFloatMul<T, F, R> where T: Into<F>, F: Into<T> {
+impl<T: Int, F: Float, R: Rounding> StatValue for StatIntFloatMul<T, F, R>
+where
+    T: Into<F>,
+    F: Into<T>,
+{
     type Out = T;
 
     fn join(&mut self, other: Self) {
@@ -181,7 +190,6 @@ impl<T: Int, F: Float, R: Rounding> StatValue for StatIntFloatMul<T, F, R> where
     type Bounds = T;
 
     type Bit = Unsupported;
-
 
     fn add(&mut self, other: Self::Add) {
         self.addend += other;

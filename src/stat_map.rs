@@ -1,14 +1,14 @@
-use std::any::Any;
-use std::{borrow::Borrow, collections::BTreeMap, hash::Hash};
-use std::ops::{Bound, Deref, DerefMut, RangeBounds};
+use crate::types::DynStatValue;
+use crate::{Data, DynStat, Qualifier, QualifierFlag, Stat, StatOperation, StatValue, TYPE_ERROR};
 use bevy_ecs::component::Component;
 use bevy_reflect::TypePath;
+use bevy_serde_lens::typetagged::TypeTagged;
 use ref_cast::RefCast;
 use serde::de::Visitor;
 use serde::{Deserialize, Serialize};
-use crate::types::DynStatValue;
-use crate::{Data, Stat, Qualifier, QualifierFlag, DynStat, StatValue, StatOperation, TYPE_ERROR};
-use bevy_serde_lens::typetagged::TypeTagged;
+use std::any::Any;
+use std::ops::{Bound, Deref, DerefMut, RangeBounds};
+use std::{borrow::Borrow, collections::BTreeMap, hash::Hash};
 /// A map-like, type erased storage for stats.
 /// When present on an entity with [`StatEntity`](crate::StatEntity)
 /// will be used as the base stats of the unit.
@@ -22,32 +22,45 @@ use bevy_serde_lens::typetagged::TypeTagged;
 /// Although the implementation is type erased,
 /// the public interface is completely type safe.
 #[derive(Debug, Clone, Component, TypePath)]
-struct StatMapInner<Q: QualifierFlag, D>{
+struct StatMapInner<Q: QualifierFlag, D> {
     inner: BTreeMap<(Box<dyn DynStat>, Qualifier<Q>), D>,
 }
 
 impl<Q: QualifierFlag + Serialize, T: Serialize> Serialize for StatMapInner<Q, T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
         serializer.collect_seq(self.inner.iter().map(|((s, q), d)| (q, s, d)))
     }
 }
 
-impl<'de, Q: QualifierFlag + Deserialize<'de>, T: Deserialize<'de>> Deserialize<'de> for StatMapInner<Q, T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+impl<'de, Q: QualifierFlag + Deserialize<'de>, T: Deserialize<'de>> Deserialize<'de>
+    for StatMapInner<Q, T>
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
         let mut result = Self::new();
         deserializer.deserialize_seq(&mut result)?;
         Ok(result)
     }
 }
 
-impl<'de, Q: QualifierFlag + Deserialize<'de>, T: Deserialize<'de>> Visitor<'de> for &mut StatMapInner<Q, T> {
+impl<'de, Q: QualifierFlag + Deserialize<'de>, T: Deserialize<'de>> Visitor<'de>
+    for &mut StatMapInner<Q, T>
+{
     type Value = ();
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         formatter.write_str("stat map")
     }
 
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de>, {
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
         while let Some((q, s, v)) = seq.next_element()? {
             self.inner.insert((s, q), v);
         }
@@ -55,10 +68,11 @@ impl<'de, Q: QualifierFlag + Deserialize<'de>, T: Deserialize<'de>> Visitor<'de>
     }
 }
 
-
 impl<Q: QualifierFlag, D> Default for StatMapInner<Q, D> {
     fn default() -> Self {
-        StatMapInner { inner: BTreeMap::new() }
+        StatMapInner {
+            inner: BTreeMap::new(),
+        }
     }
 }
 
@@ -82,15 +96,18 @@ impl<Q: QualifierFlag, D> StatMapInner<Q, D> {
     }
 
     pub fn get<S: Stat>(&self, qualifier: &Qualifier<Q>, stat: &S) -> Option<&D> {
-        self.inner.get(&(stat as &dyn DynStat, qualifier) as &dyn QueryStatEntry<Q>)
+        self.inner
+            .get(&(stat as &dyn DynStat, qualifier) as &dyn QueryStatEntry<Q>)
     }
 
     pub fn get_mut<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S) -> Option<&mut D> {
-        self.inner.get_mut(&(stat as &dyn DynStat, qualifier) as &dyn QueryStatEntry<Q>)
+        self.inner
+            .get_mut(&(stat as &dyn DynStat, qualifier) as &dyn QueryStatEntry<Q>)
     }
 
     pub fn remove<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S) -> Option<D> {
-        self.inner.remove(&(stat as &dyn DynStat, qualifier) as &dyn QueryStatEntry<Q>)
+        self.inner
+            .remove(&(stat as &dyn DynStat, qualifier) as &dyn QueryStatEntry<Q>)
     }
 
     pub fn retain(&mut self, mut f: impl FnMut(&Qualifier<Q>, &dyn Any) -> bool) {
@@ -99,16 +116,15 @@ impl<Q: QualifierFlag, D> StatMapInner<Q, D> {
 
     /// Iterate over a particular stat.
     pub fn iter(&self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &D)> {
-        self.inner
-            .range(stat)
-            .map(|((_, q), v)| (q, v))
+        self.inner.range(stat).map(|((_, q), v)| (q, v))
     }
 
     /// Iterate over a particular stat.
-    pub fn iter_mut(&mut self, stat: &dyn DynStat) -> impl Iterator<Item = (&Qualifier<Q>, &mut D)> {
-        self.inner
-            .range_mut(stat)
-            .map(|((_, q), v)| (q, v))
+    pub fn iter_mut(
+        &mut self,
+        stat: &dyn DynStat,
+    ) -> impl Iterator<Item = (&Qualifier<Q>, &mut D)> {
+        self.inner.range_mut(stat).map(|((_, q), v)| (q, v))
     }
 }
 
@@ -245,8 +261,13 @@ impl_stat_map!(
 );
 
 impl<Q: QualifierFlag> BaseStatMap<Q> {
-    pub fn modify<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S, f: impl FnOnce(&mut SOut<S>)){
-        if let Some(val) = self.get_mut(qualifier, stat){
+    pub fn modify<S: Stat>(
+        &mut self,
+        qualifier: &Qualifier<Q>,
+        stat: &S,
+        f: impl FnOnce(&mut SOut<S>),
+    ) {
+        if let Some(val) = self.get_mut(qualifier, stat) {
             f(val)
         } else {
             let mut val = SOut::<S>::default();
@@ -257,8 +278,13 @@ impl<Q: QualifierFlag> BaseStatMap<Q> {
 }
 
 impl<Q: QualifierFlag> FullStatMap<Q> {
-    pub fn modify<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S, f: impl FnOnce(&mut SData<S>)){
-        if let Some(val) = self.get_mut(qualifier, stat){
+    pub fn modify<S: Stat>(
+        &mut self,
+        qualifier: &Qualifier<Q>,
+        stat: &S,
+        f: impl FnOnce(&mut SData<S>),
+    ) {
+        if let Some(val) = self.get_mut(qualifier, stat) {
             f(val)
         } else {
             let mut val = SData::<S>::default();
@@ -296,7 +322,8 @@ impl<Q: QualifierFlag> PartialOrd for dyn QueryStatEntry<Q> + '_ {
 
 impl<Q: QualifierFlag> Ord for dyn QueryStatEntry<Q> + '_ {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.stat().cmp(other.stat())
+        self.stat()
+            .cmp(other.stat())
             .then(self.qualifier().cmp(&other.qualifier()))
     }
 }
@@ -308,8 +335,7 @@ impl<Q: QualifierFlag> Hash for dyn QueryStatEntry<Q> + '_ {
     }
 }
 
-
-impl<Q: QualifierFlag> QueryStatEntry<Q> for (Box<dyn DynStat>, Qualifier<Q>){
+impl<Q: QualifierFlag> QueryStatEntry<Q> for (Box<dyn DynStat>, Qualifier<Q>) {
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
         QuerySort::Value(&self.1)
     }
@@ -319,7 +345,7 @@ impl<Q: QualifierFlag> QueryStatEntry<Q> for (Box<dyn DynStat>, Qualifier<Q>){
     }
 }
 
-impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (&'t dyn DynStat, &'t Qualifier<Q>){
+impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (&'t dyn DynStat, &'t Qualifier<Q>) {
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
         QuerySort::Value(self.1)
     }
@@ -329,7 +355,7 @@ impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (&'t dyn DynStat, &'t Qualifier
     }
 }
 
-impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (&'t dyn DynStat, QuerySort<&'t Qualifier<Q>>){
+impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (&'t dyn DynStat, QuerySort<&'t Qualifier<Q>>) {
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
         match &self.1 {
             QuerySort::Begin => QuerySort::Begin,
@@ -343,13 +369,15 @@ impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (&'t dyn DynStat, QuerySort<&'t
     }
 }
 
-impl<'a, Q: QualifierFlag> Borrow<dyn QueryStatEntry<Q> + 'a> for (Box<dyn DynStat>, Qualifier<Q>){
+impl<'a, Q: QualifierFlag> Borrow<dyn QueryStatEntry<Q> + 'a> for (Box<dyn DynStat>, Qualifier<Q>) {
     fn borrow(&self) -> &(dyn QueryStatEntry<Q> + 'a) {
         self
     }
 }
 
-impl<'a, Q: QualifierFlag> Borrow<dyn QueryStatEntry<Q> + 'a> for (&'a dyn DynStat, &'a Qualifier<Q>){
+impl<'a, Q: QualifierFlag> Borrow<dyn QueryStatEntry<Q> + 'a>
+    for (&'a dyn DynStat, &'a Qualifier<Q>)
+{
     fn borrow(&self) -> &(dyn QueryStatEntry<Q> + 'a) {
         self
     }
@@ -363,7 +391,7 @@ struct Begin<T>(T);
 #[repr(transparent)]
 struct End<T>(T);
 
-impl<Q: QualifierFlag> QueryStatEntry<Q> for Begin<&dyn DynStat>{
+impl<Q: QualifierFlag> QueryStatEntry<Q> for Begin<&dyn DynStat> {
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
         QuerySort::Begin
     }
@@ -373,7 +401,7 @@ impl<Q: QualifierFlag> QueryStatEntry<Q> for Begin<&dyn DynStat>{
     }
 }
 
-impl<Q: QualifierFlag> QueryStatEntry<Q> for End<&dyn DynStat>{
+impl<Q: QualifierFlag> QueryStatEntry<Q> for End<&dyn DynStat> {
     fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
         QuerySort::End
     }

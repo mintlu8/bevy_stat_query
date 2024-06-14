@@ -1,7 +1,7 @@
-mod int_ratio;
-mod int_pct;
-mod float;
 mod flags;
+mod float;
+mod int_pct;
+mod int_ratio;
 mod singleton;
 
 use std::fmt::Debug;
@@ -9,13 +9,13 @@ use std::fmt::Debug;
 use crate::{calc::StatOperation, Data, Serializable, TYPE_ERROR};
 
 use bevy_reflect::TypePath;
-use bevy_serde_lens::typetagged::{TraitObject, FromTypeTagged};
+use bevy_serde_lens::typetagged::{FromTypeTagged, TraitObject};
 use downcast_rs::impl_downcast;
 use dyn_clone::clone_trait_object;
-pub use int_pct::{StatIntPercentAdditive, StatIntPercent};
-pub use int_ratio::{StatInt, StatIntFraction, StatIntFloatMul};
-pub use float::{StatFloat, StatFloatAdditive, StatMult};
 pub use flags::{StatFlags, StatSet};
+pub use float::{StatFloat, StatFloatAdditive, StatMult};
+pub use int_pct::{StatIntPercent, StatIntPercentAdditive};
+pub use int_ratio::{StatInt, StatIntFloatMul, StatIntFraction};
 use serde::{Deserialize, Serialize};
 pub use singleton::StatOnce;
 
@@ -25,7 +25,7 @@ pub enum Unsupported {}
 
 /// Defines unordered operations on a stat's value.
 #[allow(unused_variables)]
-pub trait StatValue: Serializable + Default{
+pub trait StatValue: Serializable + Default {
     type Out: Serializable + Default;
     fn join(&mut self, other: Self);
     fn eval(&self) -> Self::Out;
@@ -65,9 +65,16 @@ impl<T: StatValue + TypePath + Serialize> FromTypeTagged<T> for Box<dyn DynStatV
 impl_downcast!(DynStatValue);
 clone_trait_object!(DynStatValue);
 
-impl<T> DynStatValue for T where T: StatValue + TypePath + Serialize, StatOperation<T>: TypePath + Serialize{
+impl<T> DynStatValue for T
+where
+    T: StatValue + TypePath + Serialize,
+    StatOperation<T>: TypePath + Serialize,
+{
     fn apply_op(&mut self, other: &dyn Data) {
-        other.downcast_ref::<StatOperation<T>>().expect(TYPE_ERROR).write_to(self)
+        other
+            .downcast_ref::<StatOperation<T>>()
+            .expect(TYPE_ERROR)
+            .write_to(self)
     }
 
     fn join_value(&mut self, other: &dyn DynStatValue) {

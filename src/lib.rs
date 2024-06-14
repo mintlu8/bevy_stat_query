@@ -11,19 +11,19 @@
 //!
 //! For example in `FireMagicDamage`, `Fire|Magic` is the qualifier,
 //! `Damage` is the `Stat`.
-//! 
+//!
 //! What this means if an effect boosts `Fire|Damage`, `Magic|Damage`,
 //! or simply just `Damage`, the effect will be applied to the stat,
 //! but an effect on `Sword|Damage` or `Fire|Range` won't be applied to the stat.
 //!
 //! ## Qualifier
-//! 
+//!
 //! [`Qualifier`] is tied to effects, and provides the aforementioned `all_of`.
 //! In addition `any_of` is provided for modelling conditional effects like
 //! `Elemental|Damage`, which means `Fire or Water Damage` instead of `Fire and Water Damage`.
-//! 
+//!
 //! Each [`Qualifier`] can only have one group of `any_of` which is a limitation currently.
-//! 
+//!
 //! ### Examples
 //!
 //! ```
@@ -70,9 +70,9 @@
 //!     all_of: Magic,
 //! }
 //! ```
-//! 
+//!
 //! * What do you mean? My `DarkFire` and `Fire` and totally different things and should be independent.
-//! 
+//!
 //! Create a new qualifier `DarkFire` instead of `Dark`|`Fire`.
 //!
 //! # Getting Started
@@ -80,20 +80,20 @@
 //! Add marker component [`StatEntity`] to an `Entity`.
 //! If you need caching, add a [`StatCache`] as well.
 //! You need to manually clear the cache when the state is changed, however.
-//! 
+//!
 //! * Implement [`IntrinsicStream`] to make components on the entity queryable.
 //! * Implement [`ExternalStream`] to make components on child entities queryable.
-//! 
+//!
 //! For example we can add [`BaseStatMap`] to the `Entity` as base stats, if we include
 //! it in the `intrinsic` section of the [`querier!`] macro.
-//! 
+//!
 //! # Querier
 //!
 //! [`StatQuerier`] is the [`SystemParam`] to query stats, it is quite difficult to
 //! define one manually so the recommended way is to define a `type` with the
 //! [`querier!`] macro. Additionally we can also use the [`StatExtension`] with `World` access
 //! for similar functionalities.
-//! 
+//!
 //! ## Example
 //!
 //! ```
@@ -122,7 +122,7 @@
 //! and its evaluated form, e.g. `48`. You can implement your own `StatValue`
 //! to achieve custom behaviors. [`StatOperation`] stores a single operation
 //! that can be written to a [`StatValue`].
-//! 
+//!
 //! ## Stat Relation
 //!
 //! We can create relations between different
@@ -133,44 +133,44 @@
 //!
 //! ## Entity Relation
 //!
-//! [`IntrinsicStream`] can be used to provide bi-entity relationship 
+//! [`IntrinsicStream`] can be used to provide bi-entity relationship
 //! like `distance` or `allegiance`. This can be used to model range based effects.
-//! 
+//!
 //! You may find [`StatOnce`](types::StatOnce) useful in implementing these.
-//! 
+//!
 //! # Note
 //!
 //! * [`StatQuerier`] requires read access to all components in stat system so we cannot mutate
 //! anything while having it as a parameter.
-//! Using system piping or some kind of deferred command queue for mutations 
+//! Using system piping or some kind of deferred command queue for mutations
 //! might be advisable in this case.
-//! 
+//!
 //! * The crate heavily utilizes dynamic dispatch under the hood, and is therefore
 //! not fully reflect compatible. The supported serialization method is
 //! through the [`bevy_serde_project`] crate, Check out that crate for more information.
-//! 
+//!
 //! * if [`StatValue::Bounds`] is a float, their default values are likely `-inf` and `inf`,
 //! which are not valid values in `json`. This means `serde_json` will serialize them as
-//! `null` and fail when deserialized. 
+//! `null` and fail when deserialized.
 //! If [`FullStatMap`] is used (optional btw), choose a different format.
 #[allow(unused)]
-use bevy_ecs::{query::QueryData, component::Component, system::SystemParam};
+use bevy_ecs::{component::Component, query::QueryData, system::SystemParam};
 
 pub(crate) static TYPE_ERROR: &str = "Error: a stat does not have the appropriate type. \
 This is almost certainly a bug since we do not provide a type erased api.";
 
 #[doc(hidden)]
-pub use bevy_app::{Plugin, App};
+pub use bevy_app::{App, Plugin};
 
 use bevy_reflect::TypePath;
-use bevy_serde_lens::typetagged::{TraitObject, FromTypeTagged};
+use bevy_serde_lens::typetagged::{FromTypeTagged, TraitObject};
 use downcast_rs::Downcast;
 mod stream;
 use dyn_clone::{clone_trait_object, DynClone};
 use serde::{de::DeserializeOwned, Serialize};
 pub use stream::StatValuePair;
 mod num_traits;
-pub use num_traits::{Int, Float, Flags, Fraction};
+pub use num_traits::{Flags, Float, Fraction, Int};
 pub use stream::{ExternalStream, IntrinsicStream, StatStream, StatStreamObject, StatelessStream};
 pub mod types;
 pub use types::StatValue;
@@ -178,21 +178,21 @@ mod qualifier;
 pub use qualifier::{Qualifier, QualifierFlag, QualifierQuery};
 mod stat;
 pub use stat::Stat;
-pub(crate) use stat::{StatInstances, DynStat};
+pub(crate) use stat::{DynStat, StatInstances};
 mod calc;
-pub use calc::{StatOperation, StatDefaults};
+pub use calc::{StatDefaults, StatOperation};
 mod entity;
 pub use entity::{StatCache, StatEntity};
-pub mod rounding;
 mod plugin;
-pub use plugin::{StatExtension, StatQueryPlugin, CachedQueriers};
+pub mod rounding;
+pub use plugin::{CachedQueriers, StatExtension, StatQueryPlugin};
 mod querier;
-pub use querier::{StatQuerier, hints, QuerierRef};
+pub use querier::{hints, NoopQuerier, QuerierRef, StatQuerier};
 mod param;
 #[doc(hidden)]
 pub use param::{ChildStatParam, StatParam};
 mod stat_map;
-pub use stat_map::{BaseStatMap, FullStatMap, Unqualified, StatOperationsMap};
+pub use stat_map::{BaseStatMap, FullStatMap, StatOperationsMap, Unqualified};
 
 use std::fmt::Debug;
 
@@ -207,8 +207,14 @@ pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 
 /// Alias for `Clone + Debug + Send + Sync + 'static`.
-pub trait Serializable: Clone + Debug + Send + Sync + Serialize + DeserializeOwned + TypePath + 'static {}
-impl<T> Serializable for T where T: Clone + Debug + Send + Sync + Sync + Serialize + DeserializeOwned + TypePath + 'static {}
+pub trait Serializable:
+    Clone + Debug + Send + Sync + Serialize + DeserializeOwned + TypePath + 'static
+{
+}
+impl<T> Serializable for T where
+    T: Clone + Debug + Send + Sync + Sync + Serialize + DeserializeOwned + TypePath + 'static
+{
+}
 
 /// [`Any`](std::any::Any) that implements [`Send`], [`Sync`], [`Debug`] and [`Clone`].
 pub(crate) trait Data: Send + Sync + Downcast + Debug + DynClone {
@@ -216,7 +222,10 @@ pub(crate) trait Data: Send + Sync + Downcast + Debug + DynClone {
     fn as_serialize(&self) -> &dyn erased_serde::Serialize;
 }
 
-impl<T> Data for T where T: Shareable + TypePath + serde::Serialize {
+impl<T> Data for T
+where
+    T: Shareable + TypePath + serde::Serialize,
+{
     fn name(&self) -> &'static str {
         T::short_type_path()
     }
@@ -238,7 +247,6 @@ impl TraitObject for Box<dyn Data> {
     }
 }
 
-
 impl<T: Serializable> FromTypeTagged<T> for Box<dyn Data> {
     fn name() -> impl AsRef<str> {
         T::short_type_path()
@@ -248,7 +256,5 @@ impl<T: Serializable> FromTypeTagged<T> for Box<dyn Data> {
         Box::new(item)
     }
 }
-
-
 
 downcast_rs::impl_downcast!(Data);

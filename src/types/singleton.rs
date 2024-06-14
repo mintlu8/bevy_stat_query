@@ -1,8 +1,8 @@
-use std::fmt::Debug;
+use super::{StatValue, Unsupported};
+use crate::{calc::StatOperation, Serializable};
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
-use crate::{calc::StatOperation, Serializable};
-use super::{StatValue, Unsupported};
+use std::fmt::Debug;
 
 /// Find if a stat exists.
 #[derive(Debug, Default, Clone, Copy, TypePath, Serialize, Deserialize)]
@@ -20,11 +20,11 @@ impl StatValue for StatExists {
     fn join(&mut self, other: Self) {
         self.0 = other.0;
     }
-    
+
     fn eval(&self) -> Self::Out {
         self.0
     }
-    
+
     fn from_base(out: Self::Out) -> StatOperation<Self> {
         StatOperation::Or(out)
     }
@@ -35,7 +35,9 @@ impl StatValue for StatExists {
 }
 
 /// Finds a single entry of a given stat.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize,
+)]
 #[serde(bound(serialize = "", deserialize = ""))]
 pub enum StatOnce<T: Serializable> {
     #[default]
@@ -72,14 +74,14 @@ impl<T: Serializable> StatOnce<T> {
     pub fn into_option(self) -> Option<T> {
         match self {
             StatOnce::Found(r) => Some(r),
-            _ => None
+            _ => None,
         }
     }
 
     pub fn as_ref(&self) -> Option<&T> {
         match self {
             StatOnce::Found(r) => Some(r),
-            _ => None
+            _ => None,
         }
     }
 
@@ -89,13 +91,13 @@ impl<T: Serializable> StatOnce<T> {
     }
 
     /// Never sets to `FoundMultiple`, if found, return false.
-    pub fn try_set(&mut self, item: T) -> bool{
+    pub fn try_set(&mut self, item: T) -> bool {
         match self {
             StatOnce::NotFound => {
                 *self = Self::Found(item);
                 true
-            },
-            _ => false
+            }
+            _ => false,
         }
     }
 }
@@ -110,9 +112,7 @@ impl<T: Serializable> StatValue for StatOnce<T> {
                 *self = other;
             }
             (StatOnce::FoundMultiple, _) => (),
-            (StatOnce::Found(_), _) => {
-                *self = StatOnce::FoundMultiple
-            },
+            (StatOnce::Found(_), _) => *self = StatOnce::FoundMultiple,
         }
     }
 
@@ -131,7 +131,7 @@ impl<T: Serializable> StatValue for StatOnce<T> {
             StatOnce::NotFound => *self = Self::Found(other),
             StatOnce::Found(_) => {
                 *self = StatOnce::FoundMultiple;
-            },
+            }
             StatOnce::FoundMultiple => (),
         }
     }

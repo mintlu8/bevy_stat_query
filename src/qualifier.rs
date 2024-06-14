@@ -1,6 +1,10 @@
-use std::{fmt::Debug, hash::Hash, ops::{BitAnd, BitOr}};
 use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
+use std::{
+    fmt::Debug,
+    hash::Hash,
+    ops::{BitAnd, BitOr},
+};
 
 use crate::Shareable;
 
@@ -8,7 +12,7 @@ use crate::Shareable;
 ///
 /// An application should ideally implement one [`QualifierFlag`] and multiple [`Stat`]s,
 /// since different types of stats can still interop if they use the same [`QualifierFlag`].
-pub trait QualifierFlag: BitOr<Self, Output=Self> + Ord + Hash + Shareable {
+pub trait QualifierFlag: BitOr<Self, Output = Self> + Ord + Hash + Shareable {
     fn contains(&self, other: &Self) -> bool;
     fn intersects(&self, other: &Self) -> bool;
     fn is_none_or_intersects(&self, other: &Self) -> bool {
@@ -19,7 +23,16 @@ pub trait QualifierFlag: BitOr<Self, Output=Self> + Ord + Hash + Shareable {
     fn is_none(&self) -> bool;
 }
 
-impl<T> QualifierFlag for T where T: BitOr<Self, Output=Self> + Ord + Hash + BitAnd<Self, Output = Self> + Default + Shareable + Copy{
+impl<T> QualifierFlag for T
+where
+    T: BitOr<Self, Output = Self>
+        + Ord
+        + Hash
+        + BitAnd<Self, Output = Self>
+        + Default
+        + Shareable
+        + Copy,
+{
     fn contains(&self, other: &Self) -> bool {
         (*self & *other) == *other
     }
@@ -61,7 +74,9 @@ impl<T> QualifierFlag for T where T: BitOr<Self, Output=Self> + Ord + Hash + Bit
 /// let elemental_piercing = QualifierFlags::any_of(Fire | Water | Earth | Air)
 ///     .and_all_of(Piercing);
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect, Serialize, Deserialize,
+)]
 pub struct Qualifier<Q: QualifierFlag> {
     pub any_of: Q,
     pub all_of: Q,
@@ -77,11 +92,10 @@ impl<Q: QualifierFlag> Default for Qualifier<Q> {
 }
 
 impl<Q: QualifierFlag> Qualifier<Q> {
-
     pub fn none() -> Self {
-        Self { 
-            any_of: Q::none(), 
-            all_of: Q::none() 
+        Self {
+            any_of: Q::none(),
+            all_of: Q::none(),
         }
     }
 
@@ -92,14 +106,14 @@ impl<Q: QualifierFlag> Qualifier<Q> {
     pub fn any_of(qualifier: Q) -> Self {
         Self {
             any_of: qualifier,
-            all_of: Q::none()
+            all_of: Q::none(),
         }
     }
 
     pub fn all_of(qualifier: Q) -> Self {
         Self {
             any_of: Q::none(),
-            all_of: qualifier
+            all_of: qualifier,
         }
     }
 
@@ -125,17 +139,14 @@ impl<Q: QualifierFlag> Qualifier<Q> {
     pub fn qualifies_as(&self, queried: &QualifierQuery<Q>) -> bool {
         match queried {
             QualifierQuery::Aggregate(some_of) => {
-                some_of.contains(&self.all_of) &&
-                self.any_of.is_none_or_intersects(some_of)
-            },
+                some_of.contains(&self.all_of) && self.any_of.is_none_or_intersects(some_of)
+            }
             QualifierQuery::Exact { any_of, all_of } => {
-                self.any_of.contains(any_of) &&
-                &self.all_of == all_of
-            },
+                self.any_of.contains(any_of) && &self.all_of == all_of
+            }
         }
     }
 }
-
 
 /// Query version of [`Qualifier`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
@@ -150,7 +161,7 @@ pub enum QualifierQuery<Q: QualifierFlag> {
         any_of: Q,
         /// Queried `all_of` equals this.
         all_of: Q,
-    }
+    },
 }
 
 impl<Q: QualifierFlag> Default for QualifierQuery<Q> {
