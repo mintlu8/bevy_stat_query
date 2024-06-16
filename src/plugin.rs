@@ -1,9 +1,6 @@
 use crate::stat::StatInstances;
-use crate::{
-    calc::StatDefaults, QualifierFlag,
-    Stat, StatOperation, StatValue,
-};
 use crate::StatCache;
+use crate::{calc::StatDefaults, QualifierFlag, Stat, StatOperation, StatValue};
 use bevy_app::App;
 use bevy_ecs::world::World;
 

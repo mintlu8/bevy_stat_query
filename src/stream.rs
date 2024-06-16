@@ -1,4 +1,4 @@
-use crate::{QualifierFlag, QualifierQuery, Stat, StatCache, StatDefaults, StatEntity};
+use crate::{QualifierFlag, QualifierQuery, Stat, StatCache, StatDefaults, StatEntity, StatValue};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, With, WorldQuery},
@@ -12,7 +12,7 @@ pub trait StatStream<Q: QualifierFlag> {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &impl EraseQuerier<Q>,
+        querier: &impl Querier<Q>,
     );
 }
 
@@ -23,7 +23,7 @@ pub trait QueryStream<Q: QualifierFlag> {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &impl EraseQuerier<Q>,
+        querier: &impl Querier<Q>,
     );
 }
 
@@ -34,7 +34,7 @@ impl<Q: QualifierFlag> QueryStream<Q> for () {
         _: &QualifierQuery<Q>,
         _: &S,
         _: &mut S::Data,
-        _: &impl EraseQuerier<Q>,
+        _: &impl Querier<Q>,
     ) {
     }
 }
@@ -46,7 +46,7 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>> QueryStream<Q> for 
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &impl EraseQuerier<Q>,
+        querier: &impl Querier<Q>,
     ) {
         self.0.stream(entities, qualifier, stat, value, querier);
         self.1.stream(entities, qualifier, stat, value, querier);
@@ -61,7 +61,7 @@ impl<Q: QualifierFlag> QueryRelationStream<Q> for () {
         _: &QualifierQuery<Q>,
         _: &S,
         _: &mut S::Data,
-        _: &impl EraseQuerier<Q>,
+        _: &impl Querier<Q>,
     ) {
     }
 }
@@ -76,7 +76,7 @@ impl<Q: QualifierFlag, A: QueryRelationStream<Q>, B: QueryRelationStream<Q>> Que
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &impl EraseQuerier<Q>,
+        querier: &impl Querier<Q>,
     ) {
         self.0
             .relation(this, other, qualifier, stat, value, querier);
@@ -93,7 +93,7 @@ pub trait QueryRelationStream<Q: QualifierFlag>: QueryStream<Q> {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &impl EraseQuerier<Q>,
+        querier: &impl Querier<Q>,
     );
 }
 
@@ -104,12 +104,12 @@ pub trait QueryRelationStream<Q: QualifierFlag>: QueryStream<Q> {
 pub trait ComponentStream<Q: QualifierFlag>: QueryData {
     type Cx: ReadOnlySystemParam;
     fn stream<S: Stat>(
-        ctx: &<Self::Cx as SystemParam>::Item<'_, '_>,
+        cx: &<Self::Cx as SystemParam>::Item<'_, '_>,
         component: <Self::ReadOnly as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &impl EraseQuerier<Q>,
+        querier: &impl Querier<Q>,
     );
 }
 
@@ -120,24 +120,24 @@ pub trait RelationStream<Q: QualifierFlag>: ComponentStream<Q> {
     #[allow(unused)]
     /// Write to `stat` and return true ***if a value is written***.
     fn relation<S: Stat>(
-        ctx: &<Self::Cx as SystemParam>::Item<'_, '_>,
+        cx: &<Self::Cx as SystemParam>::Item<'_, '_>,
         this: <Self::ReadOnly as WorldQuery>::Item<'_>,
         other: <Self::ReadOnly as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &impl EraseQuerier<Q>,
+        querier: &impl Querier<Q>,
     );
 }
 
 #[derive(Debug, SystemParam)]
-pub struct Querier<'w, 's, Q: QualifierFlag> {
+pub struct Queryable<'w, 's, Q: QualifierFlag> {
     cache: Option<Res<'w, StatCache<Q>>>,
     defaults: Option<Res<'w, StatDefaults>>,
     entities: Query<'w, 's, Option<&'static Children>, With<StatEntity>>,
 }
 
-impl<'w, 's, Q: QualifierFlag> Querier<'w, 's, Q> {
+impl<'w, 's, Q: QualifierFlag> Queryable<'w, 's, Q> {
     pub fn clear_cache(&mut self) {
         if let Some(cache) = &mut self.cache {
             cache.clear()
@@ -188,6 +188,60 @@ impl<'w, 's, Q: QualifierFlag> Querier<'w, 's, Q> {
             relationship_streams: CxComponentStream { cx: &(), query },
         }
     }
+
+    pub fn with_component_cx<'t, D, F: QueryFilter>(
+        &'t self,
+        query: &'t Query<'w, 's, D, F>,
+        cx: &'t <D::Cx as SystemParam>::Item<'w, 's>,
+    ) -> JoinedQuerier<'_, 'w, 's, Q, impl QueryStream<Q> + 't, (), ()>
+    where
+        D: ComponentStream<Q>,
+        't: 'w,
+        't: 's,
+    {
+        JoinedQuerier {
+            querier: self,
+            component_streams: CxComponentStream { cx, query },
+            children_stream: (),
+            relationship_streams: (),
+        }
+    }
+
+    pub fn with_children_cx<'t, D, F: QueryFilter>(
+        &'t self,
+        query: &'t Query<'w, 's, D, F>,
+        cx: &'t <D::Cx as SystemParam>::Item<'w, 's>,
+    ) -> JoinedQuerier<'_, 'w, 's, Q, (), impl QueryStream<Q> + 't, ()>
+    where
+        D: ComponentStream<Q>,
+        't: 'w,
+        't: 's,
+    {
+        JoinedQuerier {
+            querier: self,
+            component_streams: (),
+            children_stream: CxComponentStream { cx, query },
+            relationship_streams: (),
+        }
+    }
+
+    pub fn with_relation_cx<'t, D, F: QueryFilter>(
+        &'t mut self,
+        query: &'t Query<'w, 's, D, F>,
+        cx: &'t <D::Cx as SystemParam>::Item<'w, 's>,
+    ) -> JoinedQuerier<'_, 'w, 's, Q, (), (), impl QueryRelationStream<Q> + 't>
+    where
+        D: RelationStream<Q>,
+        't: 'w,
+        't: 's,
+    {
+        JoinedQuerier {
+            querier: self,
+            component_streams: (),
+            children_stream: (),
+            relationship_streams: CxComponentStream { cx, query },
+        }
+    }
 }
 
 pub struct JoinedQuerier<
@@ -199,13 +253,13 @@ pub struct JoinedQuerier<
     B: QueryStream<Q>,
     C: QueryRelationStream<Q>,
 > {
-    querier: &'t Querier<'w, 's, Q>,
+    querier: &'t Queryable<'w, 's, Q>,
     component_streams: A,
     children_stream: B,
     relationship_streams: C,
 }
 
-pub trait EraseQuerier<Q: QualifierFlag> {
+pub trait Querier<Q: QualifierFlag> {
     fn query_stat<S: Stat>(
         &self,
         entity: Entity,
@@ -220,11 +274,32 @@ pub trait EraseQuerier<Q: QualifierFlag> {
         query: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<S::Data>;
+
+    fn query_eval<S: Stat>(
+        &self,
+        entity: Entity,
+        query: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> Option<<S::Data as StatValue>::Out> {
+        self.query_stat(entity, query, stat)
+            .map(|x| StatValue::eval(&x))
+    }
+
+    fn query_relation_eval<S: Stat>(
+        &self,
+        from: Entity,
+        to: Entity,
+        query: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> Option<<S::Data as StatValue>::Out> {
+        self.query_relation(from, to, query, stat)
+            .map(|x| StatValue::eval(&x))
+    }
 }
 
 pub struct NoopQuerier;
 
-impl<Q: QualifierFlag> EraseQuerier<Q> for NoopQuerier {
+impl<Q: QualifierFlag> Querier<Q> for NoopQuerier {
     fn query_stat<S: Stat>(&self, _: Entity, _: &QualifierQuery<Q>, _: &S) -> Option<S::Data> {
         None
     }
@@ -240,8 +315,8 @@ impl<Q: QualifierFlag> EraseQuerier<Q> for NoopQuerier {
     }
 }
 
-impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStream<Q>>
-    EraseQuerier<Q> for JoinedQuerier<'_, '_, '_, Q, A, B, C>
+impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStream<Q>> Querier<Q>
+    for JoinedQuerier<'_, '_, '_, Q, A, B, C>
 {
     fn query_stat<S: Stat>(
         &self,
@@ -313,7 +388,7 @@ impl<Q: QualifierFlag, C: ComponentStream<Q>, F: QueryFilter> QueryStream<Q>
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &impl EraseQuerier<Q>,
+        querier: &impl Querier<Q>,
     ) {
         for item in self.query.iter_many(entities) {
             C::stream(self.cx, item, qualifier, stat, value, querier)
@@ -331,7 +406,7 @@ impl<Q: QualifierFlag, C: RelationStream<Q>, F: QueryFilter> QueryRelationStream
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &impl EraseQuerier<Q>,
+        querier: &impl Querier<Q>,
     ) {
         let Ok(this) = self.query.get(this) else {
             return;

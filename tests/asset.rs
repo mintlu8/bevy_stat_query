@@ -3,14 +3,14 @@ use bevy_app::{App, Startup, Update};
 use bevy_ecs::{
     component::Component,
     entity::Entity,
-    query::With,
+    query::{QueryData, With},
     system::{Commands, Query, Res},
 };
 use bevy_hierarchy::BuildChildren;
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    querier, types::StatFloat, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity,
-    StatExtension, StatQueryPlugin, StatValue, StreamQuery,
+    types::StatFloat, ComponentStream, QualifierQuery, Querier, Queryable, Stat, StatEntity,
+    StatExtension, StatVTable, StatValue,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -19,12 +19,25 @@ pub struct Damage;
 impl Stat for Damage {
     type Data = StatFloat<f32>;
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Damage"
     }
 
     fn values() -> impl IntoIterator<Item = Self> {
         [Damage]
+    }
+
+    fn vtable() -> &'static StatVTable {
+        static VTABLE: StatVTable = StatVTable::of::<Damage>();
+        &VTABLE
+    }
+
+    fn as_index(&self) -> u64 {
+        0
+    }
+
+    fn from_index(_: u64) -> Self {
+        Damage
     }
 }
 
@@ -34,12 +47,25 @@ pub struct Defense;
 impl Stat for Defense {
     type Data = StatFloat<f32>;
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Defense"
     }
 
     fn values() -> impl IntoIterator<Item = Self> {
         [Defense]
+    }
+
+    fn vtable() -> &'static StatVTable {
+        static VTABLE: StatVTable = StatVTable::of::<Defense>();
+        &VTABLE
+    }
+
+    fn as_index(&self) -> u64 {
+        0
+    }
+
+    fn from_index(_: u64) -> Self {
+        Defense
     }
 }
 
@@ -59,40 +85,36 @@ pub struct A;
 #[derive(Component)]
 pub struct B;
 
-type MyQualifier = u32;
+#[derive(QueryData)]
+pub struct WeaponHandle {
+    weapon: &'static Handle<Weapon>,
+    state: &'static WeaponState,
+}
 
-impl StreamQuery<MyQualifier> for Weapon {
-    type Ctx = Res<'static, Assets<Weapon>>;
-    type QueryData = (&'static Handle<Weapon>, &'static WeaponState);
-    fn stream(
-        assets: &<Self::Ctx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        (handle, state): <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
-        _: &QualifierQuery<MyQualifier>,
-        stat: &mut bevy_stat_query::StatValuePair,
-        _: &mut QuerierRef<'_, MyQualifier>,
+impl ComponentStream<u32> for WeaponHandle {
+    type Cx = Res<'static, Assets<Weapon>>;
+
+    fn stream<S: Stat>(
+        cx: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
+        component: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
+        _: &QualifierQuery<u32>,
+        stat: &S,
+        value: &mut S::Data,
+        _: &impl bevy_stat_query::Querier<u32>,
     ) {
-        if let Some(value) = stat.is(&Damage) {
-            let Some(weapon) = assets.get(handle) else {
+        if let Some(value) = stat.is_then_cast(&Damage, value) {
+            let Some(weapon) = cx.get(component.weapon) else {
                 return;
             };
-            value.add(weapon.damage * state.durability)
+            value.add(weapon.damage * component.state.durability)
         }
     }
 }
-
-querier!(pub MyQuerier {
-    qualifier: MyQualifier,
-    intrinsic: {},
-    external: {
-        Weapon
-    }
-});
 
 #[test]
 pub fn main() {
     App::new()
         .add_plugins(AssetPlugin::default())
-        .add_plugins(StatQueryPlugin)
         .init_asset::<Weapon>()
         .register_stat::<Damage>()
         .register_stat::<Defense>()
@@ -102,33 +124,32 @@ pub fn main() {
 }
 
 fn init(mut commands: Commands, assets: Res<AssetServer>) {
-    commands
-        .spawn((StatEntity, StatCache::<MyQualifier>::default(), A))
-        .with_children(|x| {
-            x.spawn((
-                assets.add(Weapon { damage: 4.0 }),
-                WeaponState { durability: 0.5 },
-            ));
-        });
-    commands
-        .spawn((StatEntity, StatCache::<MyQualifier>::default(), B))
-        .with_children(|x| {
-            x.spawn((
-                assets.add(Weapon { damage: 8.0 }),
-                WeaponState { durability: 1.0 },
-            ));
-            x.spawn((
-                assets.add(Weapon { damage: 6.0 }),
-                WeaponState { durability: 2.0 },
-            ));
-        });
+    commands.spawn((StatEntity, A)).with_children(|x| {
+        x.spawn((
+            assets.add(Weapon { damage: 4.0 }),
+            WeaponState { durability: 0.5 },
+        ));
+    });
+    commands.spawn((StatEntity, B)).with_children(|x| {
+        x.spawn((
+            assets.add(Weapon { damage: 8.0 }),
+            WeaponState { durability: 1.0 },
+        ));
+        x.spawn((
+            assets.add(Weapon { damage: 6.0 }),
+            WeaponState { durability: 2.0 },
+        ));
+    });
 }
 
 fn query(
-    querier: MyQuerier,
+    querier: Queryable<u32>,
+    weapon_query: Query<WeaponHandle>,
+    cx: Res<Assets<Weapon>>,
     a: Query<Entity, (With<StatEntity>, With<A>)>,
     b: Query<Entity, (With<StatEntity>, With<B>)>,
 ) {
+    let querier = querier.with_children_cx(&weapon_query, &cx);
     let a = a.single();
     assert_eq!(
         querier.query_eval(a, &QualifierQuery::Aggregate(0u32), &Damage),

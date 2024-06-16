@@ -1,4 +1,5 @@
 use std::{
+    any::{Any, TypeId},
     borrow::Cow,
     cmp::{Eq, Ord, Ordering},
     fmt::Debug,
@@ -135,6 +136,29 @@ pub trait Stat: Shareable + Hash + Debug + Eq + Ord {
         StatInst {
             index: self.as_index(),
             vtable: Self::vtable(),
+        }
+    }
+
+    fn is<T: Stat>(&self, other: &T) -> bool {
+        self.as_entry() == other.as_entry()
+    }
+
+    fn is_then_cast<'t, T: Stat>(
+        &self,
+        other: &T,
+        value: &'t mut Self::Data,
+    ) -> Option<&'t mut T::Data> {
+        if !self.is(other) {
+            return None;
+        }
+        self.cast::<T>(value)
+    }
+
+    fn cast<'t, T: Stat>(&self, value: &'t mut Self::Data) -> Option<&'t mut T::Data> {
+        if TypeId::of::<Self>() == TypeId::of::<T>() {
+            (value as &mut dyn Any).downcast_mut()
+        } else {
+            None
         }
     }
 }
