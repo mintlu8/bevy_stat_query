@@ -242,7 +242,6 @@ impl<'a, Q: QualifierFlag> RangeBounds<dyn QueryStatEntry<Q> + 'a> for StatInst 
     }
 }
 
-
 impl<Q: QualifierFlag + Serialize> Serialize for StatMap<Q> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -315,18 +314,18 @@ impl<'de, Q: QualifierFlag + Deserialize<'de>> Visitor<'de> for TupleSeed<Q> {
         A: serde::de::SeqAccess<'de>,
     {
         let Some(qualifier) = seq.next_element()? else {
-            return Err(serde::de::Error::custom("Expected qualifier."))
+            return Err(serde::de::Error::custom("Expected qualifier."));
         };
         let Some(stat) = seq.next_element::<StatInst>()? else {
-            return Err(serde::de::Error::custom("Expected stat name."))
+            return Err(serde::de::Error::custom("Expected stat name."));
         };
-        let Some(buffer) = seq
-            .next_element_seed(DynSeed {
-                f: stat.vtable.deserialize,
-                q: PhantomData::<Q>,
-            })? else {
-                return Err(serde::de::Error::custom("Expected stat value."))
-            };
+        let Some(buffer) = seq.next_element_seed(DynSeed {
+            f: stat.vtable.deserialize,
+            q: PhantomData::<Q>,
+        })?
+        else {
+            return Err(serde::de::Error::custom("Expected stat value."));
+        };
         Ok((qualifier, stat, buffer))
     }
 }

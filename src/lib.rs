@@ -169,7 +169,7 @@ use dyn_clone::{clone_trait_object, DynClone};
 use serde::{de::DeserializeOwned, Serialize};
 mod num_traits;
 pub use num_traits::{Flags, Float, Fraction, Int};
-//pub use stream::{StreamQuery, RelationStream, StreamQuery, StatStreamObject, StatelessStream};
+pub use stream::*;
 pub mod types;
 pub use types::StatValue;
 mod qualifier;
@@ -179,18 +179,13 @@ pub use stat::Stat;
 pub(crate) use stat::StatInst;
 mod calc;
 pub use calc::{StatDefaults, StatOperation};
-mod entity;
-pub use entity::{StatCache, StatEntity};
+mod cache;
+pub use cache::{StatCache, StatEntity};
 mod plugin;
-pub mod rounding;
-//pub use plugin::{CachedQueriers, StatExtension, StatQueryPlugin};
-mod querier;
-//pub use querier::{hints, NoopQuerier, QuerierRef, StatQuerier};
-mod param;
-#[doc(hidden)]
-//pub use param::{ChildStatParam, StatParam};
+pub use plugin::StatExtension;
 mod stat_map;
 pub use stat_map::StatMap;
+pub mod rounding;
 
 use std::{
     any::type_name,

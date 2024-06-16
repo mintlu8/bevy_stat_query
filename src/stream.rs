@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::{QualifierFlag, QualifierQuery, Stat, StatCache, StatDefaults, StatEntity};
 use bevy_ecs::{
     entity::Entity,
@@ -8,15 +6,13 @@ use bevy_ecs::{
 };
 use bevy_hierarchy::Children;
 
-pub struct QuerierRef<'t, Q: QualifierFlag>(PhantomData<&'t Q>);
-
 pub trait StatStream<Q: QualifierFlag> {
     fn stream<S: Stat>(
         &self,
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &mut QuerierRef<Q>,
+        querier: &impl EraseQuerier<Q>,
     );
 }
 
@@ -27,7 +23,7 @@ pub trait QueryStream<Q: QualifierFlag> {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &mut QuerierRef<Q>,
+        querier: &impl EraseQuerier<Q>,
     );
 }
 
@@ -38,7 +34,7 @@ impl<Q: QualifierFlag> QueryStream<Q> for () {
         _: &QualifierQuery<Q>,
         _: &S,
         _: &mut S::Data,
-        _: &mut QuerierRef<Q>,
+        _: &impl EraseQuerier<Q>,
     ) {
     }
 }
@@ -50,7 +46,7 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>> QueryStream<Q> for 
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &mut QuerierRef<Q>,
+        querier: &impl EraseQuerier<Q>,
     ) {
         self.0.stream(entities, qualifier, stat, value, querier);
         self.1.stream(entities, qualifier, stat, value, querier);
@@ -65,7 +61,7 @@ impl<Q: QualifierFlag> QueryRelationStream<Q> for () {
         _: &QualifierQuery<Q>,
         _: &S,
         _: &mut S::Data,
-        _: &mut QuerierRef<Q>,
+        _: &impl EraseQuerier<Q>,
     ) {
     }
 }
@@ -80,7 +76,7 @@ impl<Q: QualifierFlag, A: QueryRelationStream<Q>, B: QueryRelationStream<Q>> Que
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &mut QuerierRef<Q>,
+        querier: &impl EraseQuerier<Q>,
     ) {
         self.0
             .relation(this, other, qualifier, stat, value, querier);
@@ -97,7 +93,7 @@ pub trait QueryRelationStream<Q: QualifierFlag>: QueryStream<Q> {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &mut QuerierRef<Q>,
+        querier: &impl EraseQuerier<Q>,
     );
 }
 
@@ -113,7 +109,7 @@ pub trait ComponentStream<Q: QualifierFlag>: QueryData {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &mut QuerierRef<Q>,
+        querier: &impl EraseQuerier<Q>,
     );
 }
 
@@ -130,7 +126,7 @@ pub trait RelationStream<Q: QualifierFlag>: ComponentStream<Q> {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &mut QuerierRef<Q>,
+        querier: &impl EraseQuerier<Q>,
     );
 }
 
@@ -209,10 +205,45 @@ pub struct JoinedQuerier<
     relationship_streams: C,
 }
 
+pub trait EraseQuerier<Q: QualifierFlag> {
+    fn query_stat<S: Stat>(
+        &self,
+        entity: Entity,
+        query: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> Option<S::Data>;
+
+    fn query_relation<S: Stat>(
+        &self,
+        from: Entity,
+        to: Entity,
+        query: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> Option<S::Data>;
+}
+
+pub struct NoopQuerier;
+
+impl<Q: QualifierFlag> EraseQuerier<Q> for NoopQuerier {
+    fn query_stat<S: Stat>(&self, _: Entity, _: &QualifierQuery<Q>, _: &S) -> Option<S::Data> {
+        None
+    }
+
+    fn query_relation<S: Stat>(
+        &self,
+        _: Entity,
+        _: Entity,
+        _: &QualifierQuery<Q>,
+        _: &S,
+    ) -> Option<S::Data> {
+        None
+    }
+}
+
 impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStream<Q>>
-    JoinedQuerier<'_, '_, '_, Q, A, B, C>
+    EraseQuerier<Q> for JoinedQuerier<'_, '_, '_, Q, A, B, C>
 {
-    pub fn query_stat<S: Stat>(
+    fn query_stat<S: Stat>(
         &self,
         entity: Entity,
         query: &QualifierQuery<Q>,
@@ -235,33 +266,18 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .as_ref()
             .map(|d| d.get(stat))
             .unwrap_or_default();
-        self.component_streams.stream(
-            &[entity],
-            query,
-            stat,
-            &mut result,
-            &mut QuerierRef(PhantomData),
-        );
-        self.relationship_streams.stream(
-            &[entity],
-            query,
-            stat,
-            &mut result,
-            &mut QuerierRef(PhantomData),
-        );
+        self.component_streams
+            .stream(&[entity], query, stat, &mut result, self);
+        self.relationship_streams
+            .stream(&[entity], query, stat, &mut result, self);
         if let Ok(Some(children)) = self.querier.entities.get(entity) {
-            self.component_streams.stream(
-                children.as_ref(),
-                query,
-                stat,
-                &mut result,
-                &mut QuerierRef(PhantomData),
-            );
+            self.component_streams
+                .stream(children.as_ref(), query, stat, &mut result, self);
         }
         Some(result)
     }
 
-    pub fn query_relation<S: Stat>(
+    fn query_relation<S: Stat>(
         &self,
         from: Entity,
         to: Entity,
@@ -277,14 +293,8 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .as_ref()
             .map(|d| d.get(stat))
             .unwrap_or_default();
-        self.relationship_streams.relation(
-            from,
-            to,
-            query,
-            stat,
-            &mut result,
-            &mut QuerierRef(PhantomData),
-        );
+        self.relationship_streams
+            .relation(from, to, query, stat, &mut result, self);
         Some(result)
     }
 }
@@ -303,7 +313,7 @@ impl<Q: QualifierFlag, C: ComponentStream<Q>, F: QueryFilter> QueryStream<Q>
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &mut QuerierRef<Q>,
+        querier: &impl EraseQuerier<Q>,
     ) {
         for item in self.query.iter_many(entities) {
             C::stream(self.cx, item, qualifier, stat, value, querier)
@@ -321,7 +331,7 @@ impl<Q: QualifierFlag, C: RelationStream<Q>, F: QueryFilter> QueryRelationStream
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Data,
-        querier: &mut QuerierRef<Q>,
+        querier: &impl EraseQuerier<Q>,
     ) {
         let Ok(this) = self.query.get(this) else {
             return;
