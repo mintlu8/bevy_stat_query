@@ -1,6 +1,6 @@
 use crate::Shareable;
 
-use super::{StatValue, Unsupported};
+use crate::{operations::Unsupported, StatValue};
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

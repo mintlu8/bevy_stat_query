@@ -1,5 +1,5 @@
-use super::{StatValue, Unsupported};
 use crate::Fraction;
+use crate::{operations::Unsupported, StatValue};
 use crate::{
     rounding::{Rounding, Truncate},
     Float, Int,

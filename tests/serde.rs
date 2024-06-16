@@ -2,7 +2,7 @@ use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{bind_object, DefaultInit, WorldExtension};
 use bevy_stat_query::StatVTable;
-use bevy_stat_query::{types::*, Fraction, Qualifier, Stat, StatExtension, StatMap, StatOperation};
+use bevy_stat_query::{types::*, Fraction, Qualifier, Stat, StatExtension, StatMap, operations::StatOperation};
 use serde::{Deserialize, Serialize};
 
 bitflags::bitflags! {
@@ -24,7 +24,7 @@ macro_rules! impl_stat {
         pub struct $name;
 
         impl Stat for $name {
-            type Data = $ty;
+            type Value = $ty;
 
             fn name(&self) -> &'static str {
                 stringify!($name)
@@ -34,8 +34,8 @@ macro_rules! impl_stat {
                 [Self]
             }
 
-            fn vtable() -> &'static StatVTable {
-                static VTABLE: StatVTable = StatVTable::of::<$name>();
+            fn vtable() -> &'static StatVTable<$name> {
+                static VTABLE: StatVTable<$name> = StatVTable::of::<$name>();
                 &VTABLE
             }
 
@@ -54,14 +54,12 @@ impl_stat!(
     SInt: StatInt<i32>,
     SUInt: StatInt<u32>,
     SFloat32: StatFloat<f32>,
-    SFloat64: StatFloat<f64>,
     SFlags: StatFlags<MyFlags>,
-    SString: StatOnce<String>,
-    SSet: StatSet<String>,
-    SIntPct: StatIntPercent<i64>,
+    SString: StatOnce<Box<str>>,
+    SIntPct: StatIntPercent<i32>,
     SIntFrac: StatIntFraction<i8>,
-    SMul: StatMult<f64>,
-    SFracMul: StatMult<Fraction<isize>>
+    SMul: StatMult<f32>,
+    SFracMul: StatMult<Fraction<i32>>
 );
 
 #[derive(Debug, Component, Serialize, Deserialize, Default, TypePath)]
@@ -72,7 +70,7 @@ bind_object!(
     pub struct Base as BaseMarker{
         #[serde(skip)]
         marker: DefaultInit<BaseMarker>,
-        map: BaseStatMap<bool>,
+        map: StatMap<bool>,
     }
 );
 
@@ -84,7 +82,7 @@ bind_object!(
     pub struct Op as OpMarker{
         #[serde(skip)]
         marker: DefaultInit<OpMarker>,
-        map: StatOperationsMap<bool>,
+        map: StatMap<bool>,
     }
 );
 
@@ -96,20 +94,18 @@ bind_object!(
     pub struct Full as FullMarker{
         #[serde(skip)]
         marker: DefaultInit<FullMarker>,
-        map: FullStatMap<bool>,
+        map: StatMap<bool>,
     }
 );
 
 #[test]
-pub fn operations() {
+pub fn serde_test() {
     let mut world = World::new();
     world.register_stat::<SInt>();
     world.register_stat::<SUInt>();
     world.register_stat::<SFloat32>();
-    world.register_stat::<SFloat64>();
     world.register_stat::<SFlags>();
     world.register_stat::<SString>();
-    world.register_stat::<SSet>();
     world.register_stat::<SIntPct>();
     world.register_stat::<SIntFrac>();
     world.register_stat::<SMul>();
@@ -118,22 +114,19 @@ pub fn operations() {
     let q_false = Qualifier::all_of(false);
     world.spawn((BaseMarker, {
         let mut map = StatMap::new();
-        map.insert(q_false, SInt, -4);
-        map.insert(q_false, SUInt, 7);
-        map.insert(q_false, SFloat32, 3.5);
-        map.insert(q_false, SFloat64, -6.25);
-        map.insert(q_false, SFlags, MyFlags::F);
-        map.insert(
+        map.insert_base(q_false, SInt, -4);
+        map.insert_base(q_false, SUInt, 7);
+        map.insert_base(q_false, SFloat32, 3.5);
+        map.insert_base(q_false, SFlags, MyFlags::F);
+        map.insert_base(
             q_false,
             SString,
-            StatOnce::Found("Ferris the Rustacean".to_owned()),
+            "Ferris the Rustacean".into(),
         );
-        // TODO: this is actually non-deterministic, maybe fix later?
-        map.insert(q_false, SSet, HashSet::from(["foo".to_owned()]));
-        map.insert(q_false, SIntFrac, 69);
-        map.insert(q_false, SIntPct, 420);
-        map.insert(q_false, SMul, 1.5);
-        map.insert(q_false, SFracMul, Fraction::new(44, 57));
+        map.insert_base(q_false, SIntFrac, 69);
+        map.insert_base(q_false, SIntPct, 420);
+        map.insert_base(q_false, SMul, 1.5);
+        map.insert_base(q_false, SFracMul, Fraction::new(44, 57));
         map
     }));
     let value = world
@@ -147,19 +140,17 @@ pub fn operations() {
     assert_eq!(value, value2);
 
     world.spawn((OpMarker, {
-        let mut map = StatOperationsMap::new();
+        let mut map = StatMap::new();
         use StatOperation::*;
-        map.insert(q_false, SInt, Add(-4));
-        map.insert(q_false, SUInt, Max(7));
-        map.insert(q_false, SFloat32, Min(3.5));
-        map.insert(q_false, SFloat64, Max(-6.25));
-        map.insert(q_false, SFlags, Or(MyFlags::F));
-        map.insert(q_false, SString, Not("Ferris the Rustacean".to_owned()));
-        map.insert(q_false, SSet, Or(HashSet::from(["foo".to_owned()])));
-        map.insert(q_false, SIntFrac, Mul(Fraction::new(43, -47)));
-        map.insert(q_false, SIntPct, Mul(32));
-        map.insert(q_false, SMul, Mul(102.125));
-        map.insert(q_false, SFracMul, Mul(Fraction::new(0, 1)));
+        map.modify(q_false, SInt, Add(-4));
+        map.modify(q_false, SUInt, Max(7));
+        map.modify(q_false, SFloat32, Min(3.5));
+        map.modify(q_false, SFlags, Or(MyFlags::F));
+        map.modify(q_false, SString, Not("Ferris the Rustacean".into()));
+        map.modify(q_false, SIntFrac, Mul(Fraction::new(43, -47)));
+        map.modify(q_false, SIntPct, Mul(32));
+        map.modify(q_false, SMul, Mul(102.125));
+        map.modify(q_false, SFracMul, Mul(Fraction::new(0, 1)));
         map
     }));
     let value = world.save::<Op, _>(serde_json::value::Serializer).unwrap();
@@ -169,16 +160,14 @@ pub fn operations() {
     assert_eq!(value, value2);
 
     world.spawn((FullMarker, {
-        let mut map = FullStatMap::new();
+        let mut map = StatMap::new();
         map.insert(q_false, SInt, Default::default());
         map.insert(q_false, SUInt, Default::default());
         map.insert(q_false, SString, Default::default());
-        map.insert(q_false, SSet, Default::default());
         map.insert(q_false, SIntFrac, Default::default());
         map.insert(q_false, SIntPct, Default::default());
         map.insert(q_false, SFracMul, Default::default());
         map.insert(q_false, SFloat32, Default::default());
-        map.insert(q_false, SFloat64, Default::default());
         map.insert(q_false, SFlags, Default::default());
         map.insert(q_false, SMul, Default::default());
         map
@@ -195,16 +184,14 @@ pub fn operations() {
     world.despawn_bound_objects::<Full>();
 
     world.spawn((FullMarker, {
-        let mut map = FullStatMap::new();
+        let mut map = StatMap::new();
         map.insert(q_false, SInt, Default::default());
         map.insert(q_false, SUInt, Default::default());
         map.insert(q_false, SString, Default::default());
-        map.insert(q_false, SSet, Default::default());
         map.insert(q_false, SIntFrac, Default::default());
         map.insert(q_false, SIntPct, Default::default());
         map.insert(q_false, SFracMul, Default::default());
         map.insert(q_false, SFloat32, Default::default());
-        map.insert(q_false, SFloat64, Default::default());
         map.insert(q_false, SFlags, Default::default());
         map.insert(q_false, SMul, Default::default());
         map

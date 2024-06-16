@@ -2,7 +2,7 @@ use std::any::Any;
 
 use crate::operations::StatOperation;
 use crate::stat::StatInstances;
-use crate::{QualifierFlag, Stat, StatValue};
+use crate::{QualifierFlag, Stat, StatExt, StatValue};
 use crate::{StatCache, StatInst, TYPE_ERROR};
 use bevy_app::App;
 use bevy_ecs::system::Resource;
@@ -10,7 +10,7 @@ use bevy_ecs::world::World;
 use bevy_reflect::TypePath;
 use rustc_hash::FxHashMap;
 
-type Bounds<T> = <<T as Stat>::Data as StatValue>::Bounds;
+type Bounds<T> = <<T as Stat>::Value as StatValue>::Bounds;
 
 /// Extension on [`World`] and [`App`]
 pub trait StatExtension {
@@ -25,7 +25,7 @@ pub trait StatExtension {
     ///
     /// This is the standard way
     /// to add default bounds to a stat, e.g, in `1..15`.
-    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Data) -> &mut Self;
+    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Value) -> &mut Self;
 
     /// Register the minimum value of a stat.
     fn register_stat_min<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self;
@@ -44,7 +44,7 @@ impl StatExtension for World {
         self
     }
 
-    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Data) -> &mut Self {
+    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Value) -> &mut Self {
         self.get_resource_or_insert_with::<StatDefaults>(Default::default)
             .insert(stat, value);
         self
@@ -73,7 +73,7 @@ impl StatExtension for App {
         self
     }
 
-    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Data) -> &mut Self {
+    fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Value) -> &mut Self {
         self.world.register_stat_default::<S>(stat, value);
         self
     }
@@ -109,17 +109,17 @@ impl StatDefaults {
     }
 
     /// Insert a [`Stat`] and its associated default value.
-    pub fn insert<S: Stat>(&mut self, stat: S, value: S::Data) {
+    pub fn insert<S: Stat>(&mut self, stat: S, value: S::Value) {
         self.stats.insert(stat.as_entry(), Box::new(value));
     }
 
     /// Modify a [`Stat`]'s default value.
-    pub fn patch<S: Stat>(&mut self, stat: &S, value: StatOperation<S::Data>) {
+    pub fn patch<S: Stat>(&mut self, stat: &S, value: StatOperation<S::Value>) {
         match self.stats.get_mut(&stat.as_entry()) {
-            Some(stat) => value.write_to(stat.downcast_mut::<S::Data>().expect(TYPE_ERROR)),
+            Some(stat) => value.write_to(stat.downcast_mut::<S::Value>().expect(TYPE_ERROR)),
             None => {
                 self.stats.insert(stat.as_entry(), {
-                    let mut stat = S::Data::default();
+                    let mut stat = S::Value::default();
                     value.write_to(&mut stat);
                     Box::new(stat)
                 });
@@ -128,10 +128,10 @@ impl StatDefaults {
     }
 
     /// Obtain a [`Stat`]'s default value.
-    pub fn get<S: Stat>(&self, stat: &S) -> S::Data {
+    pub fn get<S: Stat>(&self, stat: &S) -> S::Value {
         self.stats
             .get(&stat.as_entry())
-            .and_then(|x| x.downcast_ref::<S::Data>())
+            .and_then(|x| x.downcast_ref::<S::Value>())
             .cloned()
             .unwrap_or(Default::default())
     }

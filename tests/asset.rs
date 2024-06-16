@@ -9,15 +9,15 @@ use bevy_ecs::{
 use bevy_hierarchy::BuildChildren;
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    types::StatFloat, ComponentStream, QualifierQuery, Querier, Queryable, Stat, StatEntity,
-    StatExtension, StatVTable, StatValue,
+    types::StatFloat, ComponentStream, QualifierQuery, Querier, Stat, StatEntity, StatExt,
+    StatExtension, StatQuery, StatVTable, StatValue,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Damage;
 
 impl Stat for Damage {
-    type Data = StatFloat<f32>;
+    type Value = StatFloat<f32>;
 
     fn name(&self) -> &'static str {
         "Damage"
@@ -27,8 +27,8 @@ impl Stat for Damage {
         [Damage]
     }
 
-    fn vtable() -> &'static StatVTable {
-        static VTABLE: StatVTable = StatVTable::of::<Damage>();
+    fn vtable() -> &'static StatVTable<Damage> {
+        static VTABLE: StatVTable<Damage> = StatVTable::of::<Damage>();
         &VTABLE
     }
 
@@ -45,7 +45,7 @@ impl Stat for Damage {
 pub struct Defense;
 
 impl Stat for Defense {
-    type Data = StatFloat<f32>;
+    type Value = StatFloat<f32>;
 
     fn name(&self) -> &'static str {
         "Defense"
@@ -55,8 +55,8 @@ impl Stat for Defense {
         [Defense]
     }
 
-    fn vtable() -> &'static StatVTable {
-        static VTABLE: StatVTable = StatVTable::of::<Defense>();
+    fn vtable() -> &'static StatVTable<Defense> {
+        static VTABLE: StatVTable<Defense> = StatVTable::of::<Defense>();
         &VTABLE
     }
 
@@ -99,7 +99,7 @@ impl ComponentStream<u32> for WeaponHandle {
         component: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<u32>,
         stat: &S,
-        value: &mut S::Data,
+        value: &mut S::Value,
         _: &impl bevy_stat_query::Querier<u32>,
     ) {
         if let Some(value) = stat.is_then_cast(&Damage, value) {
@@ -112,7 +112,7 @@ impl ComponentStream<u32> for WeaponHandle {
 }
 
 #[test]
-pub fn main() {
+pub fn asset_test() {
     App::new()
         .add_plugins(AssetPlugin::default())
         .init_asset::<Weapon>()
@@ -143,7 +143,7 @@ fn init(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn query(
-    querier: Queryable<u32>,
+    querier: StatQuery<u32>,
     weapon_query: Query<WeaponHandle>,
     cx: Res<Assets<Weapon>>,
     a: Query<Entity, (With<StatEntity>, With<A>)>,

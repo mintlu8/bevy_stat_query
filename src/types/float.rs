@@ -1,5 +1,5 @@
-use super::{StatValue, Unsupported};
 use crate::Float;
+use crate::{operations::Unsupported, StatValue};
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 
@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
 #[repr(C, align(8))]
 pub struct StatFloat<T: Float> {
-    pub addend: T,
-    pub min: T,
-    pub max: T,
-    pub mult: T,
+    addend: T,
+    min: T,
+    max: T,
+    mult: T,
 }
 
 impl<T: Float> Default for StatFloat<T> {
@@ -75,10 +75,10 @@ impl<T: Float> StatValue for StatFloat<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
 #[repr(C, align(8))]
 pub struct StatFloatAdditive<T: Float> {
-    pub addend: T,
-    pub min: T,
-    pub max: T,
-    pub mult: T,
+    addend: T,
+    min: T,
+    max: T,
+    mult: T,
 }
 
 impl<T: Float> Default for StatFloatAdditive<T> {

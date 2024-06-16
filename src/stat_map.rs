@@ -1,19 +1,48 @@
 use crate::operations::StatOperation;
-use crate::{validate, Buffer, Qualifier, QualifierFlag, Stat, StatInst, StatStream, StatValue};
+use crate::{
+    validate, Buffer, Qualifier, QualifierFlag, Stat, StatExt, StatInst, StatStream, StatValue,
+};
 use bevy_ecs::component::Component;
 use bevy_reflect::TypePath;
 use ref_cast::RefCast;
 use serde::de::{DeserializeSeed, Visitor};
+use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ops::{Bound, RangeBounds};
 use std::{borrow::Borrow, collections::BTreeMap, hash::Hash};
 
-/// A map-like, type erased storage for stats.
-#[derive(Debug, Clone, Component, TypePath)]
+/// A map-like, type erased storage of qualified stats.
+///
+/// # Panics
+///
+/// This type can only store [`Stat::Value`] with up to `24` bytes and alignments up to `8`.
+/// Storing types that do not adhere to this requirement will cause a panic.
+#[derive(Clone, Component, TypePath)]
 pub struct StatMap<Q: QualifierFlag> {
     inner: BTreeMap<(StatInst, Qualifier<Q>), Buffer>,
+}
+
+impl<Q: QualifierFlag> Debug for StatMap<Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[derive(Debug)]
+        struct Stat(&'static str);
+        let mut map = f.debug_map();
+        for ((s, q), b) in &self.inner {
+            map.entry(&(q, Stat(s.name())), unsafe { (s.vtable.as_debug)(b) });
+        }
+        map.finish()
+    }
+}
+
+impl<Q: QualifierFlag> Drop for StatMap<Q> {
+    fn drop(&mut self) {
+        for ((s, _), b) in &mut self.inner {
+            unsafe { (s.vtable.drop)(b) }
+        }
+    }
 }
 
 impl<Q: QualifierFlag> Default for StatMap<Q> {
@@ -57,49 +86,58 @@ impl<Q: QualifierFlag> StatMap<Q> {
         self.inner.clear()
     }
 
-    pub fn insert<S: Stat>(&mut self, qualifier: Qualifier<Q>, stat: S, value: S::Data) {
+    /// Inserts a [`Stat::Value`] in its component form.
+    pub fn insert<S: Stat>(&mut self, qualifier: Qualifier<Q>, stat: S, value: S::Value) {
         self.inner
             .insert((stat.as_entry(), qualifier), unsafe { into_buffer(value) });
     }
 
+    /// Inserts a [`Stat::Value`] in its evaluated form.
     pub fn insert_base<S: Stat>(
         &mut self,
         qualifier: Qualifier<Q>,
         stat: S,
-        base: <S::Data as StatValue>::Base,
+        base: <S::Value as StatValue>::Base,
     ) {
         self.inner.insert((stat.as_entry(), qualifier), unsafe {
-            into_buffer(S::Data::from_base(base))
+            into_buffer(S::Value::from_base(base))
         });
     }
 
-    pub fn insert_op<S: Stat>(
-        &mut self,
-        qualifier: Qualifier<Q>,
-        stat: S,
-        value: StatOperation<S::Data>,
-    ) {
-        self.inner.insert((stat.as_entry(), qualifier), unsafe {
-            into_buffer(value.into_stat())
-        });
-    }
-
-    pub fn get<S: Stat>(&self, qualifier: &Qualifier<Q>, stat: &S) -> Option<&S::Data> {
+    /// Obtains a [`Stat::Value`].
+    pub fn get<S: Stat>(&self, qualifier: &Qualifier<Q>, stat: &S) -> Option<&S::Value> {
         self.inner
             .get(&(stat.as_entry(), qualifier) as &dyn QueryStatEntry<Q>)
             .map(|buffer| unsafe { from_buffer_ref(buffer) })
     }
 
-    pub fn get_mut<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S) -> Option<&mut S::Data> {
+    /// Obtains a mutable [`Stat::Value`].
+    pub fn get_mut<S: Stat>(
+        &mut self,
+        qualifier: &Qualifier<Q>,
+        stat: &S,
+    ) -> Option<&mut S::Value> {
         self.inner
             .get_mut(&(stat.as_entry(), qualifier) as &dyn QueryStatEntry<Q>)
             .map(|buffer| unsafe { from_buffer_mut(buffer) })
     }
 
-    pub fn remove<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S) -> Option<S::Data> {
+    /// Removes and obtains a [`Stat::Value`].
+    pub fn remove<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S) -> Option<S::Value> {
         self.inner
             .remove(&(stat.as_entry(), qualifier) as &dyn QueryStatEntry<Q>)
             .map(|buffer| unsafe { from_buffer(buffer) })
+    }
+
+    /// Obtains a [`Stat::Value`] in its evaluated form.
+    pub fn get_evaled<S: Stat>(
+        &self,
+        qualifier: &Qualifier<Q>,
+        stat: &S,
+    ) -> Option<<S::Value as StatValue>::Out> {
+        self.inner
+            .get(&(stat.as_entry(), qualifier) as &dyn QueryStatEntry<Q>)
+            .map(|buffer| unsafe { from_buffer_ref::<S::Value>(buffer).eval() })
     }
 
     pub fn retain(&mut self, mut f: impl FnMut(&Qualifier<Q>, &str) -> bool) {
@@ -108,7 +146,7 @@ impl<Q: QualifierFlag> StatMap<Q> {
     }
 
     /// Iterate over a particular stat.
-    pub fn iter<S: Stat>(&self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &S::Data)> {
+    pub fn iter<S: Stat>(&self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &S::Value)> {
         self.inner
             .range(stat.as_entry())
             .map(|((_, q), v)| (q, unsafe { from_buffer_ref(v) }))
@@ -118,17 +156,35 @@ impl<Q: QualifierFlag> StatMap<Q> {
     pub fn iter_mut<S: Stat>(
         &mut self,
         stat: &S,
-    ) -> impl Iterator<Item = (&Qualifier<Q>, &mut S::Data)> {
+    ) -> impl Iterator<Item = (&Qualifier<Q>, &mut S::Value)> {
         self.inner
             .range_mut(stat.as_entry())
             .map(|((_, q), v)| (q, unsafe { from_buffer_mut(v) }))
     }
 
+    /// Create or modify a stat via a [`StatOperation`].
+    ///
+    /// Create a [`Default`] stat if non-existent.
     pub fn modify<S: Stat>(
+        &mut self,
+        qualifier: Qualifier<Q>,
+        stat: S,
+        value: StatOperation<S::Value>,
+    ) {
+        self.inner
+            .entry((stat.as_entry(), qualifier))
+            .and_modify(|buffer| value.write_to(unsafe { from_buffer_mut(buffer) }))
+            .or_insert(unsafe { into_buffer(value.into_stat()) });
+    }
+
+    /// Create or modify a stat via a closure.
+    ///
+    /// Create a [`Default`] stat if non-existent.
+    pub fn modify_with<S: Stat>(
         &mut self,
         qualifier: &Qualifier<Q>,
         stat: &S,
-        f: impl FnOnce(&mut S::Data),
+        f: impl FnOnce(&mut S::Value),
     ) {
         if let Some(val) = self.get_mut(qualifier, stat) {
             f(val)
@@ -145,12 +201,12 @@ impl<Q: QualifierFlag> StatStream<Q> for StatMap<Q> {
         &self,
         qualifier: &crate::QualifierQuery<Q>,
         stat: &S,
-        value: &mut S::Data,
+        value: &mut S::Value,
         _: &impl crate::Querier<Q>,
     ) {
         self.iter(stat).for_each(|(q, v)| {
             if q.qualifies_as(qualifier) {
-                value.join(v.clone())
+                value.join_by_ref(v)
             }
         })
     }
@@ -286,11 +342,27 @@ impl<Q: QualifierFlag + Serialize> Serialize for StatMap<Q> {
     where
         S: serde::Serializer,
     {
-        serializer.collect_seq(self.inner.iter().map(|((s, q), d)| {
-            (q, (s.vtable.name)(s.index), unsafe {
+        let mut seq = serializer.serialize_seq(Some(self.inner.len()))?;
+        for ((s, q), d) in &self.inner {
+            seq.serialize_element(&SeqTuple3((q, (s.vtable.name)(s.index), unsafe {
                 (s.vtable.as_serialize)(d)
-            })
-        }))
+            })))?;
+        }
+        seq.end()
+    }
+}
+
+pub struct SeqTuple3<A, B, C>((A, B, C));
+
+impl<A: Serialize, B: Serialize, C: Serialize> Serialize for SeqTuple3<A, B, C> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        let mut seq = serializer.serialize_seq(Some(3))?;
+        seq.serialize_element(&self.0.0)?;
+        seq.serialize_element(&self.0.1)?;
+        seq.serialize_element(&self.0.2)?;
+        seq.end()
     }
 }
 
@@ -309,7 +381,7 @@ impl<'de, Q: QualifierFlag + Deserialize<'de>> Visitor<'de> for &mut StatMap<Q> 
     type Value = ();
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("stat map")
+        formatter.write_str("stat map sequence")
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -337,7 +409,7 @@ impl<'de, Q: QualifierFlag + Deserialize<'de>> DeserializeSeed<'de> for TupleSee
     where
         D: serde::Deserializer<'de>,
     {
-        deserializer.deserialize_map(TupleSeed::<Q>(PhantomData))
+        deserializer.deserialize_seq(TupleSeed::<Q>(PhantomData))
     }
 }
 
@@ -345,7 +417,7 @@ impl<'de, Q: QualifierFlag + Deserialize<'de>> Visitor<'de> for TupleSeed<Q> {
     type Value = (Qualifier<Q>, StatInst, Buffer);
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("stat map")
+        formatter.write_str("(qualifier, stat, value)")
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>

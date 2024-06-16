@@ -1,6 +1,5 @@
 use crate::{QualifierFlag, QualifierQuery, StatInst};
-use crate::{Stat, TYPE_ERROR};
-use bevy_ecs::component::Component;
+use crate::{Stat, StatExt, TYPE_ERROR};
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::Resource;
 use bevy_reflect::TypePath;
@@ -9,10 +8,6 @@ use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::sync::RwLock;
 use std::{fmt::Debug, hash::Hash};
-
-/// The core marker component. Stat querying is only allowed on entities marked as [`StatEntity`].
-#[derive(Debug, Component, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TypePath)]
-pub struct StatEntity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CachedEntry<Q: QualifierFlag> {
@@ -50,7 +45,7 @@ impl<Q: QualifierFlag> StatCache<Q> {
         entity: Entity,
         query: QualifierQuery<Q>,
         stat: S,
-        value: S::Data,
+        value: S::Value,
     ) {
         self.cache.write().unwrap().insert(
             CachedEntry {
@@ -67,7 +62,7 @@ impl<Q: QualifierFlag> StatCache<Q> {
         entity: Entity,
         query: &QualifierQuery<Q>,
         stat: &S,
-    ) -> Option<S::Data> {
+    ) -> Option<S::Value> {
         self.cache
             .read()
             .unwrap()
@@ -76,7 +71,7 @@ impl<Q: QualifierFlag> StatCache<Q> {
                 query: query.clone(),
                 stat: stat.as_entry(),
             })
-            .map(|value| value.downcast_ref::<S::Data>().expect(TYPE_ERROR).clone())
+            .map(|value| value.downcast_ref::<S::Value>().expect(TYPE_ERROR).clone())
     }
 
     pub fn clear(&self) {

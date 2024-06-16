@@ -163,19 +163,21 @@ This is almost certainly a bug since we do not provide a type erased api.";
 pub use bevy_app::{App, Plugin};
 
 mod num_traits;
-mod stream;
 pub use num_traits::{Flags, Float, Fraction, Int};
+mod stream;
 pub use stream::*;
-pub mod types;
-pub use types::StatValue;
+mod querier;
+pub use querier::*;
 mod qualifier;
+pub mod types;
 pub use qualifier::{Qualifier, QualifierFlag, QualifierQuery};
 mod stat;
 pub(crate) use stat::StatInst;
-pub use stat::{Stat, StatVTable};
-mod cache;
+pub use stat::{Stat, StatExt, StatVTable};
 pub mod operations;
-pub use cache::{StatCache, StatEntity};
+pub use operations::StatValue;
+mod cache;
+pub use cache::StatCache;
 mod plugin;
 pub use plugin::StatExtension;
 mod stat_map;
@@ -183,8 +185,7 @@ pub use stat_map::StatMap;
 pub mod rounding;
 
 use std::{
-    fmt::Debug,
-    mem::{align_of, size_of, MaybeUninit},
+    any::type_name, fmt::Debug, mem::{align_of, size_of, MaybeUninit}
 };
 
 mod sealed {
@@ -195,12 +196,13 @@ mod sealed {
 
 type Buffer = [MaybeUninit<u64>; 3];
 
-const fn validate<T>() {
+#[inline(always)]
+fn validate<T>() {
     if !matches!(align_of::<T>(), 1 | 2 | 4 | 8) {
-        panic!("Can only store values with alignment 1, 2, 4 or 8.")
+        panic!("{} has alignment {}. StatMap can only store values with alignment 1, 2, 4 or 8.", type_name::<T>(), align_of::<T>())
     }
     if size_of::<T>() > 24 {
-        panic!("Can only store values less than 24 bytes.")
+        panic!("{} has size {}. StatMap can only store values up to 24 bytes.", type_name::<T>(), size_of::<T>())
     }
 }
 

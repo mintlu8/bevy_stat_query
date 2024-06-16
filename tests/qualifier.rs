@@ -22,7 +22,7 @@ bitflags::bitflags! {
 pub struct S;
 
 impl Stat for S {
-    type Data = StatIntPercentAdditive<i32>;
+    type Value = StatIntPercentAdditive<i32>;
 
     fn name(&self) -> &'static str {
         "s"
@@ -32,8 +32,8 @@ impl Stat for S {
         [S]
     }
 
-    fn vtable() -> &'static bevy_stat_query::StatVTable {
-        static VTABLE: StatVTable = StatVTable::of::<S>();
+    fn vtable() -> &'static StatVTable<Self> {
+        static VTABLE: StatVTable<S> = StatVTable::of::<S>();
         &VTABLE
     }
 
@@ -167,10 +167,10 @@ pub fn qualifier_test() {
     assert_eq!(data.eval(), 7);
 
     let mut map = StatMap::<Q>::new();
-    map.insert_op(none, S, Add(2));
+    map.modify(none, S, Add(2));
     // + 100%
-    map.insert_op(fire, S, Mul(100));
-    map.insert_op(fire_magic, S, Max(2));
+    map.modify(fire, S, Mul(100));
+    map.modify(fire_magic, S, Max(2));
 
     let mut data = StatIntPercentAdditive::<i32>::default();
     map.stream_stat(&QualifierQuery::none(), &S, &mut data, &NoopQuerier);

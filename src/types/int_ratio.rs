@@ -1,5 +1,5 @@
-use super::{StatValue, Unsupported};
 use crate::Fraction;
+use crate::{operations::Unsupported, StatValue};
 use crate::{
     rounding::{Rounding, Truncate},
     Float, Int,
@@ -13,10 +13,10 @@ use std::marker::PhantomData;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
 #[repr(C, align(8))]
 pub struct StatInt<T: Int> {
-    pub addend: T,
-    pub min: T,
-    pub max: T,
-    pub mult: T,
+    addend: T,
+    min: T,
+    max: T,
+    mult: T,
 }
 
 impl<T: Int> Default for StatInt<T> {
