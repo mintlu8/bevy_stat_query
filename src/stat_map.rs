@@ -147,6 +147,11 @@ impl<Q: QualifierFlag> StatMap<Q> {
 
     /// Iterate over a particular stat.
     pub fn iter<S: Stat>(&self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &S::Value)> {
+        for item in &self.inner{
+            if item.0 == &(stat.as_entry(), Qualifier::none()){
+                dbg!(item.0);
+            }
+        }
         self.inner
             .range(stat.as_entry())
             .map(|((_, q), v)| (q, unsafe { from_buffer_ref(v) }))
@@ -213,14 +218,14 @@ impl<Q: QualifierFlag> StatStream<Q> for StatMap<Q> {
 }
 
 trait QueryStatEntry<Q: QualifierFlag> {
-    fn qualifier(&self) -> QuerySort<&Qualifier<Q>>;
+    fn qualifier(&self) -> QuerySort<Q>;
     fn stat(&self) -> StatInst;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum QuerySort<T> {
+enum QuerySort<'t, Q: QualifierFlag> {
     Begin,
-    Value(T),
+    Value(&'t Qualifier<Q>),
     End,
 }
 
@@ -246,15 +251,8 @@ impl<Q: QualifierFlag> Ord for dyn QueryStatEntry<Q> + '_ {
     }
 }
 
-impl<Q: QualifierFlag> Hash for dyn QueryStatEntry<Q> + '_ {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.qualifier().hash(state);
-        self.stat().hash(state);
-    }
-}
-
 impl<Q: QualifierFlag> QueryStatEntry<Q> for (StatInst, Qualifier<Q>) {
-    fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
+    fn qualifier(&self) -> QuerySort<Q> {
         QuerySort::Value(&self.1)
     }
 
@@ -264,7 +262,7 @@ impl<Q: QualifierFlag> QueryStatEntry<Q> for (StatInst, Qualifier<Q>) {
 }
 
 impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (StatInst, &'t Qualifier<Q>) {
-    fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
+    fn qualifier(&self) -> QuerySort<Q> {
         QuerySort::Value(self.1)
     }
 
@@ -273,8 +271,8 @@ impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (StatInst, &'t Qualifier<Q>) {
     }
 }
 
-impl<'t, Q: QualifierFlag> QueryStatEntry<Q> for (StatInst, QuerySort<&'t Qualifier<Q>>) {
-    fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
+impl<Q: QualifierFlag> QueryStatEntry<Q> for (StatInst, QuerySort<'_, Q>) {
+    fn qualifier(&self) -> QuerySort<Q> {
         match &self.1 {
             QuerySort::Begin => QuerySort::Begin,
             QuerySort::Value(v) => QuerySort::Value(v),
@@ -308,7 +306,7 @@ struct Begin<T>(T);
 struct End<T>(T);
 
 impl<Q: QualifierFlag> QueryStatEntry<Q> for Begin<StatInst> {
-    fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
+    fn qualifier(&self) -> QuerySort<Q> {
         QuerySort::Begin
     }
 
@@ -318,7 +316,7 @@ impl<Q: QualifierFlag> QueryStatEntry<Q> for Begin<StatInst> {
 }
 
 impl<Q: QualifierFlag> QueryStatEntry<Q> for End<StatInst> {
-    fn qualifier(&self) -> QuerySort<&Qualifier<Q>> {
+    fn qualifier(&self) -> QuerySort<Q> {
         QuerySort::End
     }
 
@@ -329,11 +327,11 @@ impl<Q: QualifierFlag> QueryStatEntry<Q> for End<StatInst> {
 
 impl<'a, Q: QualifierFlag> RangeBounds<dyn QueryStatEntry<Q> + 'a> for StatInst {
     fn start_bound(&self) -> Bound<&(dyn QueryStatEntry<Q> + 'a)> {
-        Bound::Excluded(Begin::ref_cast(self))
+        Bound::Included(Begin::ref_cast(self))
     }
 
     fn end_bound(&self) -> Bound<&(dyn QueryStatEntry<Q> + 'a)> {
-        Bound::Excluded(End::ref_cast(self))
+        Bound::Included(End::ref_cast(self))
     }
 }
 
