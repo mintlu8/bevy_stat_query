@@ -24,6 +24,7 @@ mod sealed {
     pub trait QueryStream<Q: QualifierFlag> {
         fn stream<S: Stat>(
             &self,
+            entity: Entity,
             entities: &[Entity],
             qualifier: &QualifierQuery<Q>,
             stat: &S,
@@ -50,6 +51,7 @@ pub(crate) use sealed::*;
 impl<Q: QualifierFlag> QueryStream<Q> for () {
     fn stream<S: Stat>(
         &self,
+        _: Entity,
         _: &[Entity],
         _: &QualifierQuery<Q>,
         _: &S,
@@ -62,14 +64,17 @@ impl<Q: QualifierFlag> QueryStream<Q> for () {
 impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>> QueryStream<Q> for (A, B) {
     fn stream<S: Stat>(
         &self,
+        entity: Entity,
         entities: &[Entity],
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Value,
         querier: &impl Querier<Q>,
     ) {
-        self.0.stream(entities, qualifier, stat, value, querier);
-        self.1.stream(entities, qualifier, stat, value, querier);
+        self.0
+            .stream(entity, entities, qualifier, stat, value, querier);
+        self.1
+            .stream(entity, entities, qualifier, stat, value, querier);
     }
 }
 
@@ -156,14 +161,15 @@ impl<Q: QualifierFlag, C: ComponentStream<Q>, F: QueryFilter> QueryStream<Q>
 {
     fn stream<S: Stat>(
         &self,
+        entity: Entity,
         entities: &[Entity],
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Value,
         querier: &impl Querier<Q>,
     ) {
-        for (item, entity) in self.query.iter_many(entities).zip(entities) {
-            C::stream(*entity, self.cx, item, qualifier, stat, value, querier)
+        for item in self.query.iter_many(entities) {
+            C::stream(entity, self.cx, item, qualifier, stat, value, querier)
         }
     }
 }

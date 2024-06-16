@@ -1,5 +1,8 @@
 use bevy_stat_query::{
-    operations::StatOperation::{Add, Max, Mul}, types::StatIntPercentAdditive, NoopQuerier, Qualifier, QualifierFlag, QualifierQuery, Stat, StatMap, StatStream, StatVTable, StatValue
+    operations::StatOperation::{Add, Max, Mul},
+    types::StatIntPercentAdditive,
+    NoopQuerier, Qualifier, QualifierFlag, QualifierQuery, Stat, StatMap, StatStream, StatVTable,
+    StatValue,
 };
 
 bitflags::bitflags! {

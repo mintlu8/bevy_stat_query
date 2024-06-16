@@ -185,7 +185,9 @@ pub use stat_map::StatMap;
 pub mod rounding;
 
 use std::{
-    any::type_name, fmt::Debug, mem::{align_of, size_of, MaybeUninit}
+    any::type_name,
+    fmt::Debug,
+    mem::{align_of, size_of, MaybeUninit},
 };
 
 mod sealed {
@@ -199,10 +201,18 @@ type Buffer = [MaybeUninit<u64>; 3];
 #[inline(always)]
 fn validate<T>() {
     if !matches!(align_of::<T>(), 1 | 2 | 4 | 8) {
-        panic!("{} has alignment {}. StatMap can only store values with alignment 1, 2, 4 or 8.", type_name::<T>(), align_of::<T>())
+        panic!(
+            "{} has alignment {}. StatMap can only store values with alignment 1, 2, 4 or 8.",
+            type_name::<T>(),
+            align_of::<T>()
+        )
     }
     if size_of::<T>() > 24 {
-        panic!("{} has size {}. StatMap can only store values up to 24 bytes.", type_name::<T>(), size_of::<T>())
+        panic!(
+            "{} has size {}. StatMap can only store values up to 24 bytes.",
+            type_name::<T>(),
+            size_of::<T>()
+        )
     }
 }
 

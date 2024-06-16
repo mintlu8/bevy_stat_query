@@ -44,7 +44,7 @@ impl<Q: QualifierFlag> StatCache<Q> {
         &self,
         entity: Entity,
         query: QualifierQuery<Q>,
-        stat: S,
+        stat: &S,
         value: S::Value,
     ) {
         self.cache.write().unwrap().insert(

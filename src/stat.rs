@@ -186,7 +186,7 @@ pub trait Stat: Shareable {
     fn as_index(&self) -> u64;
 
     /// Convert from a unique index of the stat.
-    /// 
+    ///
     /// This function should panic in case of a mismatch.
     fn from_index(index: u64) -> Self;
 

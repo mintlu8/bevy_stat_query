@@ -129,12 +129,15 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .map(|d| d.get(stat))
             .unwrap_or_default();
         self.component_streams
-            .stream(&[entity], query, stat, &mut result, self);
+            .stream(entity, &[entity], query, stat, &mut result, self);
         self.relationship_streams
-            .stream(&[entity], query, stat, &mut result, self);
+            .stream(entity, &[entity], query, stat, &mut result, self);
         if let Ok(Some(children)) = self.querier.entities.get(entity) {
             self.children_streams
-                .stream(children.as_ref(), query, stat, &mut result, self);
+                .stream(entity, children.as_ref(), query, stat, &mut result, self);
+        }
+        if let Some(cache) = self.querier.cache.as_ref() {
+            cache.cache(entity, query.clone(), stat, result.clone())
         }
         Some(result)
     }
@@ -290,10 +293,11 @@ impl<
     ) -> JoinedQuerier<'u, 'w, 's, Q, impl QueryStream<Q> + 't, B, C>
     where
         D: ComponentStream<Q, Cx = ()>,
+        A: 't,
     {
         JoinedQuerier {
             querier: self.querier,
-            component_streams: CxComponentStream { cx: &(), query },
+            component_streams: (self.component_streams, CxComponentStream { cx: &(), query }),
             children_streams: self.children_streams,
             relationship_streams: self.relationship_streams,
         }
@@ -305,11 +309,12 @@ impl<
     ) -> JoinedQuerier<'u, 'w, 's, Q, A, impl QueryStream<Q> + 't, C>
     where
         D: ComponentStream<Q, Cx = ()>,
+        B: 't,
     {
         JoinedQuerier {
             querier: self.querier,
             component_streams: self.component_streams,
-            children_streams: CxComponentStream { cx: &(), query },
+            children_streams: (self.children_streams, CxComponentStream { cx: &(), query }),
             relationship_streams: self.relationship_streams,
         }
     }
@@ -320,12 +325,16 @@ impl<
     ) -> JoinedQuerier<'u, 'w, 's, Q, A, B, impl QueryRelationStream<Q> + 't>
     where
         D: RelationStream<Q, Cx = ()>,
+        C: 't,
     {
         JoinedQuerier {
             querier: self.querier,
             component_streams: self.component_streams,
             children_streams: self.children_streams,
-            relationship_streams: CxComponentStream { cx: &(), query },
+            relationship_streams: (
+                self.relationship_streams,
+                CxComponentStream { cx: &(), query },
+            ),
         }
     }
 
@@ -336,12 +345,13 @@ impl<
     ) -> JoinedQuerier<'u, 'w, 's, Q, impl QueryStream<Q> + 't, B, C>
     where
         D: ComponentStream<Q>,
+        A: 't,
         't: 'w,
         't: 's,
     {
         JoinedQuerier {
             querier: self.querier,
-            component_streams: CxComponentStream { cx, query },
+            component_streams: (self.component_streams, CxComponentStream { cx, query }),
             children_streams: self.children_streams,
             relationship_streams: self.relationship_streams,
         }
@@ -354,13 +364,14 @@ impl<
     ) -> JoinedQuerier<'u, 'w, 's, Q, A, impl QueryStream<Q> + 't, C>
     where
         D: ComponentStream<Q>,
+        B: 't,
         't: 'w,
         't: 's,
     {
         JoinedQuerier {
             querier: self.querier,
             component_streams: self.component_streams,
-            children_streams: CxComponentStream { cx, query },
+            children_streams: (self.children_streams, CxComponentStream { cx, query }),
             relationship_streams: self.relationship_streams,
         }
     }
@@ -372,6 +383,7 @@ impl<
     ) -> JoinedQuerier<'u, 'w, 's, Q, A, B, impl QueryRelationStream<Q> + 't>
     where
         D: RelationStream<Q>,
+        C: 't,
         't: 'w,
         't: 's,
     {
@@ -379,7 +391,7 @@ impl<
             querier: self.querier,
             component_streams: self.component_streams,
             children_streams: self.children_streams,
-            relationship_streams: CxComponentStream { cx, query },
+            relationship_streams: (self.relationship_streams, CxComponentStream { cx, query }),
         }
     }
 }

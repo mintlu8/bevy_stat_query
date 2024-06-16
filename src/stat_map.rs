@@ -162,10 +162,7 @@ impl<Q: QualifierFlag> StatMap<Q> {
     }
 
     /// Remove all instances of a given stat.
-    pub fn remove_all<S: Stat>(
-        &mut self,
-        stat: &S,
-    ) {
+    pub fn remove_all<S: Stat>(&mut self, stat: &S) {
         self.inner.retain(|(s, _), v| {
             if s == &stat.as_entry() {
                 unsafe { (s.vtable.drop)(v) }
@@ -364,11 +361,12 @@ pub struct SeqTuple3<A, B, C>((A, B, C));
 impl<A: Serialize, B: Serialize, C: Serialize> Serialize for SeqTuple3<A, B, C> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer {
+        S: serde::Serializer,
+    {
         let mut seq = serializer.serialize_seq(Some(3))?;
-        seq.serialize_element(&self.0.0)?;
-        seq.serialize_element(&self.0.1)?;
-        seq.serialize_element(&self.0.2)?;
+        seq.serialize_element(&self.0 .0)?;
+        seq.serialize_element(&self.0 .1)?;
+        seq.serialize_element(&self.0 .2)?;
         seq.end()
     }
 }

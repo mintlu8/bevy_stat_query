@@ -2,7 +2,9 @@ use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{bind_object, DefaultInit, WorldExtension};
 use bevy_stat_query::StatVTable;
-use bevy_stat_query::{types::*, Fraction, Qualifier, Stat, StatExtension, StatMap, operations::StatOperation};
+use bevy_stat_query::{
+    operations::StatOperation, types::*, Fraction, Qualifier, Stat, StatExtension, StatMap,
+};
 use serde::{Deserialize, Serialize};
 
 bitflags::bitflags! {
@@ -118,11 +120,7 @@ pub fn serde_test() {
         map.insert_base(q_false, SUInt, 7);
         map.insert_base(q_false, SFloat32, 3.5);
         map.insert_base(q_false, SFlags, MyFlags::F);
-        map.insert_base(
-            q_false,
-            SString,
-            "Ferris the Rustacean".into(),
-        );
+        map.insert_base(q_false, SString, "Ferris the Rustacean".into());
         map.insert_base(q_false, SIntFrac, 69);
         map.insert_base(q_false, SIntPct, 420);
         map.insert_base(q_false, SMul, 1.5);
