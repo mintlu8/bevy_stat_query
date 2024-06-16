@@ -16,13 +16,12 @@
 //! or simply just `Damage`, the effect will be applied to the stat,
 //! but an effect on `Sword|Damage` or `Fire|Range` won't be applied to the stat.
 //!
-//! ## Qualifier
+//! ## [Qualifier]
 //!
-//! [`Qualifier`] is tied to effects, and provides the aforementioned `all_of`.
-//! In addition `any_of` is provided for modelling conditional effects like
+//! `Qualifier` additionally provides `any_of` for modelling conditional effects like
 //! `Elemental|Damage`, which means `Fire or Water Damage` instead of `Fire and Water Damage`.
 //!
-//! Each [`Qualifier`] can only have one group of `any_of` which is a limitation currently.
+//! Each [`Qualifier`] can only have one group of `any_of`.
 //!
 //! ### Examples
 //!
@@ -34,9 +33,9 @@
 //!     .and_all_of(Magic);
 //! ```
 //!
-//! ## QualifierQuery
+//! ## [QualifierQuery]
 //!
-//! [`QualifierQuery`] matches all `Qualifiers` on our character that
+//! `QualifierQuery` matches all `Qualifiers` on our entity that
 //! qualifies as the query we are looking for.
 //!
 //! [`QualifierQuery::Aggregate`] collects all qualifiers that matches the query.
@@ -75,8 +74,15 @@
 //!
 //! Create a new qualifier `DarkFire` instead of `Dark`|`Fire`.
 //!
-//! # Getting Started
-//!
+//! # Stat Streams
+//! 
+//! ## [ComponentStream]
+//! 
+//! `ComponentStream` turns a query into a stat stream.
+//! 
+//! ## [RelationStream]
+//! 
+//! `RelationStream` derives relations from queries on two different entities.
 //! Add marker component [`StatEntity`] to an `Entity`.
 //! If you need caching, add a [`StatCache`] as well.
 //! You need to manually clear the cache when the state is changed, however.
@@ -137,22 +143,18 @@
 //! like `distance` or `allegiance`. This can be used to model range based effects.
 //!
 //! You may find [`StatOnce`](types::StatOnce) useful in implementing these.
-//!
-//! # Note
-//!
-//! * [`StatQuerier`] requires read access to all components in stat system so we cannot mutate
-//! anything while having it as a parameter.
-//! Using system piping or some kind of deferred command queue for mutations
-//! might be advisable in this case.
-//!
-//! * The crate heavily utilizes dynamic dispatch under the hood, and is therefore
-//! not fully reflect compatible. The supported serialization method is
-//! through the [`bevy_serde_project`] crate, Check out that crate for more information.
-//!
-//! * if [`StatValue::Bounds`] is a float, their default values are likely `-inf` and `inf`,
-//! which are not valid values in `json`. This means `serde_json` will serialize them as
-//! `null` and fail when deserialized.
-//! If [`FullStatMap`] is used (optional btw), choose a different format.
+//! 
+//! # [StatMap]
+//! 
+//! `StatMap` is a optimized storage for all of your stats an implements [`StatStream`].
+//! 
+//! ## Serialization
+//! 
+//! Due to the esoteric dynamic dispatch used by [`StatMap`], this type can only be serialized
+//! via [`bevy_serde_lens`]. `Reflect` is currently not expressive enough to serialize this
+//! type but this might change in the future.
+//! 
+//! Call [`StatExtension::register_stat`] on the world for each [`Stat`] used for deserialization.
 #[allow(unused)]
 use bevy_ecs::{component::Component, query::QueryData, system::SystemParam};
 

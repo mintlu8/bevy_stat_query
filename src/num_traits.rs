@@ -1,6 +1,10 @@
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, num::Wrapping, ops::*};
+use std::{
+    fmt::Debug,
+    num::{Saturating, Wrapping},
+    ops::*,
+};
 
 use crate::Shareable;
 
@@ -181,11 +185,20 @@ impl_int_newtype!(
         i128,
         isize,
     },
-    // Blocked on serde.
-    // Saturating {
-    //     u8, u16, u32, u64, u128, usize,
-    //     i8, i16, i32, i64, i128, isize,
-    // },
+    Saturating {
+        u8,
+        u16,
+        u32,
+        u64,
+        u128,
+        usize,
+        i8,
+        i16,
+        i32,
+        i64,
+        i128,
+        isize,
+    },
 );
 
 /// Trait for a floating point number or a [`Fraction`].
