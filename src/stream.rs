@@ -1,304 +1,334 @@
-use crate::{
-    types::DynStatValue, BaseStatMap, DynStat, FullStatMap, QualifierFlag, QualifierQuery,
-    QuerierRef, Stat, StatOperationsMap, TYPE_ERROR,
-};
+use std::marker::PhantomData;
+
+use crate::{QualifierFlag, QualifierQuery, Stat, StatCache, StatDefaults, StatEntity};
 use bevy_ecs::{
-    query::{ReadOnlyQueryData, WorldQuery},
-    system::{ReadOnlySystemParam, SystemParam},
+    entity::Entity,
+    query::{QueryData, QueryFilter, With, WorldQuery},
+    system::{Query, ReadOnlySystemParam, Res, SystemParam},
 };
-use bevy_reflect::TypePath;
-use bevy_serde_lens::typetagged::{FromTypeTagged, TraitObject};
-use dyn_clone::{clone_trait_object, DynClone};
-use serde::{de::DeserializeOwned, Serialize};
+use bevy_hierarchy::Children;
 
-/// Opaque type that contains a stat and a mutable value.
-#[derive(Debug)]
-pub struct StatValuePair<'t>(
-    pub(crate) &'t dyn DynStat,
-    pub(crate) &'t mut dyn DynStatValue,
-);
+pub struct QuerierRef<'t, Q: QualifierFlag>(PhantomData<&'t Q>);
 
-impl<'t> StatValuePair<'t> {
-    pub fn new<S: Stat>(stat: &'t S, value: &'t mut S::Data) -> Self {
-        StatValuePair(stat, value)
-    }
-
-    pub fn is<'a, S: Stat>(&'a mut self, is: &S) -> Option<&'a mut S::Data> {
-        let StatValuePair(stat, data) = self;
-        if *stat == is as &dyn DynStat {
-            Some(data.downcast_mut::<S::Data>().expect(TYPE_ERROR))
-        } else {
-            None
-        }
-    }
-
-    /// If stat is a concrete stat, downcast value.
-    pub fn is_then<'a, S: Stat>(&'a mut self, is: &S, then: impl FnOnce(&'a mut S::Data)) -> bool {
-        let StatValuePair(stat, data) = self;
-        if *stat == is as &dyn DynStat {
-            then(data.downcast_mut::<S::Data>().expect(TYPE_ERROR));
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn cast<S: Stat>(&mut self) -> Option<(&S, &mut S::Data)> {
-        let StatValuePair(stat, data) = self;
-        stat.downcast_ref::<S>()
-            .map(|stat| (stat, data.downcast_mut::<S::Data>().expect(TYPE_ERROR)))
-    }
-
-    /// If stat is of a type, downcast the stat and value.
-    pub fn cast_then<'a, S: Stat>(&'a mut self, then: impl FnOnce(&S, &'a mut S::Data)) -> bool {
-        let StatValuePair(stat, data) = self;
-        if let Some(stat) = stat.downcast_ref::<S>() {
-            then(stat, data.downcast_mut::<S::Data>().expect(TYPE_ERROR));
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Extend the stat value with a stateless stream.
-    pub fn extend<Q: QualifierFlag>(
-        &mut self,
-        qualifier: &QualifierQuery<Q>,
-        extend: impl StatelessStream<Q>,
-    ) {
-        extend.stat_extend(qualifier, self)
-    }
-
-    /// Extend the stat value with a stateful stream.
-    pub fn stateful_extend<Q: QualifierFlag>(
-        &mut self,
-        qualifier: &QualifierQuery<Q>,
-        querier: &mut QuerierRef<'_, Q>,
-        extend: impl StatStream<Q>,
-    ) {
-        extend.stream(qualifier, self, querier)
-    }
-}
-
-/// A generalized object safe stat relation.
-pub trait StatelessStream<Q: QualifierFlag>: Send + Sync + 'static {
-    fn stat_extend(&self, qualifier: &QualifierQuery<Q>, stat: &mut StatValuePair);
-}
-
-impl<T, Q: QualifierFlag> StatStream<Q> for T
-where
-    T: StatelessStream<Q>,
-{
-    fn stream(
+pub trait StatStream<Q: QualifierFlag> {
+    fn stream<S: Stat>(
         &self,
         qualifier: &QualifierQuery<Q>,
-        stat: &mut StatValuePair,
-        _: &mut QuerierRef<'_, Q>,
-    ) {
-        self.stat_extend(qualifier, stat)
-    }
-}
-
-/// A generalized object safe stat relation.
-pub trait StatStream<Q: QualifierFlag>: Send + Sync + 'static {
-    fn stream(
-        &self,
-        qualifier: &QualifierQuery<Q>,
-        stat: &mut StatValuePair,
-        querier: &mut QuerierRef<'_, Q>,
+        stat: &S,
+        value: &mut S::Data,
+        querier: &mut QuerierRef<Q>,
     );
 }
 
-/// A generalized object safe stat relation that can be serialized.
-///
-/// Automatically implemented on implementors of [`StatStream`], [`TypePath`] and [`Serialize`].
-pub trait StatStreamObject<Q: QualifierFlag>: StatStream<Q> + DynClone {
-    fn name(&self) -> &'static str;
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize;
+pub trait QueryStream<Q: QualifierFlag> {
+    fn stream<S: Stat>(
+        &self,
+        entities: &[Entity],
+        qualifier: &QualifierQuery<Q>,
+        stat: &S,
+        value: &mut S::Data,
+        querier: &mut QuerierRef<Q>,
+    );
 }
 
-impl<Q: QualifierFlag, T: StatStream<Q>> StatStreamObject<Q> for T
-where
-    T: TypePath + Clone + Serialize,
-{
-    fn name(&self) -> &'static str {
-        T::short_type_path()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self
-    }
-}
-
-clone_trait_object!(<Q: QualifierFlag> StatStreamObject<Q>);
-
-impl<Q: QualifierFlag> TraitObject for Box<dyn StatStreamObject<Q>> {
-    fn name(&self) -> impl AsRef<str> {
-        self.as_ref().name()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self.as_ref().as_serialize()
-    }
-}
-
-impl<Q, T> FromTypeTagged<T> for Box<dyn StatStreamObject<Q>>
-where
-    Q: QualifierFlag,
-    T: StatStreamObject<Q> + TypePath + DeserializeOwned,
-{
-    fn name() -> impl AsRef<str> {
-        T::short_type_path()
-    }
-
-    fn from_type_tagged(item: T) -> Self {
-        Box::new(item)
-    }
-}
-
-/// An item that can be used to generate stats when directly added to [`StatEntity`](crate::StatEntity).
-///
-/// The item also allows querying for "distance" or other relation between paired components on two entities.
-pub trait IntrinsicStream<Qualifier: QualifierFlag>: ExternalStream<Qualifier> {
-    #[allow(unused)]
-    /// Write to `stat` and return true ***if a value is written***.
-    fn distance(
-        ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
-        this: <Self::QueryData as WorldQuery>::Item<'_>,
-        other: <Self::QueryData as WorldQuery>::Item<'_>,
-        qualifier: &QualifierQuery<Qualifier>,
-        stat: &mut StatValuePair,
-        querier: &mut QuerierRef<Qualifier>,
+impl<Q: QualifierFlag> QueryStream<Q> for () {
+    fn stream<S: Stat>(
+        &self,
+        _: &[Entity],
+        _: &QualifierQuery<Q>,
+        _: &S,
+        _: &mut S::Data,
+        _: &mut QuerierRef<Q>,
     ) {
     }
+}
+
+impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>> QueryStream<Q> for (A, B) {
+    fn stream<S: Stat>(
+        &self,
+        entities: &[Entity],
+        qualifier: &QualifierQuery<Q>,
+        stat: &S,
+        value: &mut S::Data,
+        querier: &mut QuerierRef<Q>,
+    ) {
+        self.0.stream(entities, qualifier, stat, value, querier);
+        self.1.stream(entities, qualifier, stat, value, querier);
+    }
+}
+
+impl<Q: QualifierFlag> QueryRelationStream<Q> for () {
+    fn relation<S: Stat>(
+        &self,
+        _: Entity,
+        _: Entity,
+        _: &QualifierQuery<Q>,
+        _: &S,
+        _: &mut S::Data,
+        _: &mut QuerierRef<Q>,
+    ) {
+    }
+}
+
+impl<Q: QualifierFlag, A: QueryRelationStream<Q>, B: QueryRelationStream<Q>> QueryRelationStream<Q>
+    for (A, B)
+{
+    fn relation<S: Stat>(
+        &self,
+        this: Entity,
+        other: Entity,
+        qualifier: &QualifierQuery<Q>,
+        stat: &S,
+        value: &mut S::Data,
+        querier: &mut QuerierRef<Q>,
+    ) {
+        self.0
+            .relation(this, other, qualifier, stat, value, querier);
+        self.1
+            .relation(this, other, qualifier, stat, value, querier);
+    }
+}
+
+pub trait QueryRelationStream<Q: QualifierFlag>: QueryStream<Q> {
+    fn relation<S: Stat>(
+        &self,
+        this: Entity,
+        other: Entity,
+        qualifier: &QualifierQuery<Q>,
+        stat: &S,
+        value: &mut S::Data,
+        querier: &mut QuerierRef<Q>,
+    );
 }
 
 /// Component and context based stat streams on children of [`StatEntity`](crate::StatEntity).
 ///
 /// The item is generated from the [`ReadOnlyQueryData`] and a [`SystemParam`] context,
 /// For example an `Asset` can be generated from a `Handle` and context `Assets`.
-pub trait ExternalStream<Q: QualifierFlag>: 'static {
-    type Ctx: ReadOnlySystemParam;
-    type QueryData: ReadOnlyQueryData;
-    fn stream(
-        ctx: &<Self::Ctx as SystemParam>::Item<'_, '_>,
-        component: <Self::QueryData as WorldQuery>::Item<'_>,
+pub trait ComponentStream<Q: QualifierFlag>: QueryData {
+    type Cx: ReadOnlySystemParam;
+    fn stream<S: Stat>(
+        ctx: &<Self::Cx as SystemParam>::Item<'_, '_>,
+        component: <Self::ReadOnly as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Q>,
-        stat: &mut StatValuePair,
-        querier: &mut QuerierRef<'_, Q>,
+        stat: &S,
+        value: &mut S::Data,
+        querier: &mut QuerierRef<Q>,
     );
 }
 
-impl<Q: QualifierFlag> StatelessStream<Q> for BaseStatMap<Q> {
-    fn stat_extend(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
-        let StatValuePair(stat, data) = pair;
-        self.iter_dyn(*stat)
-            .filter(|(q, _)| q.qualifies_as(qualifier))
-            .for_each(|(_, op)| data.apply_op(stat.from_base(op).as_ref()))
-    }
-}
-
-impl<Q: QualifierFlag> StatelessStream<Q> for FullStatMap<Q> {
-    fn stat_extend(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
-        let StatValuePair(stat, data) = pair;
-        self.iter_dyn(*stat)
-            .filter(|(q, _)| q.qualifies_as(qualifier))
-            .for_each(|(_, op)| data.join_value(op))
-    }
-}
-
-impl<Q: QualifierFlag> StatelessStream<Q> for StatOperationsMap<Q> {
-    fn stat_extend(&self, qualifier: &QualifierQuery<Q>, pair: &mut StatValuePair) {
-        let StatValuePair(stat, data) = pair;
-        self.iter_dyn(*stat)
-            .filter(|(q, _)| q.qualifies_as(qualifier))
-            .for_each(|(_, op)| data.apply_op(op))
-    }
-}
-
-impl<Q: QualifierFlag> ExternalStream<Q> for BaseStatMap<Q> {
-    type Ctx = ();
-    type QueryData = Option<&'static Self>;
-
-    fn stream(
-        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
-        this: <Self::QueryData as WorldQuery>::Item<'_>,
+/// An item that can be used to generate stats when directly added to [`StatEntity`](crate::StatEntity).
+///
+/// The item also allows querying for "distance" or other relation between paired components on two entities.
+pub trait RelationStream<Q: QualifierFlag>: ComponentStream<Q> {
+    #[allow(unused)]
+    /// Write to `stat` and return true ***if a value is written***.
+    fn relation<S: Stat>(
+        ctx: &<Self::Cx as SystemParam>::Item<'_, '_>,
+        this: <Self::ReadOnly as WorldQuery>::Item<'_>,
+        other: <Self::ReadOnly as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Q>,
-        pair: &mut StatValuePair,
-        _: &mut QuerierRef<'_, Q>,
-    ) {
-        if let Some(this) = this {
-            this.stat_extend(qualifier, pair);
+        stat: &S,
+        value: &mut S::Data,
+        querier: &mut QuerierRef<Q>,
+    );
+}
+
+#[derive(Debug, SystemParam)]
+pub struct Querier<'w, 's, Q: QualifierFlag> {
+    cache: Option<Res<'w, StatCache<Q>>>,
+    defaults: Option<Res<'w, StatDefaults>>,
+    entities: Query<'w, 's, Option<&'static Children>, With<StatEntity>>,
+}
+
+impl<'w, 's, Q: QualifierFlag> Querier<'w, 's, Q> {
+    pub fn clear_cache(&mut self) {
+        if let Some(cache) = &mut self.cache {
+            cache.clear()
+        }
+    }
+
+    pub fn with_component<'t, D, F: QueryFilter>(
+        &'t self,
+        query: &'t Query<D, F>,
+    ) -> JoinedQuerier<'_, 'w, 's, Q, impl QueryStream<Q> + 't, (), ()>
+    where
+        D: ComponentStream<Q, Cx = ()>,
+    {
+        JoinedQuerier {
+            querier: self,
+            component_streams: CxComponentStream { cx: &(), query },
+            children_stream: (),
+            relationship_streams: (),
+        }
+    }
+
+    pub fn with_children<'t, D, F: QueryFilter>(
+        &'t self,
+        query: &'t Query<D, F>,
+    ) -> JoinedQuerier<'_, 'w, 's, Q, (), impl QueryStream<Q> + 't, ()>
+    where
+        D: ComponentStream<Q, Cx = ()>,
+    {
+        JoinedQuerier {
+            querier: self,
+            component_streams: (),
+            children_stream: CxComponentStream { cx: &(), query },
+            relationship_streams: (),
+        }
+    }
+
+    pub fn with_relation<'t, D, F: QueryFilter>(
+        &'t mut self,
+        query: &'t Query<D, F>,
+    ) -> JoinedQuerier<'_, 'w, 's, Q, (), (), impl QueryRelationStream<Q> + 't>
+    where
+        D: RelationStream<Q, Cx = ()>,
+    {
+        JoinedQuerier {
+            querier: self,
+            component_streams: (),
+            children_stream: (),
+            relationship_streams: CxComponentStream { cx: &(), query },
         }
     }
 }
 
-impl<Q: QualifierFlag> ExternalStream<Q> for FullStatMap<Q> {
-    type Ctx = ();
-    type QueryData = Option<&'static Self>;
+pub struct JoinedQuerier<
+    't,
+    'w,
+    's,
+    Q: QualifierFlag,
+    A: QueryStream<Q>,
+    B: QueryStream<Q>,
+    C: QueryRelationStream<Q>,
+> {
+    querier: &'t Querier<'w, 's, Q>,
+    component_streams: A,
+    children_stream: B,
+    relationship_streams: C,
+}
 
-    fn stream(
-        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
-        this: <Self::QueryData as WorldQuery>::Item<'_>,
+impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStream<Q>>
+    JoinedQuerier<'_, '_, '_, Q, A, B, C>
+{
+    pub fn query_stat<S: Stat>(
+        &self,
+        entity: Entity,
+        query: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> Option<S::Data> {
+        if !self.querier.entities.contains(entity) {
+            return None;
+        }
+        if let Some(cached) = self
+            .querier
+            .cache
+            .as_ref()
+            .and_then(|c| c.try_get_cached(entity, query, stat))
+        {
+            return Some(cached);
+        }
+        let mut result = self
+            .querier
+            .defaults
+            .as_ref()
+            .map(|d| d.get(stat))
+            .unwrap_or_default();
+        self.component_streams.stream(
+            &[entity],
+            query,
+            stat,
+            &mut result,
+            &mut QuerierRef(PhantomData),
+        );
+        self.relationship_streams.stream(
+            &[entity],
+            query,
+            stat,
+            &mut result,
+            &mut QuerierRef(PhantomData),
+        );
+        if let Ok(Some(children)) = self.querier.entities.get(entity) {
+            self.component_streams.stream(
+                children.as_ref(),
+                query,
+                stat,
+                &mut result,
+                &mut QuerierRef(PhantomData),
+            );
+        }
+        Some(result)
+    }
+
+    pub fn query_relation<S: Stat>(
+        &self,
+        from: Entity,
+        to: Entity,
+        query: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> Option<S::Data> {
+        if !self.querier.entities.contains(from) || !self.querier.entities.contains(to) {
+            return None;
+        }
+        let mut result = self
+            .querier
+            .defaults
+            .as_ref()
+            .map(|d| d.get(stat))
+            .unwrap_or_default();
+        self.relationship_streams.relation(
+            from,
+            to,
+            query,
+            stat,
+            &mut result,
+            &mut QuerierRef(PhantomData),
+        );
+        Some(result)
+    }
+}
+
+pub struct CxComponentStream<'t, 'w, 's, Q: QualifierFlag, C: ComponentStream<Q>, F: QueryFilter> {
+    cx: &'t <C::Cx as SystemParam>::Item<'w, 's>,
+    query: &'t Query<'w, 's, C, F>,
+}
+
+impl<Q: QualifierFlag, C: ComponentStream<Q>, F: QueryFilter> QueryStream<Q>
+    for CxComponentStream<'_, '_, '_, Q, C, F>
+{
+    fn stream<S: Stat>(
+        &self,
+        entities: &[Entity],
         qualifier: &QualifierQuery<Q>,
-        pair: &mut StatValuePair,
-        _: &mut QuerierRef<'_, Q>,
+        stat: &S,
+        value: &mut S::Data,
+        querier: &mut QuerierRef<Q>,
     ) {
-        if let Some(this) = this {
-            this.stat_extend(qualifier, pair);
+        for item in self.query.iter_many(entities) {
+            C::stream(self.cx, item, qualifier, stat, value, querier)
         }
     }
 }
 
-impl<Q: QualifierFlag> ExternalStream<Q> for StatOperationsMap<Q> {
-    type Ctx = ();
-    type QueryData = Option<&'static Self>;
-
-    fn stream(
-        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
-        this: <Self::QueryData as WorldQuery>::Item<'_>,
+impl<Q: QualifierFlag, C: RelationStream<Q>, F: QueryFilter> QueryRelationStream<Q>
+    for CxComponentStream<'_, '_, '_, Q, C, F>
+{
+    fn relation<S: Stat>(
+        &self,
+        this: Entity,
+        other: Entity,
         qualifier: &QualifierQuery<Q>,
-        pair: &mut StatValuePair,
-        _: &mut QuerierRef<'_, Q>,
+        stat: &S,
+        value: &mut S::Data,
+        querier: &mut QuerierRef<Q>,
     ) {
-        if let Some(this) = this {
-            this.stat_extend(qualifier, pair);
-        }
-    }
-}
-
-impl<Q: QualifierFlag> IntrinsicStream<Q> for BaseStatMap<Q> {
-    fn distance(
-        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
-        _: <Self::QueryData as WorldQuery>::Item<'_>,
-        _: <Self::QueryData as WorldQuery>::Item<'_>,
-        _: &QualifierQuery<Q>,
-        _: &mut StatValuePair,
-        _: &mut QuerierRef<Q>,
-    ) {
-    }
-}
-
-impl<Q: QualifierFlag> IntrinsicStream<Q> for FullStatMap<Q> {
-    fn distance(
-        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
-        _: <Self::QueryData as WorldQuery>::Item<'_>,
-        _: <Self::QueryData as WorldQuery>::Item<'_>,
-        _: &QualifierQuery<Q>,
-        _: &mut StatValuePair,
-        _: &mut QuerierRef<Q>,
-    ) {
-    }
-}
-
-impl<Q: QualifierFlag> IntrinsicStream<Q> for StatOperationsMap<Q> {
-    fn distance(
-        _: &<Self::Ctx as SystemParam>::Item<'_, '_>,
-        _: <Self::QueryData as WorldQuery>::Item<'_>,
-        _: <Self::QueryData as WorldQuery>::Item<'_>,
-        _: &QualifierQuery<Q>,
-        _: &mut StatValuePair,
-        _: &mut QuerierRef<Q>,
-    ) {
+        let Ok(this) = self.query.get(this) else {
+            return;
+        };
+        let Ok(other) = self.query.get(other) else {
+            return;
+        };
+        C::relation(self.cx, this, other, qualifier, stat, value, querier)
     }
 }

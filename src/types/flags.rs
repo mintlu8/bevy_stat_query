@@ -1,9 +1,8 @@
 use crate::{calc::StatOperation, num_traits::Flags, Serializable};
 use bevy_reflect::TypePath;
-use bevy_utils::HashSet;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
 use std::hash::Hash;
+use std::{collections::HashSet, fmt::Debug};
 
 use super::{StatValue, Unsupported};
 

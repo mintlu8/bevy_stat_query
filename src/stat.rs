@@ -3,18 +3,93 @@ use std::{
     cmp::{Eq, Ord, Ordering},
     fmt::Debug,
     hash::Hash,
-    str::FromStr,
+    mem::MaybeUninit,
+    ptr,
 };
 
 use bevy_ecs::system::Resource;
 use bevy_serde_lens::with_world_mut;
-use bevy_utils::HashMap;
-use downcast_rs::{impl_downcast, Downcast};
-use dyn_clone::DynClone;
-use dyn_hash::DynHash;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{sealed::Sealed, types::DynStatValue, Data, Shareable, StatValue, TYPE_ERROR};
+use crate::{validate, Buffer, Shareable, StatValue};
+
+pub struct StatVTable {
+    pub name: fn(u64) -> &'static str,
+    pub as_serialize: unsafe fn(&Buffer) -> &dyn erased_serde::Serialize,
+    pub deserialize: unsafe fn(&mut dyn erased_serde::Deserializer) -> erased_serde::Result<Buffer>,
+    pub drop: unsafe fn(Buffer),
+}
+
+impl StatVTable {
+    pub const fn of<T: Stat>() -> Self {
+        StatVTable {
+            name: |id| T::index_to_name(id),
+            as_serialize: |buffer| {
+                validate::<T::Data>();
+                let ptr = ptr::from_ref(buffer).cast::<T::Data>();
+                unsafe { ptr.as_ref() }.unwrap()
+            },
+            deserialize: |deserializer| {
+                validate::<T::Data>();
+                let value: T::Data = erased_serde::deserialize(deserializer)?;
+                let mut buffer = [MaybeUninit::uninit(); 3];
+                let ptr = buffer.as_mut_ptr() as *mut T::Data;
+                unsafe { ptr.write(value) };
+                Ok(buffer)
+            },
+            drop: |buffer| {
+                validate::<T::Data>();
+                let ptr = ptr::from_ref(&buffer).cast::<T::Data>();
+                let value = unsafe { ptr.read() };
+                drop(value)
+            },
+        }
+    }
+}
+
+impl Debug for StatVTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StatVTable").finish_non_exhaustive()
+    }
+}
+
+fn ref_cmp<T>(a: &T, b: &T) -> Ordering {
+    (a as *const T as usize).cmp(&(b as *const T as usize))
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct StatInst {
+    pub(crate) index: u64,
+    pub(crate) vtable: &'static StatVTable,
+}
+
+impl PartialEq for StatInst {
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index && ptr::eq(self.vtable, other.vtable)
+    }
+}
+
+impl Eq for StatInst {}
+
+impl PartialOrd for StatInst {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for StatInst {
+    fn cmp(&self, other: &Self) -> Ordering {
+        ref_cmp(self, other)
+    }
+}
+
+impl Hash for StatInst {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.index.hash(state);
+        (ptr::from_ref(self.vtable) as usize).hash(state);
+    }
+}
 
 /// Implement this on your types to qualify them as a [`Stat`].
 ///
@@ -40,144 +115,39 @@ pub trait Stat: Shareable + Hash + Debug + Eq + Ord {
     type Data: StatValue;
 
     /// Unique name of the stat.
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
+
+    fn vtable() -> &'static StatVTable;
+
+    fn as_index(&self) -> u64;
+
+    fn from_index(index: u64) -> Self;
 
     /// Register all fields,
     /// alternatively register a `FromStr` parser.
     fn values() -> impl IntoIterator<Item = Self>;
 
-    /// Equality comparison between all stat implementors.
-    fn is<S: Stat + Sealed>(&self, other: &S) -> bool {
-        self as &dyn DynStat == other as &dyn DynStat
-    }
-}
-
-/// Object safe version of [`Stat`].
-pub(crate) trait DynStat: Downcast + DynClone + DynHash + Debug + Send + Sync {
-    fn name(&self) -> &str;
-    fn dyn_eq(&self, other: &dyn DynStat) -> bool;
-    fn dyn_ord(&self, other: &dyn DynStat) -> Ordering;
-    fn default_value(&self) -> Box<dyn DynStatValue>;
-    #[allow(clippy::wrong_self_convention)]
-    fn from_base(&self, out: &dyn Data) -> Box<dyn Data>;
-}
-
-impl_downcast!(DynStat);
-dyn_clone::clone_trait_object!(DynStat);
-dyn_hash::hash_trait_object!(DynStat);
-
-impl PartialEq for dyn DynStat {
-    fn eq(&self, other: &Self) -> bool {
-        self.dyn_eq(other)
-    }
-}
-
-impl Eq for dyn DynStat {}
-
-impl<S: DynStat> PartialEq<S> for dyn DynStat {
-    fn eq(&self, other: &S) -> bool {
-        self.dyn_eq(other)
-    }
-}
-
-impl<S: DynStat> PartialEq<S> for Box<dyn DynStat> {
-    fn eq(&self, other: &S) -> bool {
-        self.dyn_eq(other)
-    }
-}
-
-impl PartialEq<str> for dyn DynStat {
-    fn eq(&self, other: &str) -> bool {
-        self.name() == other
-    }
-}
-
-impl PartialEq<str> for Box<dyn DynStat> {
-    fn eq(&self, other: &str) -> bool {
-        self.name() == other
-    }
-}
-
-impl PartialEq<String> for dyn DynStat {
-    fn eq(&self, other: &String) -> bool {
-        self.name() == other.as_str()
-    }
-}
-
-impl PartialEq<String> for Box<dyn DynStat> {
-    fn eq(&self, other: &String) -> bool {
-        self.name() == other.as_str()
-    }
-}
-
-impl PartialOrd for dyn DynStat {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for dyn DynStat {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.dyn_ord(other)
-    }
-}
-
-impl<T> From<T> for Box<dyn DynStat>
-where
-    T: Stat,
-{
-    fn from(value: T) -> Self {
-        Box::new(value)
-    }
-}
-
-impl<T> DynStat for T
-where
-    T: Stat,
-{
-    fn name(&self) -> &str {
-        self.name()
+    fn index_to_name(index: u64) -> &'static str {
+        Self::from_index(index).name()
     }
 
-    fn dyn_eq(&self, other: &dyn DynStat) -> bool {
-        other
-            .downcast_ref::<Self>()
-            .map(|x| x == self)
-            .unwrap_or(false)
-    }
-
-    fn dyn_ord(&self, other: &dyn DynStat) -> Ordering {
-        use std::any::Any;
-        other
-            .downcast_ref::<Self>()
-            .map(|x| x.cmp(self))
-            .unwrap_or(self.type_id().cmp(&other.type_id()))
-    }
-
-    fn default_value(&self) -> Box<dyn DynStatValue> {
-        Box::<<T as Stat>::Data>::default()
-    }
-
-    fn from_base(&self, out: &dyn Data) -> Box<dyn Data> {
-        Box::new(<<T as Stat>::Data>::from_base(
-            out.downcast_ref::<<<T as Stat>::Data as StatValue>::Out>()
-                .expect(TYPE_ERROR)
-                .clone(),
-        ))
+    fn as_entry(&self) -> StatInst {
+        StatInst {
+            index: self.as_index(),
+            vtable: Self::vtable(),
+        }
     }
 }
 
 #[derive(Resource, Default)]
 pub struct StatInstances {
-    pub(crate) concrete: HashMap<String, Box<dyn DynStat>>,
-    pub(crate) any: Vec<fn(&str) -> Option<Box<dyn DynStat>>>,
+    pub(crate) concrete: FxHashMap<String, StatInst>,
 }
 
 impl Debug for StatInstances {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("StatInstances")
             .field("concrete", &self.concrete)
-            .field("any", &self.any.len())
             .finish()
     }
 }
@@ -191,9 +161,9 @@ impl StatInstances {
     pub fn register<T: Stat>(&mut self) {
         T::values().into_iter().for_each(|x| {
             if let Some(prev) = self.concrete.get(x.name()) {
-                assert_eq!(prev.as_ref(), &x, "duplicate key {}", x.name())
+                assert_eq!(prev, &x.as_entry(), "duplicate key {}", x.name())
             } else {
-                self.concrete.insert(x.name().to_owned(), Box::new(x));
+                self.concrete.insert(x.name().to_owned(), x.as_entry());
             }
         })
     }
@@ -203,41 +173,25 @@ impl StatInstances {
     /// Always replaces a registered [`Stat`] of the same key.
     pub fn register_replace<T: Stat>(&mut self) {
         T::values().into_iter().for_each(|x| {
-            self.concrete.insert(x.name().to_owned(), Box::new(x));
+            self.concrete.insert(x.name().to_owned(), x.as_entry());
         })
     }
 
-    /// Register all members of a [`Stat`] if applicable and a [`FromStr`] parser.
-    ///
-    /// # Panics
-    ///
-    /// If a stat registered conflicts with a previous entry.
-    pub fn register_parser<T: Stat + FromStr>(&mut self) {
-        self.register::<T>();
-        self.any
-            .push(|s| T::from_str(s).map(|x| Box::new(x) as Box<dyn DynStat>).ok())
-    }
-
-    /// Register all members of a [`Stat`] if applicable and a [`FromStr`] parser.
-    ///
-    /// Always replaces a registered [`Stat`] of the same key.
-    pub fn register_parser_replace<T: Stat + FromStr>(&mut self) {
-        self.register_replace::<T>();
-        self.any
-            .push(|s| T::from_str(s).map(|x| Box::new(x) as Box<dyn DynStat>).ok())
+    pub fn get(&self, name: &str) -> Option<StatInst> {
+        self.concrete.get(name).copied()
     }
 }
 
-impl Serialize for Box<dyn DynStat> {
+impl Serialize for StatInst {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        self.name().serialize(serializer)
+        (self.vtable.name)(self.index).serialize(serializer)
     }
 }
 
-impl<'de> Deserialize<'de> for Box<dyn DynStat> {
+impl<'de> Deserialize<'de> for StatInst {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -246,9 +200,7 @@ impl<'de> Deserialize<'de> for Box<dyn DynStat> {
         with_world_mut::<_, D>(|world| {
             let ctx = world.resource::<StatInstances>();
             if let Some(result) = ctx.concrete.get(s.as_ref()) {
-                Ok(result.clone())
-            } else if let Some(result) = ctx.any.iter().find_map(|f| f(&s)) {
-                Ok(result.clone())
+                Ok(*result)
             } else {
                 Err(serde::de::Error::custom(format!(
                     "Unable to parse Stat \"{s}\"."

@@ -162,44 +162,57 @@ This is almost certainly a bug since we do not provide a type erased api.";
 #[doc(hidden)]
 pub use bevy_app::{App, Plugin};
 
-use bevy_reflect::TypePath;
 use bevy_serde_lens::typetagged::{FromTypeTagged, TraitObject};
 use downcast_rs::Downcast;
 mod stream;
 use dyn_clone::{clone_trait_object, DynClone};
 use serde::{de::DeserializeOwned, Serialize};
-pub use stream::StatValuePair;
 mod num_traits;
 pub use num_traits::{Flags, Float, Fraction, Int};
-pub use stream::{ExternalStream, IntrinsicStream, StatStream, StatStreamObject, StatelessStream};
+//pub use stream::{StreamQuery, RelationStream, StreamQuery, StatStreamObject, StatelessStream};
 pub mod types;
 pub use types::StatValue;
 mod qualifier;
 pub use qualifier::{Qualifier, QualifierFlag, QualifierQuery};
 mod stat;
 pub use stat::Stat;
-pub(crate) use stat::{DynStat, StatInstances};
+pub(crate) use stat::StatInst;
 mod calc;
 pub use calc::{StatDefaults, StatOperation};
 mod entity;
 pub use entity::{StatCache, StatEntity};
 mod plugin;
 pub mod rounding;
-pub use plugin::{CachedQueriers, StatExtension, StatQueryPlugin};
+//pub use plugin::{CachedQueriers, StatExtension, StatQueryPlugin};
 mod querier;
-pub use querier::{hints, NoopQuerier, QuerierRef, StatQuerier};
+//pub use querier::{hints, NoopQuerier, QuerierRef, StatQuerier};
 mod param;
 #[doc(hidden)]
-pub use param::{ChildStatParam, StatParam};
+//pub use param::{ChildStatParam, StatParam};
 mod stat_map;
-pub use stat_map::{BaseStatMap, FullStatMap, StatOperationsMap, Unqualified};
+pub use stat_map::StatMap;
 
-use std::fmt::Debug;
+use std::{
+    any::type_name,
+    fmt::Debug,
+    mem::{align_of, size_of, MaybeUninit},
+};
 
 mod sealed {
     pub trait Sealed {}
 
     impl<T: ?Sized> Sealed for T {}
+}
+
+type Buffer = [MaybeUninit<u64>; 3];
+
+const fn validate<T>() {
+    if !matches!(align_of::<T>(), 1 | 2 | 4 | 8) {
+        panic!("Can only store values with alignment 1, 2, 4 or 8.")
+    }
+    if size_of::<T>() > 24 {
+        panic!("Can only store values less than 24 bytes.")
+    }
 }
 
 /// Alias for `Clone + Debug + Send + Sync + 'static`.
@@ -208,11 +221,11 @@ impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 
 /// Alias for `Clone + Debug + Send + Sync + 'static`.
 pub trait Serializable:
-    Clone + Debug + Send + Sync + Serialize + DeserializeOwned + TypePath + 'static
+    Clone + Debug + Send + Sync + Serialize + DeserializeOwned + 'static
 {
 }
 impl<T> Serializable for T where
-    T: Clone + Debug + Send + Sync + Sync + Serialize + DeserializeOwned + TypePath + 'static
+    T: Clone + Debug + Send + Sync + Sync + Serialize + DeserializeOwned + 'static
 {
 }
 
@@ -224,10 +237,10 @@ pub(crate) trait Data: Send + Sync + Downcast + Debug + DynClone {
 
 impl<T> Data for T
 where
-    T: Shareable + TypePath + serde::Serialize,
+    T: Shareable + serde::Serialize,
 {
     fn name(&self) -> &'static str {
-        T::short_type_path()
+        type_name::<T>()
     }
 
     fn as_serialize(&self) -> &dyn erased_serde::Serialize {
@@ -249,7 +262,7 @@ impl TraitObject for Box<dyn Data> {
 
 impl<T: Serializable> FromTypeTagged<T> for Box<dyn Data> {
     fn name() -> impl AsRef<str> {
-        T::short_type_path()
+        type_name::<T>()
     }
 
     fn from_type_tagged(item: T) -> Self {

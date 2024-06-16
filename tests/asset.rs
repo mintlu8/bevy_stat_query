@@ -9,8 +9,8 @@ use bevy_ecs::{
 use bevy_hierarchy::BuildChildren;
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    querier, types::StatFloat, ExternalStream, QualifierQuery, QuerierRef, Stat, StatCache,
-    StatEntity, StatExtension, StatQueryPlugin, StatValue,
+    querier, types::StatFloat, QualifierQuery, QuerierRef, Stat, StatCache, StatEntity,
+    StatExtension, StatQueryPlugin, StatValue, StreamQuery,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -61,7 +61,7 @@ pub struct B;
 
 type MyQualifier = u32;
 
-impl ExternalStream<MyQualifier> for Weapon {
+impl StreamQuery<MyQualifier> for Weapon {
     type Ctx = Res<'static, Assets<Weapon>>;
     type QueryData = (&'static Handle<Weapon>, &'static WeaponState);
     fn stream(

@@ -4,8 +4,8 @@ use bevy_reflect::TypePath;
 use bevy_stat_query::{
     querier,
     types::{StatInt, StatOnce},
-    CachedQueriers, ExternalStream, IntrinsicStream, QualifierQuery, QuerierRef, Stat, StatCache,
-    StatEntity, StatExtension, StatValue,
+    CachedQueriers, QualifierQuery, QuerierRef, RelationStream, Stat, StatCache, StatEntity,
+    StatExtension, StatValue, StreamQuery,
 };
 use serde::{Deserialize, Serialize};
 
@@ -90,7 +90,7 @@ pub struct A;
 #[derive(Component)]
 pub struct B;
 
-impl ExternalStream<bool> for Position {
+impl StreamQuery<bool> for Position {
     type Ctx = ();
     type QueryData = &'static Position;
     fn stream(
@@ -103,8 +103,8 @@ impl ExternalStream<bool> for Position {
     }
 }
 
-impl IntrinsicStream<bool> for Position {
-    fn distance(
+impl RelationStream<bool> for Position {
+    fn relation(
         _: &<Self::Ctx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         this: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         other: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
@@ -118,7 +118,7 @@ impl IntrinsicStream<bool> for Position {
     }
 }
 
-impl ExternalStream<bool> for Allegiance {
+impl StreamQuery<bool> for Allegiance {
     type Ctx = ();
     type QueryData = &'static Allegiance;
     fn stream(
@@ -131,8 +131,8 @@ impl ExternalStream<bool> for Allegiance {
     }
 }
 
-impl IntrinsicStream<bool> for Allegiance {
-    fn distance(
+impl RelationStream<bool> for Allegiance {
+    fn relation(
         _: &<Self::Ctx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         this: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
         other: <Self::QueryData as bevy_ecs::query::WorldQuery>::Item<'_>,
@@ -177,7 +177,7 @@ impl Stat for StatEffects {
     }
 }
 
-impl ExternalStream<bool> for DistanceAura {
+impl StreamQuery<bool> for DistanceAura {
     type Ctx = ();
 
     type QueryData = &'static DistanceAura;
@@ -201,7 +201,7 @@ impl ExternalStream<bool> for DistanceAura {
     }
 }
 
-impl ExternalStream<bool> for AllegianceAura {
+impl StreamQuery<bool> for AllegianceAura {
     type Ctx = ();
 
     type QueryData = &'static AllegianceAura;

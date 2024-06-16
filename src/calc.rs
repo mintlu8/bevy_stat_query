@@ -1,12 +1,11 @@
+use std::any::Any;
+
 use bevy_ecs::system::Resource;
 use bevy_reflect::TypePath;
-use bevy_utils::HashMap;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    types::{DynStatValue, StatValue},
-    DynStat, Stat, TYPE_ERROR,
-};
+use crate::{types::StatValue, Stat, StatInst, TYPE_ERROR};
 
 /// An single step unordered operation on a [`StatValue`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Serialize, Deserialize, TypePath)]
@@ -39,27 +38,27 @@ impl<S: StatValue> StatOperation<S> {
 /// Stats that are not registered are still returned with [`Default::default()`] instead.
 #[derive(Debug, Resource, Default, TypePath)]
 pub struct StatDefaults {
-    stats: HashMap<Box<dyn DynStat>, Box<dyn DynStatValue>>,
+    stats: FxHashMap<StatInst, Box<dyn Any + Send + Sync>>,
 }
 
 impl StatDefaults {
     pub fn new() -> Self {
         Self {
-            stats: HashMap::default(),
+            stats: FxHashMap::default(),
         }
     }
 
     /// Insert a [`Stat`] and its associated default value.
     pub fn insert<S: Stat>(&mut self, stat: S, value: S::Data) {
-        self.stats.insert(Box::new(stat), Box::new(value));
+        self.stats.insert(stat.as_entry(), Box::new(value));
     }
 
     /// Modify a [`Stat`]'s default value.
     pub fn patch<S: Stat>(&mut self, stat: &S, value: StatOperation<S::Data>) {
-        match self.stats.get_mut(stat as &dyn DynStat) {
+        match self.stats.get_mut(&stat.as_entry()) {
             Some(stat) => value.write_to(stat.downcast_mut::<S::Data>().expect(TYPE_ERROR)),
             None => {
-                self.stats.insert(Box::new(stat.clone()), {
+                self.stats.insert(stat.as_entry(), {
                     let mut stat = S::Data::default();
                     value.write_to(&mut stat);
                     Box::new(stat)
@@ -71,17 +70,9 @@ impl StatDefaults {
     /// Obtain a [`Stat`]'s default value.
     pub fn get<S: Stat>(&self, stat: &S) -> S::Data {
         self.stats
-            .get(stat as &dyn DynStat)
+            .get(&stat.as_entry())
             .and_then(|x| x.downcast_ref::<S::Data>())
             .cloned()
             .unwrap_or(Default::default())
-    }
-
-    /// Obtain a [`Stat`]'s default value.
-    pub(crate) fn get_dyn(&self, stat: &dyn DynStat) -> Box<dyn DynStatValue> {
-        self.stats
-            .get(stat as &dyn DynStat)
-            .cloned()
-            .unwrap_or(stat.default_value())
     }
 }
