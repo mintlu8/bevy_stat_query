@@ -6,7 +6,7 @@ mod singleton;
 
 use std::fmt::Debug;
 
-use crate::Serializable;
+use crate::Shareable;
 use bevy_reflect::TypePath;
 pub use flags::StatFlags;
 pub use float::{StatFloat, StatFloatAdditive, StatMult};
@@ -21,16 +21,16 @@ pub enum Unsupported {}
 
 /// Defines unordered operations on a stat's value.
 #[allow(unused_variables)]
-pub trait StatValue: Serializable + Default {
-    type Out: Serializable + Default;
+pub trait StatValue: Shareable + Default {
+    type Out: Shareable + Default;
     fn join(&mut self, other: Self);
     fn eval(&self) -> Self::Out;
 
-    type Add: Serializable;
-    type Mul: Serializable;
-    type Bit: Serializable;
-    type Bounds: Serializable;
-    type Base: Serializable;
+    type Add: Shareable;
+    type Mul: Shareable;
+    type Bit: Shareable;
+    type Bounds: Shareable;
+    type Base: Shareable;
 
     fn add(&mut self, other: Self::Add) {}
     fn mul(&mut self, other: Self::Mul) {}

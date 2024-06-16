@@ -11,7 +11,7 @@ use std::{
 use bevy_ecs::system::Resource;
 use bevy_serde_lens::with_world_mut;
 use rustc_hash::FxHashMap;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{validate, Buffer, Shareable, StatValue};
 
@@ -23,7 +23,7 @@ pub struct StatVTable {
 }
 
 impl StatVTable {
-    pub const fn of<T: Stat>() -> Self {
+    pub const fn of<T: Stat<Data: Serialize + DeserializeOwned>>() -> Self {
         StatVTable {
             name: |id| T::index_to_name(id),
             as_serialize: |buffer| {
@@ -39,6 +39,20 @@ impl StatVTable {
                 unsafe { ptr.write(value) };
                 Ok(buffer)
             },
+            drop: |buffer| {
+                validate::<T::Data>();
+                let ptr = ptr::from_ref(&buffer).cast::<T::Data>();
+                let value = unsafe { ptr.read() };
+                drop(value)
+            },
+        }
+    }
+
+    pub const fn no_serialize<T: Stat>() -> Self {
+        StatVTable {
+            name: |id| T::index_to_name(id),
+            as_serialize: |_| panic!("Serialization is not supported."),
+            deserialize: |_| panic!("Deserialization is not supported."),
             drop: |buffer| {
                 validate::<T::Data>();
                 let ptr = ptr::from_ref(&buffer).cast::<T::Data>();

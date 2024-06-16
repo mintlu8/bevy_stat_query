@@ -1,4 +1,6 @@
-use crate::{QualifierFlag, QualifierQuery, Stat, StatCache, StatDefaults, StatEntity, StatValue};
+use crate::{
+    plugin::StatDefaults, QualifierFlag, QualifierQuery, Stat, StatCache, StatEntity, StatValue,
+};
 use bevy_ecs::{
     entity::Entity,
     query::{QueryData, QueryFilter, With, WorldQuery},
@@ -7,7 +9,7 @@ use bevy_ecs::{
 use bevy_hierarchy::Children;
 
 pub trait StatStream<Q: QualifierFlag> {
-    fn stream<S: Stat>(
+    fn stream_stat<S: Stat>(
         &self,
         qualifier: &QualifierQuery<Q>,
         stat: &S,
@@ -297,6 +299,7 @@ pub trait Querier<Q: QualifierFlag> {
     }
 }
 
+/// A [`Querier`] that does not provide the ability to query other entities.
 pub struct NoopQuerier;
 
 impl<Q: QualifierFlag> Querier<Q> for NoopQuerier {

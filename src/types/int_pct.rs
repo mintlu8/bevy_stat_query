@@ -11,7 +11,6 @@ use std::marker::PhantomData;
 /// An integer stat that sums up multipliers additively,
 /// then divided by `SCALE`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
-#[serde(bound(serialize = "", deserialize = ""))]
 #[repr(C, align(8))]
 pub struct StatIntPercentAdditive<T: Int, R: Rounding = Truncate, const SCALE: i64 = 100> {
     addend: T,
@@ -88,7 +87,8 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, 
 ///
 /// Calculated as a fraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
-#[serde(bound(serialize = "", deserialize = ""))]
+#[serde(bound(serialize = "T: Int<PrimInt: Serialize> + Serialize, R: Rounding"))]
+#[serde(bound(deserialize = "T: Int<PrimInt: Deserialize<'de>> + Deserialize<'de>, R: Rounding"))]
 #[repr(C, align(8))]
 pub struct StatIntPercent<T: Int, R: Rounding = Truncate, const SCALE: i64 = 100> {
     addend: T,

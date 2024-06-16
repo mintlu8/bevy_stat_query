@@ -1,7 +1,8 @@
-use crate::Serializable;
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, num::Wrapping, ops::*};
+
+use crate::Shareable;
 
 pub trait NumInteger: num_integer::Integer + num_traits::NumAssign {}
 impl<T> NumInteger for T where T: num_integer::Integer + num_traits::NumAssign {}
@@ -52,7 +53,7 @@ impl<T> BitOps for T where
 ///
 /// Automatically implemented on types implementing all three bitwise operations `&|^`.
 pub trait Flags:
-    BitOr<Self, Output = Self> + BitOrAssign<Self> + Debug + Default + Serializable
+    BitOr<Self, Output = Self> + BitOrAssign<Self> + Debug + Default + Shareable
 {
     /// Exclude a portion of the flags.
     fn exclude(self, other: Self) -> Self;
@@ -60,7 +61,7 @@ pub trait Flags:
 
 impl<T> Flags for T
 where
-    T: BitOps + Debug + Default + Serializable,
+    T: BitOps + Debug + Default + Shareable,
 {
     fn exclude(self, other: Self) -> Self {
         self.clone() ^ (self & other)
@@ -68,7 +69,7 @@ where
 }
 
 /// Trait for an integer.
-pub trait Int: NumOps + PartialOrd + Default + Copy + Serializable {
+pub trait Int: NumOps + PartialOrd + Default + Copy + Shareable {
     const ZERO: Self;
     const ONE: Self;
 
@@ -80,7 +81,7 @@ pub trait Int: NumOps + PartialOrd + Default + Copy + Serializable {
     fn min(self, other: Self) -> Self;
     fn max(self, other: Self) -> Self;
 
-    type PrimInt: Int + NumInteger + Clone + Serializable;
+    type PrimInt: Int + NumInteger + Clone + Shareable;
 
     fn into_fraction(self) -> Fraction<Self::PrimInt>;
     fn build_fraction(self, denom: Self) -> Fraction<Self::PrimInt>;
@@ -188,7 +189,7 @@ impl_int_newtype!(
 );
 
 /// Trait for a floating point number or a [`Fraction`].
-pub trait Float: NumOps + PartialOrd + Default + Copy + Serializable {
+pub trait Float: NumOps + PartialOrd + Default + Copy + Shareable {
     const ZERO: Self;
     const ONE: Self;
 
@@ -273,7 +274,7 @@ impl Float for f64 {
     Debug, Clone, Copy, Default, TypePath, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
 )]
 #[repr(transparent)]
-#[serde(transparent, bound(serialize = "", deserialize = ""))]
+#[serde(transparent)]
 pub struct Fraction<I: Int + NumInteger>(num_rational::Ratio<I>);
 
 impl<I: Int + NumInteger> Deref for Fraction<I> {

@@ -1,4 +1,5 @@
-use crate::{validate, Buffer, Data, Qualifier, QualifierFlag, Stat, StatInst};
+use crate::operations::StatOperation;
+use crate::{validate, Buffer, Qualifier, QualifierFlag, Stat, StatInst, StatStream, StatValue};
 use bevy_ecs::component::Component;
 use bevy_reflect::TypePath;
 use ref_cast::RefCast;
@@ -61,6 +62,28 @@ impl<Q: QualifierFlag> StatMap<Q> {
             .insert((stat.as_entry(), qualifier), unsafe { into_buffer(value) });
     }
 
+    pub fn insert_base<S: Stat>(
+        &mut self,
+        qualifier: Qualifier<Q>,
+        stat: S,
+        base: <S::Data as StatValue>::Base,
+    ) {
+        self.inner.insert((stat.as_entry(), qualifier), unsafe {
+            into_buffer(S::Data::from_base(base))
+        });
+    }
+
+    pub fn insert_op<S: Stat>(
+        &mut self,
+        qualifier: Qualifier<Q>,
+        stat: S,
+        value: StatOperation<S::Data>,
+    ) {
+        self.inner.insert((stat.as_entry(), qualifier), unsafe {
+            into_buffer(value.into_stat())
+        });
+    }
+
     pub fn get<S: Stat>(&self, qualifier: &Qualifier<Q>, stat: &S) -> Option<&S::Data> {
         self.inner
             .get(&(stat.as_entry(), qualifier) as &dyn QueryStatEntry<Q>)
@@ -114,6 +137,22 @@ impl<Q: QualifierFlag> StatMap<Q> {
             f(&mut val);
             self.insert(qualifier.clone(), stat.clone(), val);
         }
+    }
+}
+
+impl<Q: QualifierFlag> StatStream<Q> for StatMap<Q> {
+    fn stream_stat<S: Stat>(
+        &self,
+        qualifier: &crate::QualifierQuery<Q>,
+        stat: &S,
+        value: &mut S::Data,
+        _: &impl crate::Querier<Q>,
+    ) {
+        self.iter(stat).for_each(|(q, v)| {
+            if q.qualifies_as(qualifier) {
+                value.join(v.clone())
+            }
+        })
     }
 }
 
@@ -247,11 +286,11 @@ impl<Q: QualifierFlag + Serialize> Serialize for StatMap<Q> {
     where
         S: serde::Serializer,
     {
-        serializer.collect_seq(
-            self.inner
-                .iter()
-                .map(|((s, q), d)| (q, s.name(), unsafe { (s.vtable.as_serialize)(d) })),
-        )
+        serializer.collect_seq(self.inner.iter().map(|((s, q), d)| {
+            (q, (s.vtable.name)(s.index), unsafe {
+                (s.vtable.as_serialize)(d)
+            })
+        }))
     }
 }
 

@@ -162,12 +162,8 @@ This is almost certainly a bug since we do not provide a type erased api.";
 #[doc(hidden)]
 pub use bevy_app::{App, Plugin};
 
-use bevy_serde_lens::typetagged::{FromTypeTagged, TraitObject};
-use downcast_rs::Downcast;
-mod stream;
-use dyn_clone::{clone_trait_object, DynClone};
-use serde::{de::DeserializeOwned, Serialize};
 mod num_traits;
+mod stream;
 pub use num_traits::{Flags, Float, Fraction, Int};
 pub use stream::*;
 pub mod types;
@@ -177,9 +173,8 @@ pub use qualifier::{Qualifier, QualifierFlag, QualifierQuery};
 mod stat;
 pub(crate) use stat::StatInst;
 pub use stat::{Stat, StatVTable};
-mod calc;
-pub use calc::{StatDefaults, StatOperation};
 mod cache;
+pub mod operations;
 pub use cache::{StatCache, StatEntity};
 mod plugin;
 pub use plugin::StatExtension;
@@ -188,7 +183,6 @@ pub use stat_map::StatMap;
 pub mod rounding;
 
 use std::{
-    any::type_name,
     fmt::Debug,
     mem::{align_of, size_of, MaybeUninit},
 };
@@ -213,56 +207,3 @@ const fn validate<T>() {
 /// Alias for `Clone + Debug + Send + Sync + 'static`.
 pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
-
-/// Alias for `Clone + Debug + Send + Sync + 'static`.
-pub trait Serializable:
-    Clone + Debug + Send + Sync + Serialize + DeserializeOwned + 'static
-{
-}
-impl<T> Serializable for T where
-    T: Clone + Debug + Send + Sync + Sync + Serialize + DeserializeOwned + 'static
-{
-}
-
-/// [`Any`](std::any::Any) that implements [`Send`], [`Sync`], [`Debug`] and [`Clone`].
-pub(crate) trait Data: Send + Sync + Downcast + Debug + DynClone {
-    fn name(&self) -> &'static str;
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize;
-}
-
-impl<T> Data for T
-where
-    T: Shareable + serde::Serialize,
-{
-    fn name(&self) -> &'static str {
-        type_name::<T>()
-    }
-
-    fn as_serialize(&self) -> &dyn erased_serde::Serialize {
-        self
-    }
-}
-
-clone_trait_object!(Data);
-
-impl TraitObject for Box<dyn Data> {
-    fn name(&self) -> impl AsRef<str> {
-        self.as_ref().name()
-    }
-
-    fn as_serialize(&self) -> &dyn bevy_reflect::erased_serde::Serialize {
-        self.as_ref().as_serialize()
-    }
-}
-
-impl<T: Serializable> FromTypeTagged<T> for Box<dyn Data> {
-    fn name() -> impl AsRef<str> {
-        type_name::<T>()
-    }
-
-    fn from_type_tagged(item: T) -> Self {
-        Box::new(item)
-    }
-}
-
-downcast_rs::impl_downcast!(Data);

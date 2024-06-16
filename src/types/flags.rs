@@ -8,7 +8,6 @@ use super::{StatValue, Unsupported};
 /// A flags based on a type that supports bitwise operations,
 /// like integer, `bitflgs` or `enumset`.
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, TypePath)]
-#[serde(bound(serialize = "", deserialize = ""))]
 #[repr(C, align(8))]
 pub struct StatFlags<T: Flags> {
     pub not: T,

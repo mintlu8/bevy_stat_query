@@ -1,5 +1,6 @@
+use crate::Shareable;
+
 use super::{StatValue, Unsupported};
-use crate::Serializable;
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -40,16 +41,15 @@ impl StatValue for StatExists {
 #[derive(
     Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize,
 )]
-#[serde(bound(serialize = "", deserialize = ""))]
 #[repr(C, align(8))]
-pub enum StatOnce<T: Serializable> {
+pub enum StatOnce<T: Shareable> {
     #[default]
     NotFound,
     Found(T),
     FoundMultiple,
 }
 
-impl<T: Serializable> StatOnce<T> {
+impl<T: Shareable> StatOnce<T> {
     pub fn unwrap(self) -> T {
         self.into_option().unwrap()
     }
@@ -105,7 +105,7 @@ impl<T: Serializable> StatOnce<T> {
     }
 }
 
-impl<T: Serializable> StatValue for StatOnce<T> {
+impl<T: Shareable> StatValue for StatOnce<T> {
     type Out = StatOnce<T>;
     type Base = T;
 

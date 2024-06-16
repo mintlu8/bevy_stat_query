@@ -1,8 +1,14 @@
+use std::any::Any;
+
+use crate::operations::StatOperation;
 use crate::stat::StatInstances;
-use crate::StatCache;
-use crate::{calc::StatDefaults, QualifierFlag, Stat, StatOperation, StatValue};
+use crate::{QualifierFlag, Stat, StatValue};
+use crate::{StatCache, StatInst, TYPE_ERROR};
 use bevy_app::App;
+use bevy_ecs::system::Resource;
 use bevy_ecs::world::World;
+use bevy_reflect::TypePath;
+use rustc_hash::FxHashMap;
 
 type Bounds<T> = <<T as Stat>::Data as StatValue>::Bounds;
 
@@ -84,5 +90,49 @@ impl StatExtension for App {
 
     fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
         self.world.clear_stat_cache::<Q>()
+    }
+}
+
+/// [`Resource`] that stores default [`StatValue`]s per [`Stat`].
+///
+/// Stats that are not registered are still returned with [`Default::default()`] instead.
+#[derive(Debug, Resource, Default, TypePath)]
+pub struct StatDefaults {
+    stats: FxHashMap<StatInst, Box<dyn Any + Send + Sync>>,
+}
+
+impl StatDefaults {
+    pub fn new() -> Self {
+        Self {
+            stats: FxHashMap::default(),
+        }
+    }
+
+    /// Insert a [`Stat`] and its associated default value.
+    pub fn insert<S: Stat>(&mut self, stat: S, value: S::Data) {
+        self.stats.insert(stat.as_entry(), Box::new(value));
+    }
+
+    /// Modify a [`Stat`]'s default value.
+    pub fn patch<S: Stat>(&mut self, stat: &S, value: StatOperation<S::Data>) {
+        match self.stats.get_mut(&stat.as_entry()) {
+            Some(stat) => value.write_to(stat.downcast_mut::<S::Data>().expect(TYPE_ERROR)),
+            None => {
+                self.stats.insert(stat.as_entry(), {
+                    let mut stat = S::Data::default();
+                    value.write_to(&mut stat);
+                    Box::new(stat)
+                });
+            }
+        }
+    }
+
+    /// Obtain a [`Stat`]'s default value.
+    pub fn get<S: Stat>(&self, stat: &S) -> S::Data {
+        self.stats
+            .get(&stat.as_entry())
+            .and_then(|x| x.downcast_ref::<S::Data>())
+            .cloned()
+            .unwrap_or(Default::default())
     }
 }
