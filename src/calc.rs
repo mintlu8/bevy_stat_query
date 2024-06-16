@@ -18,6 +18,7 @@ pub enum StatOperation<S: StatValue> {
     Not(S::Bit),
     Min(S::Bounds),
     Max(S::Bounds),
+    Base(S::Base),
 }
 
 impl<S: StatValue> StatOperation<S> {
@@ -29,7 +30,14 @@ impl<S: StatValue> StatOperation<S> {
             StatOperation::Not(item) => to.not(item),
             StatOperation::Min(item) => to.min(item),
             StatOperation::Max(item) => to.max(item),
+            StatOperation::Base(item) => *to = S::from_base(item),
         }
+    }
+
+    pub fn into_stat(self) -> S {
+        let mut v = S::default();
+        self.write_to(&mut v);
+        v
     }
 }
 

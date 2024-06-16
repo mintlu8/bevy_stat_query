@@ -6,9 +6,9 @@ mod singleton;
 
 use std::fmt::Debug;
 
-use crate::{calc::StatOperation, Serializable};
+use crate::Serializable;
 use bevy_reflect::TypePath;
-pub use flags::{StatFlags, StatSet};
+pub use flags::StatFlags;
 pub use float::{StatFloat, StatFloatAdditive, StatMult};
 pub use int_pct::{StatIntPercent, StatIntPercentAdditive};
 pub use int_ratio::{StatInt, StatIntFloatMul, StatIntFraction};
@@ -30,6 +30,7 @@ pub trait StatValue: Serializable + Default {
     type Mul: Serializable;
     type Bit: Serializable;
     type Bounds: Serializable;
+    type Base: Serializable;
 
     fn add(&mut self, other: Self::Add) {}
     fn mul(&mut self, other: Self::Mul) {}
@@ -40,5 +41,5 @@ pub trait StatValue: Serializable + Default {
     fn min(&mut self, other: Self::Bounds) {}
     fn max(&mut self, other: Self::Bounds) {}
 
-    fn from_base(out: Self::Out) -> StatOperation<Self>;
+    fn from_base(base: Self::Base) -> Self;
 }

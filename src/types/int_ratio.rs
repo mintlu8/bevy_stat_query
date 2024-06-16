@@ -2,15 +2,17 @@ use super::{StatValue, Unsupported};
 use crate::Fraction;
 use crate::{
     rounding::{Rounding, Truncate},
-    Float, Int, Serializable, StatOperation,
+    Float, Int, Serializable,
 };
 use bevy_reflect::TypePath;
+use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// A stat represented by a floating point number or a fraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
 #[serde(bound(serialize = "", deserialize = ""))]
+#[repr(C, align(8))]
 pub struct StatInt<T: Int> {
     pub addend: T,
     pub min: T,
@@ -31,6 +33,7 @@ impl<T: Int> Default for StatInt<T> {
 
 impl<T: Int> StatValue for StatInt<T> {
     type Out = T;
+    type Base = T;
 
     fn join(&mut self, other: Self) {
         self.addend += other.addend;
@@ -65,14 +68,20 @@ impl<T: Int> StatValue for StatInt<T> {
         self.max = self.max.min(other)
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Add(out)
+    fn from_base(base: Self::Base) -> Self {
+        Self {
+            addend: base,
+            min: T::MIN_VALUE,
+            max: T::MAX_VALUE,
+            mult: T::ONE,
+        }
     }
 }
 
 /// An integer stat that multiplies with rational numbers and rounds back to an integer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
+#[repr(C, align(8))]
 pub struct StatIntFraction<T: Int, R: Rounding = Truncate> {
     addend: T,
     min: T,
@@ -95,6 +104,7 @@ impl<T: Int, R: Rounding> Default for StatIntFraction<T, R> {
 
 impl<T: Int + Serializable, R: Rounding> StatValue for StatIntFraction<T, R> {
     type Out = T;
+    type Base = T;
 
     fn join(&mut self, other: Self) {
         self.addend += other.addend;
@@ -133,14 +143,21 @@ impl<T: Int + Serializable, R: Rounding> StatValue for StatIntFraction<T, R> {
         self.max = self.max.min(other);
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Add(out)
+    fn from_base(base: Self::Base) -> Self {
+        Self {
+            addend: base,
+            min: T::MIN_VALUE,
+            max: T::MAX_VALUE,
+            mult: Float::ONE,
+            rounding: Default::default(),
+        }
     }
 }
 
 /// An integer stat that multiplies with floating point numbers and rounds back to an integer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath, Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
+#[repr(C, align(8))]
 pub struct StatIntFloatMul<T: Int, F: Float, R: Rounding = Truncate> {
     addend: T,
     min: T,
@@ -149,11 +166,7 @@ pub struct StatIntFloatMul<T: Int, F: Float, R: Rounding = Truncate> {
     rounding: PhantomData<R>,
 }
 
-impl<T: Int, F: Float, R: Rounding> Default for StatIntFloatMul<T, F, R>
-where
-    T: Into<F>,
-    F: Into<T>,
-{
+impl<T: Int, F: Float, R: Rounding> Default for StatIntFloatMul<T, F, R> {
     fn default() -> Self {
         Self {
             addend: T::ZERO,
@@ -167,10 +180,11 @@ where
 
 impl<T: Int, F: Float, R: Rounding> StatValue for StatIntFloatMul<T, F, R>
 where
-    T: Into<F>,
-    F: Into<T>,
+    T: AsPrimitive<F>,
+    F: AsPrimitive<T>,
 {
     type Out = T;
+    type Base = T;
 
     fn join(&mut self, other: Self) {
         self.addend += other.addend;
@@ -180,8 +194,8 @@ where
     }
 
     fn eval(&self) -> Self::Out {
-        let val = Into::<F>::into(self.addend) * self.mult;
-        let int_val: T = R::round(val).into();
+        let val = self.addend.as_() * self.mult;
+        let int_val: T = R::round(val).as_();
         int_val.min(self.max).max(self.min)
     }
 
@@ -207,7 +221,13 @@ where
         self.max = self.max.min(other);
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Add(out)
+    fn from_base(base: Self::Base) -> Self {
+        Self {
+            addend: base,
+            min: T::MIN_VALUE,
+            max: T::MAX_VALUE,
+            mult: Float::ONE,
+            rounding: Default::default(),
+        }
     }
 }

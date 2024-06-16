@@ -1,8 +1,7 @@
-use crate::{calc::StatOperation, num_traits::Flags, Serializable};
+use crate::num_traits::Flags;
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
-use std::hash::Hash;
-use std::{collections::HashSet, fmt::Debug};
+use std::fmt::Debug;
 
 use super::{StatValue, Unsupported};
 
@@ -10,6 +9,7 @@ use super::{StatValue, Unsupported};
 /// like integer, `bitflgs` or `enumset`.
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, TypePath)]
 #[serde(bound(serialize = "", deserialize = ""))]
+#[repr(C, align(8))]
 pub struct StatFlags<T: Flags> {
     pub not: T,
     pub or: T,
@@ -17,6 +17,7 @@ pub struct StatFlags<T: Flags> {
 
 impl<T: Flags> StatValue for StatFlags<T> {
     type Out = T;
+    type Base = T;
 
     fn join(&mut self, other: Self) {
         self.or |= other.or;
@@ -41,51 +42,10 @@ impl<T: Flags> StatValue for StatFlags<T> {
         self.not |= other
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Or(out)
-    }
-}
-
-/// A stat flags backed by a `HashSet`.
-/// Use [`StatFlags`] if possible for better performance.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TypePath)]
-#[serde(bound(serialize = "", deserialize = ""))]
-pub struct StatSet<T: Serializable + Hash + Eq + Default> {
-    pub not: HashSet<T>,
-    pub or: HashSet<T>,
-}
-
-impl<T: Serializable + Hash + Eq + Default> StatValue for StatSet<T> {
-    type Out = HashSet<T>;
-
-    fn join(&mut self, other: Self) {
-        self.not.extend(other.not);
-        self.or.extend(other.or);
-    }
-
-    fn eval(&self) -> Self::Out {
-        let mut result = self.or.clone();
-        for item in &self.not {
-            result.remove(item);
+    fn from_base(base: Self::Base) -> Self {
+        Self {
+            not: Default::default(),
+            or: base,
         }
-        result
-    }
-
-    type Add = Unsupported;
-    type Mul = Unsupported;
-    type Bounds = Unsupported;
-
-    type Bit = HashSet<T>;
-
-    fn or(&mut self, other: Self::Bit) {
-        self.or.extend(other);
-    }
-
-    fn not(&mut self, other: Self::Bit) {
-        self.not.extend(other);
-    }
-
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Or(out)
     }
 }

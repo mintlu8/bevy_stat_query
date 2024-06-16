@@ -1,11 +1,8 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{bind_object, DefaultInit, WorldExtension};
-use bevy_stat_query::{
-    types::*, BaseStatMap, Fraction, FullStatMap, Qualifier, Stat, StatExtension, StatOperation,
-    StatOperationsMap,
-};
-use bevy_utils::hashbrown::HashSet;
+use bevy_stat_query::StatVTable;
+use bevy_stat_query::{types::*, Fraction, Qualifier, Stat, StatExtension, StatMap, StatOperation};
 use serde::{Deserialize, Serialize};
 
 bitflags::bitflags! {
@@ -29,12 +26,25 @@ macro_rules! impl_stat {
         impl Stat for $name {
             type Data = $ty;
 
-            fn name(&self) -> &str {
+            fn name(&self) -> &'static str {
                 stringify!($name)
             }
 
             fn values() -> impl IntoIterator<Item = Self> {
                 [Self]
+            }
+
+            fn vtable() -> &'static StatVTable {
+                static VTABLE: StatVTable = StatVTable::of::<$name>();
+                &VTABLE
+            }
+
+            fn as_index(&self) -> u64 {
+                0
+            }
+
+            fn from_index(_: u64) -> Self {
+                Self
             }
         })*
     };
@@ -107,7 +117,7 @@ pub fn operations() {
 
     let q_false = Qualifier::all_of(false);
     world.spawn((BaseMarker, {
-        let mut map = BaseStatMap::new();
+        let mut map = StatMap::new();
         map.insert(q_false, SInt, -4);
         map.insert(q_false, SUInt, 7);
         map.insert(q_false, SFloat32, 3.5);

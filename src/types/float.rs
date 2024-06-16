@@ -1,11 +1,12 @@
 use super::{StatValue, Unsupported};
-use crate::{Float, StatOperation};
+use crate::Float;
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 
 /// A stat represented by a floating point number or a fraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
 #[serde(bound(serialize = "", deserialize = ""))]
+#[repr(C, align(8))]
 pub struct StatFloat<T: Float> {
     pub addend: T,
     pub min: T,
@@ -26,6 +27,7 @@ impl<T: Float> Default for StatFloat<T> {
 
 impl<T: Float> StatValue for StatFloat<T> {
     type Out = T;
+    type Base = T;
 
     fn join(&mut self, other: Self) {
         self.addend += other.addend;
@@ -60,14 +62,20 @@ impl<T: Float> StatValue for StatFloat<T> {
         self.max = self.max.min(other)
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Add(out)
+    fn from_base(base: Self::Base) -> Self {
+        Self {
+            addend: base,
+            min: T::MIN_VALUE,
+            max: T::MAX_VALUE,
+            mult: T::ONE,
+        }
     }
 }
 
 /// A stat represented by a floating point number or a fraction, multiplier is additive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
 #[serde(bound(serialize = "", deserialize = ""))]
+#[repr(C, align(8))]
 pub struct StatFloatAdditive<T: Float> {
     pub addend: T,
     pub min: T,
@@ -88,6 +96,7 @@ impl<T: Float> Default for StatFloatAdditive<T> {
 
 impl<T: Float> StatValue for StatFloatAdditive<T> {
     type Out = T;
+    type Base = T;
 
     fn join(&mut self, other: Self) {
         self.addend += other.addend;
@@ -122,14 +131,20 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
         self.max = self.max.min(other)
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Add(out)
+    fn from_base(base: Self::Base) -> Self {
+        Self {
+            addend: base,
+            min: T::MIN_VALUE,
+            max: T::MAX_VALUE,
+            mult: T::ONE,
+        }
     }
 }
 
 /// An floating point or fraction based multiplier aggregation. Does not support addition.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TypePath)]
 #[serde(bound(serialize = "", deserialize = ""))]
+#[repr(C, align(8))]
 pub struct StatMult<T: Float> {
     min: T,
     max: T,
@@ -148,6 +163,7 @@ impl<T: Float> Default for StatMult<T> {
 
 impl<T: Float> StatValue for StatMult<T> {
     type Out = T;
+    type Base = T;
 
     fn join(&mut self, other: Self) {
         self.mult *= other.mult;
@@ -179,7 +195,11 @@ impl<T: Float> StatValue for StatMult<T> {
         self.max = self.max.min(other);
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Mul(out)
+    fn from_base(base: Self::Base) -> Self {
+        Self {
+            min: T::MIN_VALUE,
+            max: T::MAX_VALUE,
+            mult: base,
+        }
     }
 }

@@ -154,7 +154,7 @@ impl<'w, 's, Q: QualifierFlag> Queryable<'w, 's, Q> {
         JoinedQuerier {
             querier: self,
             component_streams: CxComponentStream { cx: &(), query },
-            children_stream: (),
+            children_streams: (),
             relationship_streams: (),
         }
     }
@@ -169,7 +169,7 @@ impl<'w, 's, Q: QualifierFlag> Queryable<'w, 's, Q> {
         JoinedQuerier {
             querier: self,
             component_streams: (),
-            children_stream: CxComponentStream { cx: &(), query },
+            children_streams: CxComponentStream { cx: &(), query },
             relationship_streams: (),
         }
     }
@@ -184,7 +184,7 @@ impl<'w, 's, Q: QualifierFlag> Queryable<'w, 's, Q> {
         JoinedQuerier {
             querier: self,
             component_streams: (),
-            children_stream: (),
+            children_streams: (),
             relationship_streams: CxComponentStream { cx: &(), query },
         }
     }
@@ -202,7 +202,7 @@ impl<'w, 's, Q: QualifierFlag> Queryable<'w, 's, Q> {
         JoinedQuerier {
             querier: self,
             component_streams: CxComponentStream { cx, query },
-            children_stream: (),
+            children_streams: (),
             relationship_streams: (),
         }
     }
@@ -220,7 +220,7 @@ impl<'w, 's, Q: QualifierFlag> Queryable<'w, 's, Q> {
         JoinedQuerier {
             querier: self,
             component_streams: (),
-            children_stream: CxComponentStream { cx, query },
+            children_streams: CxComponentStream { cx, query },
             relationship_streams: (),
         }
     }
@@ -238,7 +238,7 @@ impl<'w, 's, Q: QualifierFlag> Queryable<'w, 's, Q> {
         JoinedQuerier {
             querier: self,
             component_streams: (),
-            children_stream: (),
+            children_streams: (),
             relationship_streams: CxComponentStream { cx, query },
         }
     }
@@ -255,7 +255,7 @@ pub struct JoinedQuerier<
 > {
     querier: &'t Queryable<'w, 's, Q>,
     component_streams: A,
-    children_stream: B,
+    children_streams: B,
     relationship_streams: C,
 }
 
@@ -346,7 +346,7 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
         self.relationship_streams
             .stream(&[entity], query, stat, &mut result, self);
         if let Ok(Some(children)) = self.querier.entities.get(entity) {
-            self.component_streams
+            self.children_streams
                 .stream(children.as_ref(), query, stat, &mut result, self);
         }
         Some(result)

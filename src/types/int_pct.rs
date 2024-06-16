@@ -2,7 +2,7 @@ use super::{StatValue, Unsupported};
 use crate::Fraction;
 use crate::{
     rounding::{Rounding, Truncate},
-    Float, Int, StatOperation,
+    Float, Int,
 };
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
@@ -12,6 +12,7 @@ use std::marker::PhantomData;
 /// then divided by `SCALE`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
 #[serde(bound(serialize = "", deserialize = ""))]
+#[repr(C, align(8))]
 pub struct StatIntPercentAdditive<T: Int, R: Rounding = Truncate, const SCALE: i64 = 100> {
     addend: T,
     mult: T,
@@ -34,6 +35,7 @@ impl<T: Int, R: Rounding, const S: i64> Default for StatIntPercentAdditive<T, R,
 
 impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, R, S> {
     type Out = T;
+    type Base = T;
 
     fn join(&mut self, other: Self) {
         self.addend += other.addend;
@@ -71,8 +73,14 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, 
         self.max = self.max.min(other)
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Add(out)
+    fn from_base(base: Self::Base) -> Self {
+        Self {
+            addend: base,
+            min: T::MIN_VALUE,
+            max: T::MAX_VALUE,
+            mult: T::from_i64(S),
+            rounding: PhantomData,
+        }
     }
 }
 
@@ -81,6 +89,7 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, 
 /// Calculated as a fraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
 #[serde(bound(serialize = "", deserialize = ""))]
+#[repr(C, align(8))]
 pub struct StatIntPercent<T: Int, R: Rounding = Truncate, const SCALE: i64 = 100> {
     addend: T,
     mult: Fraction<T::PrimInt>,
@@ -103,6 +112,7 @@ impl<T: Int, R: Rounding, const S: i64> Default for StatIntPercent<T, R, S> {
 
 impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercent<T, R, S> {
     type Out = T;
+    type Base = T;
 
     fn join(&mut self, other: Self) {
         self.addend += other.addend;
@@ -139,7 +149,13 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercent<T, R, S> {
         self.max = self.max.min(other)
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Add(out)
+    fn from_base(base: Self::Base) -> Self {
+        Self {
+            addend: base,
+            min: T::MIN_VALUE,
+            max: T::MAX_VALUE,
+            mult: Float::ONE,
+            rounding: PhantomData,
+        }
     }
 }

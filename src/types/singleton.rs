@@ -1,17 +1,19 @@
 use super::{StatValue, Unsupported};
-use crate::{calc::StatOperation, Serializable};
+use crate::Serializable;
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 /// Find if a stat exists.
 #[derive(Debug, Default, Clone, Copy, TypePath, Serialize, Deserialize)]
+#[repr(C, align(8))]
 pub struct StatExists(bool);
 
 impl StatValue for StatExists {
     type Out = bool;
 
     type Bit = bool;
+    type Base = bool;
 
     type Add = Unsupported;
     type Mul = Unsupported;
@@ -25,8 +27,8 @@ impl StatValue for StatExists {
         self.0
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        StatOperation::Or(out)
+    fn from_base(base: Self::Base) -> Self {
+        Self(base)
     }
 
     fn or(&mut self, other: Self::Bit) {
@@ -39,6 +41,7 @@ impl StatValue for StatExists {
     Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize,
 )]
 #[serde(bound(serialize = "", deserialize = ""))]
+#[repr(C, align(8))]
 pub enum StatOnce<T: Serializable> {
     #[default]
     NotFound,
@@ -104,6 +107,7 @@ impl<T: Serializable> StatOnce<T> {
 
 impl<T: Serializable> StatValue for StatOnce<T> {
     type Out = StatOnce<T>;
+    type Base = T;
 
     fn join(&mut self, other: Self) {
         match (&self, other) {
@@ -136,10 +140,7 @@ impl<T: Serializable> StatValue for StatOnce<T> {
         }
     }
 
-    fn from_base(out: Self::Out) -> StatOperation<Self> {
-        match out {
-            StatOnce::Found(f) => StatOperation::Or(f),
-            _ => panic!("Base stat has to be a concrete value."),
-        }
+    fn from_base(base: Self::Base) -> Self {
+        Self::Found(base)
     }
 }
