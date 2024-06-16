@@ -1,7 +1,5 @@
-use std::ops::RangeBounds;
-
 use bevy_stat_query::{
-    operations::StatOperation::{Add, Max, Mul}, types::StatIntPercentAdditive, NoopQuerier, Qualifier, QualifierFlag, QualifierQuery, Stat, StatExt, StatMap, StatStream, StatVTable, StatValue
+    operations::StatOperation::{Add, Max, Mul}, types::StatIntPercentAdditive, NoopQuerier, Qualifier, QualifierFlag, QualifierQuery, Stat, StatMap, StatStream, StatVTable, StatValue
 };
 
 bitflags::bitflags! {
@@ -143,7 +141,6 @@ pub fn qualifier_test() {
     map.insert_base(fire, S, 2);
     map.insert_base(fire_magic, S, 4);
     let mut data = StatIntPercentAdditive::<i32>::default();
-    dbg!(map.iter(&S).count());
     map.stream_stat(&QualifierQuery::none(), &S, &mut data, &NoopQuerier);
     assert_eq!(data.eval(), 1);
 

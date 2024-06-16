@@ -112,6 +112,7 @@ impl<Q: QualifierFlag, A: QueryRelationStream<Q>, B: QueryRelationStream<Q>> Que
 pub trait ComponentStream<Q: QualifierFlag>: QueryData {
     type Cx: ReadOnlySystemParam;
     fn stream<S: Stat>(
+        this: Entity,
         cx: &<Self::Cx as SystemParam>::Item<'_, '_>,
         component: <Self::ReadOnly as WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<Q>,
@@ -128,9 +129,9 @@ pub trait RelationStream<Q: QualifierFlag>: ComponentStream<Q> {
     #[allow(unused)]
     /// Write to `stat` and return true ***if a value is written***.
     fn relation<S: Stat>(
-        cx: &<Self::Cx as SystemParam>::Item<'_, '_>,
         this: <Self::ReadOnly as WorldQuery>::Item<'_>,
         other: <Self::ReadOnly as WorldQuery>::Item<'_>,
+        cx: &<Self::Cx as SystemParam>::Item<'_, '_>,
         qualifier: &QualifierQuery<Q>,
         stat: &S,
         value: &mut S::Value,
@@ -161,8 +162,8 @@ impl<Q: QualifierFlag, C: ComponentStream<Q>, F: QueryFilter> QueryStream<Q>
         value: &mut S::Value,
         querier: &impl Querier<Q>,
     ) {
-        for item in self.query.iter_many(entities) {
-            C::stream(self.cx, item, qualifier, stat, value, querier)
+        for (item, entity) in self.query.iter_many(entities).zip(entities) {
+            C::stream(*entity, self.cx, item, qualifier, stat, value, querier)
         }
     }
 }
@@ -185,6 +186,6 @@ impl<Q: QualifierFlag, C: RelationStream<Q>, F: QueryFilter> QueryRelationStream
         let Ok(other) = self.query.get(other) else {
             return;
         };
-        C::relation(self.cx, this, other, qualifier, stat, value, querier)
+        C::relation(this, other, self.cx, qualifier, stat, value, querier)
     }
 }

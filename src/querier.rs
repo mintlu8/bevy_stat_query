@@ -170,7 +170,7 @@ impl<'w, 's, Q: QualifierFlag> StatQuery<'w, 's, Q> {
 
     pub fn with_component<'t, D, F: QueryFilter>(
         &'t self,
-        query: &'t Query<D, F>,
+        query: &'t Query<'w, 's, D, F>,
     ) -> JoinedQuerier<'_, 'w, 's, Q, impl QueryStream<Q> + 't, (), ()>
     where
         D: ComponentStream<Q, Cx = ()>,
@@ -185,7 +185,7 @@ impl<'w, 's, Q: QualifierFlag> StatQuery<'w, 's, Q> {
 
     pub fn with_children<'t, D, F: QueryFilter>(
         &'t self,
-        query: &'t Query<D, F>,
+        query: &'t Query<'w, 's, D, F>,
     ) -> JoinedQuerier<'_, 'w, 's, Q, (), impl QueryStream<Q> + 't, ()>
     where
         D: ComponentStream<Q, Cx = ()>,
@@ -200,7 +200,7 @@ impl<'w, 's, Q: QualifierFlag> StatQuery<'w, 's, Q> {
 
     pub fn with_relation<'t, D, F: QueryFilter>(
         &'t self,
-        query: &'t Query<D, F>,
+        query: &'t Query<'w, 's, D, F>,
     ) -> JoinedQuerier<'_, 'w, 's, Q, (), (), impl QueryRelationStream<Q> + 't>
     where
         D: RelationStream<Q, Cx = ()>,

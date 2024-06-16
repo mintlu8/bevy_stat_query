@@ -128,7 +128,7 @@ impl PartialOrd for StatInst {
 
 impl Ord for StatInst {
     fn cmp(&self, other: &Self) -> Ordering {
-        ref_cmp(self, other)
+        ref_cmp(self.vtable, other.vtable).then(self.index.cmp(&other.index))
     }
 }
 

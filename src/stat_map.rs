@@ -82,7 +82,11 @@ impl<Q: QualifierFlag> StatMap<Q> {
         }
     }
 
+    /// Drops all items in the map.
     pub fn clear(&mut self) {
+        for ((s, _), b) in &mut self.inner {
+            unsafe { (s.vtable.drop)(b) }
+        }
         self.inner.clear()
     }
 
@@ -140,18 +144,8 @@ impl<Q: QualifierFlag> StatMap<Q> {
             .map(|buffer| unsafe { from_buffer_ref::<S::Value>(buffer).eval() })
     }
 
-    pub fn retain(&mut self, mut f: impl FnMut(&Qualifier<Q>, &str) -> bool) {
-        self.inner
-            .retain(|(s, q), _| f(q, (s.vtable.name)(s.index)));
-    }
-
     /// Iterate over a particular stat.
     pub fn iter<S: Stat>(&self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &S::Value)> {
-        for item in &self.inner{
-            if item.0 == &(stat.as_entry(), Qualifier::none()){
-                dbg!(item.0);
-            }
-        }
         self.inner
             .range(stat.as_entry())
             .map(|((_, q), v)| (q, unsafe { from_buffer_ref(v) }))
@@ -165,6 +159,21 @@ impl<Q: QualifierFlag> StatMap<Q> {
         self.inner
             .range_mut(stat.as_entry())
             .map(|((_, q), v)| (q, unsafe { from_buffer_mut(v) }))
+    }
+
+    /// Remove all instances of a given stat.
+    pub fn remove_all<S: Stat>(
+        &mut self,
+        stat: &S,
+    ) {
+        self.inner.retain(|(s, _), v| {
+            if s == &stat.as_entry() {
+                unsafe { (s.vtable.drop)(v) }
+                false
+            } else {
+                true
+            }
+        })
     }
 
     /// Create or modify a stat via a [`StatOperation`].

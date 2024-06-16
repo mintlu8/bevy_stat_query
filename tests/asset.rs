@@ -95,6 +95,7 @@ impl ComponentStream<u32> for WeaponHandle {
     type Cx = Res<'static, Assets<Weapon>>;
 
     fn stream<S: Stat>(
+        _: Entity,
         cx: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         component: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<u32>,
