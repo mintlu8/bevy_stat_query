@@ -1,26 +1,26 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
-//! A pedantic RPG stat system for the bevy engine.
+//! Blazing fast and versatile RPG stat system for the bevy engine.
 //!
 //! # Qualified Stats
 //!
 //! We describe each stat as a [`Qualifier`] and a [`Stat`].
-//! `Stat` is a concrete stat noun like `Strength`, `Magic`, etc.
+//! `Stat` is a concrete stat noun like "Strength", "Magic", etc.
 //! `Qualifier` is a flags based adjective that describes
 //! what this `Stat` can be applied to.
 //!
-//! For example in `FireMagicDamage`, `Fire|Magic` is the qualifier,
-//! `Damage` is the `Stat`.
+//! For example in "FireMagicDamage", "Fire|Magic" is the qualifier,
+//! "Damage" is the `Stat`.
 //!
-//! What this means if an effect boosts `Fire|Damage`, `Magic|Damage`,
-//! or simply just `Damage`, the effect will be applied to the stat,
-//! but an effect on `Sword|Damage` or `Fire|Range` won't be applied to the stat.
+//! What this means if an effect boosts "Fire|Damage", "Magic|Damage",
+//! or simply just "Damage", the effect will be applied to the stat,
+//! but an effect on "Sword|Damage" or "Fire|Range" won't be affecting the stat.
 //!
 //! ## [Qualifier]
 //!
 //! `Qualifier` additionally provides `any_of` for modelling conditional effects like
-//! `Elemental|Damage`, which means `Fire or Water Damage` instead of `Fire and Water Damage`.
-//!
+//! "Elemental|Damage", which matches "Fire or Water or Wind Damage"
+//! instead of "Fire and Water and Wind Damage".
 //! Each [`Qualifier`] can only have one group of `any_of`.
 //!
 //! ### Examples
@@ -40,21 +40,21 @@
 //!
 //! [`QualifierQuery::Aggregate`] collects all qualifiers that matches the query.
 //!
-//! For example, suppose we are looking for `(Fire|Burn|Magic, Damage)`:
+//! For example, suppose we are looking for `(Frost|Piercing|Magic, Damage)`:
 //! * `((), Damage)` qualifies.
-//! * `(Fire, Damage)` qualifies.
-//! * `(Fire|Magic, Damage)` qualifies.
-//! * `(Fire|Burn|Magic, Damage)` qualifies.
+//! * `(Frost, Damage)` qualifies.
+//! * `(Frost|Magic, Damage)` qualifies.
+//! * `(Frost|Piercing|Magic, Damage)` qualifies.
 //! * `(Elemental, Damage)` qualifies.
-//! * `(Fire|Sword, Damage)` does not qualify.
-//! * `(Fire|Burn|Magic, Defense)` does not qualify.
+//! * `(Frost|Sword, Damage)` does not qualify.
+//! * `(Fire|Piercing|Magic, Defense)` does not qualify.
 //!
 //! [`QualifierQuery::Exact`] allows us to deny
 //! more generalized qualifiers.
 //!
 //! For example, in order to model a statement like so:
 //!
-//! ```js
+//! ```text
 //! Add 50% of the character's magic damage to physical damage.
 //! ```
 //!
@@ -69,54 +69,13 @@
 //!     all_of: Magic,
 //! }
 //! ```
-//!
-//! * What do you mean? My `DarkFire` and `Fire` and totally different things and should be independent.
-//!
-//! Create a new qualifier `DarkFire` instead of `Dark`|`Fire`.
-//!
-//! # Stat Streams
 //! 
-//! ## [ComponentStream]
+//! ## [Stat]
 //! 
-//! `ComponentStream` turns a query into a stat stream.
-//! 
-//! ## [RelationStream]
-//! 
-//! `RelationStream` derives relations from queries on two different entities.
-//! Add marker component [`StatEntity`] to an `Entity`.
-//! If you need caching, add a [`StatCache`] as well.
-//! You need to manually clear the cache when the state is changed, however.
-//!
-//! * Implement [`IntrinsicStream`] to make components on the entity queryable.
-//! * Implement [`ExternalStream`] to make components on child entities queryable.
-//!
-//! For example we can add [`BaseStatMap`] to the `Entity` as base stats, if we include
-//! it in the `intrinsic` section of the [`querier!`] macro.
-//!
-//! # Querier
-//!
-//! [`StatQuerier`] is the [`SystemParam`] to query stats, it is quite difficult to
-//! define one manually so the recommended way is to define a `type` with the
-//! [`querier!`] macro. Additionally we can also use the [`StatExtension`] with `World` access
-//! for similar functionalities.
-//!
-//! ## Example
-//!
-//! ```
-//! querier!(pub UnitStatQuerier {
-//!     qualifier: MyQualifier,
-//!     intrinsic: {
-//!         Allegiance,
-//!         Position
-//!     },
-//!     external: {
-//!         Weapon,
-//!         Ability,
-//!         Effect,
-//!         Potion,
-//!     }
-//! });
-//! ```
+//! An app usually has a single [`QualifierFlag`] but multiple [`Stat`] implementors. This is because
+//! each [`Stat`] can associate to a different type. For example `strength` and `magic` can be a `i32`,
+//! `hp` can be a `f32`, `is_dragon` can be a `bool` etc. `Stat`s are usually enums and you might find
+//! the `strum` crate useful in implementing them.
 //!
 //! # Unordered StatStream
 //!
@@ -126,35 +85,42 @@
 //!
 //! Each stat has its components form [`StatValue`], e.g. `(12 * 4).min(99).max(0)`,
 //! and its evaluated form, e.g. `48`. You can implement your own `StatValue`
-//! to achieve custom behaviors. [`StatOperation`] stores a single operation
-//! that can be written to a [`StatValue`].
+//! to achieve custom behaviors.
 //!
-//! ## Stat Relation
+//! # Queries
 //!
-//! We can create relations between different
-//! stats using either their components form or their evaluated form.
-//! [`StatStream`]s are allowed to query other stats or other entities.
-//! Since stat operations are unordered, dependency cycles cannot be resolved.
-//! If a cycle is detected, an error will be thrown.
+//! [`StatQuery`] is the [`SystemParam`] to query stats. `StatQuery` only collects [`StatEntity`]s, which are
+//! marker components for queryable entities. To actually query for stats, you need to join it with
+//! [`ComponentStream`]s and [`RelationStream`]s. They can query stats from components and children of
+//! the `Entity`. 
 //!
-//! ## Entity Relation
+//! ## Relations
 //!
-//! [`IntrinsicStream`] can be used to provide bi-entity relationship
-//! like `distance` or `allegiance`. This can be used to model range based effects.
+//! All [`StatStream`]s have access to a [`Querier`], which can query for other stats
+//! from any entity in the world. In addition, [`RelationStream`] allows the stat system to
+//! query for relationship between entities, for example to model an aura effect base on distance.
 //!
-//! You may find [`StatOnce`](types::StatOnce) useful in implementing these.
-//! 
 //! # [StatMap]
-//! 
-//! `StatMap` is a optimized storage for all of your stats an implements [`StatStream`].
-//! 
+//!
+//! `StatMap` is a optimized map like storage for all stats that implements [`StatStream`].
+//!
 //! ## Serialization
+//!
+//! Due to the type of dynamic dispatch used by [`StatMap`], this type can only be serialized
+//! via [`bevy_serde_lens`]. `Reflect` is currently not supported.
+//!
+//! Call [`StatExtension::register_stat`] on the world for each [`Stat`] used in deserialization.
 //! 
-//! Due to the esoteric dynamic dispatch used by [`StatMap`], this type can only be serialized
-//! via [`bevy_serde_lens`]. `Reflect` is currently not expressive enough to serialize this
-//! type but this might change in the future.
+//! # [StatCache]
 //! 
-//! Call [`StatExtension::register_stat`] on the world for each [`Stat`] used for deserialization.
+//! A resource that must be manually added.
+//! If added, will cache all query results. 
+//! If invalidated, must be manually cleared via [`StatQuery`].
+//! 
+//! # [StatDefaults]
+//! 
+//! A resource that is lazily added. You can modify it directly or from
+//! extension methods on the `App`. This sets the default values of stats.
 #[allow(unused)]
 use bevy_ecs::{component::Component, query::QueryData, system::SystemParam};
 
@@ -181,7 +147,7 @@ pub use operations::StatValue;
 mod cache;
 pub use cache::StatCache;
 mod plugin;
-pub use plugin::StatExtension;
+pub use plugin::{StatExtension, StatDefaults};
 mod stat_map;
 pub use stat_map::StatMap;
 pub mod rounding;
@@ -221,3 +187,185 @@ fn validate<T>() {
 /// Alias for `Clone + Debug + Send + Sync + 'static`.
 pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
+
+/// Construct a reference to a static [`StatVTable`] with serialization support.
+/// ```
+/// vtable!(Type);
+/// ```
+/// Equivalent to
+/// ```
+/// {
+///     static VTABLE: StatVTable<Type> = StatVTable::of::<Type>();
+///     &VTABLE
+/// }
+/// ```
+#[macro_export]
+macro_rules! vtable {
+    ($ty: ty) => {{
+        static _VTABLE: StatVTable<$ty> = $crate::StatVTable::of::<$ty>();
+        &_VTABLE
+    }};
+}
+
+/// Downcast a generic stat value pair to a concrete stat value pair.
+/// This is usually free when used to implement [`StatStream`]
+/// due to monomorphization.
+///
+/// # Syntax
+///
+/// ```
+/// match_stat!((stat, value) {
+///     // if stat is `MyStat::A`, downcast `value` to `MyStat::Value` as `v`.
+///     (MyStat::A, v) => {
+///         value.add(1);
+///     },
+///     // if stat is `MyStat`, downcast `stat` as `s` and `value` as `v`.
+///     (s @ MyStat, v) => {
+///         value.add(*v as i32);
+///     },
+/// }
+/// ```
+#[macro_export]
+macro_rules! match_stat {
+    (($stat: expr, $data: expr) {($ident: ident @ $ty: ty, $value: pat) => $expr: expr $(, $($tt: tt)*)?}) => {
+        if let Some(($ident, $value)) = $crate::StatExt::cast::<$ty>($stat, $data) {
+            $expr
+        } $(
+            else {
+                $crate::match_stat!(($stat, $data) {$($tt)*})
+            }
+        )?
+    };
+    (($stat: expr, $data: expr) {($is: expr, $value: pat) => $expr: expr $(, $($tt: tt)*)?}) => {
+        if let Some($value) = $crate::StatExt::is_then_cast($stat, &$is, $data) {
+            $expr
+        } $(
+            else {
+                $crate::match_stat!(($stat, $data) {$($tt)*})
+            }
+        )?
+    };
+    (($stat: expr, $data: expr) {_ => $expr: expr $(,)?}) => {
+        $expr
+    };
+    // Matches the last comma case.
+    (($stat: expr, $data: expr) {}) => {()};
+}
+
+#[cfg(test)]
+mod test {
+    use bevy_ecs::component::Component;
+    use num_enum::{FromPrimitive, IntoPrimitive};
+    use strum::{EnumIter, IntoEnumIterator, IntoStaticStr};
+
+    use crate::{
+        types::{StatFlags, StatIntPercentAdditive},
+        ComponentStream, Stat, StatVTable, StatValue,
+    };
+
+    #[derive(Component)]
+    pub struct X;
+
+    #[derive(Debug, Clone, Copy, IntoStaticStr, EnumIter, FromPrimitive, IntoPrimitive)]
+    #[repr(u64)]
+    pub enum IntStat {
+        #[default]
+        A,
+        B,
+        C,
+        D,
+    }
+
+    impl Stat for IntStat {
+        type Value = StatIntPercentAdditive<i32>;
+
+        fn name(&self) -> &'static str {
+            self.into()
+        }
+
+        fn vtable() -> &'static crate::StatVTable<Self> {
+            vtable!(IntStat)
+        }
+
+        fn as_index(&self) -> u64 {
+            (*self).into()
+        }
+
+        fn from_index(index: u64) -> Self {
+            index.into()
+        }
+
+        fn values() -> impl IntoIterator<Item = Self> {
+            IntStat::iter()
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, IntoStaticStr, EnumIter, FromPrimitive, IntoPrimitive)]
+    #[repr(u64)]
+    pub enum FlagsStat {
+        #[default]
+        E,
+        F,
+        G,
+        H,
+    }
+
+    impl Stat for FlagsStat {
+        type Value = StatFlags<i32>;
+
+        fn name(&self) -> &'static str {
+            self.into()
+        }
+
+        fn vtable() -> &'static crate::StatVTable<Self> {
+            vtable!(FlagsStat)
+        }
+
+        fn as_index(&self) -> u64 {
+            (*self).into()
+        }
+
+        fn from_index(index: u64) -> Self {
+            index.into()
+        }
+
+        fn values() -> impl IntoIterator<Item = Self> {
+            FlagsStat::iter()
+        }
+    }
+
+    impl ComponentStream<u32> for &X {
+        type Cx = ();
+
+        fn stream<S: crate::Stat>(
+            _: bevy::prelude::Entity,
+            _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
+            _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
+            _: &crate::QualifierQuery<u32>,
+            stat: &S,
+            value: &mut S::Value,
+            _: &impl crate::Querier<u32>,
+        ) {
+            match_stat!((stat, value) {
+                (IntStat::A, value) => {
+                    value.add(1);
+                },
+                (IntStat::B, value) => {
+                    value.add(2);
+                },
+                (v @ IntStat, value) => {
+                    value.add(*v as i32);
+                },
+                (FlagsStat::E, value) => {
+                    value.or(1);
+                },
+                (FlagsStat::F, value) => {
+                    value.not(2);
+                },
+                (v @ FlagsStat, value) => {
+                    value.or(*v as i32);
+                },
+            })
+        }
+    }
+}

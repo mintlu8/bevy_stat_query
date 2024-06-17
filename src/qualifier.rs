@@ -6,7 +6,8 @@ use std::{
     ops::{BitAnd, BitOr},
 };
 
-use crate::Shareable;
+#[allow(unused)]
+use crate::{Shareable, Stat};
 
 /// A flags like [`Qualifier`] for stats, normally bitflags or a set.
 ///

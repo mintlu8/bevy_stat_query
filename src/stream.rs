@@ -4,8 +4,11 @@ use bevy_ecs::{
     query::{QueryData, QueryFilter, WorldQuery},
     system::{Query, ReadOnlySystemParam, SystemParam},
 };
+#[allow(unused)]
+use bevy_ecs::component::Component;
 
-/// A stream that write to a given stat query.
+
+/// A stream that writes to a given stat query.
 pub trait StatStream<Q: QualifierFlag> {
     fn stream_stat<S: Stat>(
         &self,
@@ -110,12 +113,11 @@ impl<Q: QualifierFlag, A: QueryRelationStream<Q>, B: QueryRelationStream<Q>> Que
     }
 }
 
-/// Component and context based stat streams on children of [`StatEntity`](crate::StatEntity).
-///
-/// The item is generated from the [`QueryData`] and a [`SystemParam`] context,
-/// For example an `Asset` can be generated from a `Handle` and context `Assets`.
+/// A [`Component`] or [`QueryData`] that can be used to query stats 
+/// when added to a [`Entity`] or a child of the entity.
 pub trait ComponentStream<Q: QualifierFlag>: QueryData {
     type Cx: ReadOnlySystemParam;
+    /// Writes to queried stats.
     fn stream<S: Stat>(
         this: Entity,
         cx: &<Self::Cx as SystemParam>::Item<'_, '_>,
@@ -127,12 +129,10 @@ pub trait ComponentStream<Q: QualifierFlag>: QueryData {
     );
 }
 
-/// An item that can be used to generate relations when directly added to [`StatEntity`](crate::StatEntity).
-///
-/// The item also allows querying for "distance" or other relation between paired components on two entities.
+/// A [`Component`] or [`QueryData`] that can be used to query relation between entities.
 pub trait RelationStream<Q: QualifierFlag>: ComponentStream<Q> {
     #[allow(unused)]
-    /// Write to `stat` and return true ***if a value is written***.
+    /// Writes to queried stats representing the relationship between two entities.
     fn relation<S: Stat>(
         this: <Self::ReadOnly as WorldQuery>::Item<'_>,
         other: <Self::ReadOnly as WorldQuery>::Item<'_>,

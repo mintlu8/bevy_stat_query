@@ -141,28 +141,11 @@ impl Hash for StatInst {
 
 /// Implement this on your types to qualify them as a [`Stat`].
 ///
-/// Similar to bevy's labels, you can either use one instance per stat,
-/// or use one type per [`StatValue`].
-///
-/// # Example
-/// ```
-/// struct Attack;
-/// struct Defense;
-/// impl Stat for Attack { .. }
-/// impl Stat for Defense { .. }
-/// ```
-/// or
-/// ```
-/// enum MyStat{
-///     Attack,
-///     Defense
-/// }
-/// impl Stat for MyStat { .. }
-/// ```
+/// Each implementor can have its own `Value` type so you may want multiple of them.
 pub trait Stat: Shareable {
     type Value: StatValue;
 
-    /// Return a unique name of the stat.
+    /// Returns a globally unique name of the stat.
     fn name(&self) -> &'static str;
 
     /// Return a reference to a static [`StatVTable`] that supports `Debug`, `Drop` and serialization.
@@ -182,15 +165,15 @@ pub trait Stat: Shareable {
     /// by having a generic constraint of `Self`.
     fn vtable() -> &'static StatVTable<Self>;
 
-    /// Returns a unique index of the stat, used in equality comparison.
+    /// Returns a locally unique index of the stat, used in equality comparisons.
     fn as_index(&self) -> u64;
 
     /// Convert from a unique index of the stat.
     ///
-    /// This function should panic in case of a mismatch.
+    /// This function can panic in case of a mismatch.
     fn from_index(index: u64) -> Self;
 
-    /// Register all fields.
+    /// Register all fields for serialization.
     fn values() -> impl IntoIterator<Item = Self>;
 }
 
@@ -207,14 +190,18 @@ pub trait StatExt: Stat {
         }
     }
 
+    /// Check for equality on generic stats.
     fn is<T: Stat>(&self, other: &T) -> bool {
         self.as_entry() == other.as_entry()
     }
 
     /// Cast a generic [`Stat::Value`] to a concrete one. This is usually free in a generic context due to monomorphization.
-    fn cast<'t, T: Stat>(&self, value: &'t mut Self::Value) -> Option<&'t mut T::Value> {
+    fn cast<'t, T: Stat>(&self, value: &'t mut Self::Value) -> Option<(&T, &'t mut T::Value)> {
         if TypeId::of::<Self>() == TypeId::of::<T>() {
-            (value as &mut dyn Any).downcast_mut()
+            Some((
+                (self as &dyn Any).downcast_ref()?,
+                (value as &mut dyn Any).downcast_mut()?,
+            ))
         } else {
             None
         }
@@ -229,7 +216,7 @@ pub trait StatExt: Stat {
         if !self.is(other) {
             return None;
         }
-        self.cast::<T>(value)
+        (value as &mut dyn Any).downcast_mut()
     }
 }
 
