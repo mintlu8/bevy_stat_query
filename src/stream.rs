@@ -18,6 +18,8 @@ pub trait StatStream<Q: QualifierFlag> {
         querier: Querier<Q>,
     );
 }
+
+/// Extension methods for [`StatStream`].
 pub trait StatStreamExt<Q: QualifierFlag>: StatStream<Q> {
     fn query_stat<S: Stat>(&self, qualifier: &QualifierQuery<Q>, stat: &S) -> S::Value {
         let mut stat = StatValuePair::new_default(stat);

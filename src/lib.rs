@@ -179,7 +179,7 @@ impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 #[macro_export]
 macro_rules! vtable {
     ($ty: ty) => {{
-        static _VTABLE: StatVTable<$ty> = $crate::StatVTable::of::<$ty>();
+        static _VTABLE: $crate::StatVTable<$ty> = $crate::StatVTable::of::<$ty>();
         &_VTABLE
     }};
 }
@@ -238,7 +238,7 @@ mod test {
     use crate::{
         stat::StatValuePair,
         types::{StatFlags, StatIntPercentAdditive},
-        ComponentStream, Querier, Stat, StatVTable, StatValue,
+        ComponentStream, Querier, Stat, StatValue,
     };
 
     #[derive(Component)]
