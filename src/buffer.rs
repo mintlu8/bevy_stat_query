@@ -1,5 +1,7 @@
 use std::{
-    any::type_name, cell::UnsafeCell, mem::{align_of, size_of, MaybeUninit}
+    any::type_name,
+    cell::UnsafeCell,
+    mem::{align_of, size_of, MaybeUninit},
 };
 
 #[inline(always)]
@@ -21,7 +23,7 @@ pub(crate) fn validate<T>() {
 }
 
 /// A type that should be able to hold everything in rust within constraints.
-/// 
+///
 /// Might drop `UnsafeCell` with stablized `Freeze`.
 #[repr(C, align(8))]
 pub struct Buffer(UnsafeCell<[MaybeUninit<u8>; 24]>);
@@ -57,9 +59,9 @@ impl Buffer {
     }
 
     /// Read from a mutable reference to buffer.
-    /// 
+    ///
     /// # Safety
-    /// 
+    ///
     /// Buffer must not be read after and should be dropped immediately.
     pub(crate) unsafe fn read_move<T: Send + Sync>(&mut self) -> T {
         validate::<T>();

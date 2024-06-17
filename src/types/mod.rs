@@ -7,4 +7,4 @@ pub use flags::StatFlags;
 pub use float::{StatFloat, StatFloatAdditive, StatMult};
 pub use int_pct::{StatIntPercent, StatIntPercentAdditive};
 pub use int_ratio::{StatInt, StatIntFloatMul, StatIntFraction};
-pub use singleton::StatOnce;
+pub use singleton::{StatExists, StatOnce, StatSingle};

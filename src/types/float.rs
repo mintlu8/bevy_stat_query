@@ -104,7 +104,9 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
     }
 
     fn eval(&self) -> Self::Out {
-        (self.addend * (self.mult + T::ONE)).min(self.max).max(self.min)
+        (self.addend * (self.mult + T::ONE))
+            .min(self.max)
+            .max(self.min)
     }
 
     type Add = T;

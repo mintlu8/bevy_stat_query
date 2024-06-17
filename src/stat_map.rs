@@ -183,16 +183,16 @@ impl<Q: QualifierFlag> StatMap<Q> {
     /// Create a [`Default`] stat if non-existent.
     pub fn modify_with<S: Stat>(
         &mut self,
-        qualifier: &Qualifier<Q>,
+        qualifier: Qualifier<Q>,
         stat: &S,
         f: impl FnOnce(&mut S::Value),
     ) {
-        if let Some(val) = self.get_mut(qualifier, stat) {
+        if let Some(val) = self.get_mut(&qualifier, stat) {
             f(val)
         } else {
             let mut val = Default::default();
             f(&mut val);
-            self.insert(qualifier.clone(), stat.clone(), val);
+            self.insert(qualifier, stat.clone(), val);
         }
     }
 }
