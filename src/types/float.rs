@@ -87,7 +87,7 @@ impl<T: Float> Default for StatFloatAdditive<T> {
             addend: T::ZERO,
             min: T::MIN_VALUE,
             max: T::MAX_VALUE,
-            mult: T::ONE,
+            mult: T::ZERO,
         }
     }
 }
@@ -104,7 +104,7 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
     }
 
     fn eval(&self) -> Self::Out {
-        (self.addend * self.max).min(self.max).max(self.min)
+        (self.addend * (self.mult + T::ONE)).min(self.max).max(self.min)
     }
 
     type Add = T;
@@ -134,7 +134,7 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
             addend: base,
             min: T::MIN_VALUE,
             max: T::MAX_VALUE,
-            mult: T::ONE,
+            mult: T::ZERO,
         }
     }
 }
@@ -169,7 +169,7 @@ impl<T: Float> StatValue for StatMult<T> {
     }
 
     fn eval(&self) -> Self::Out {
-        self.mult
+        self.mult.min(self.max).max(self.min)
     }
 
     type Add = Unsupported;

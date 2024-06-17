@@ -5,7 +5,6 @@ use std::{
     fmt::Debug,
     hash::Hash,
     marker::PhantomData,
-    mem::MaybeUninit,
     ptr,
 };
 
@@ -25,9 +24,12 @@ pub struct StatVTable<T = ()> {
 
 pub(crate) struct ErasedStatVTable {
     pub name: fn(u64) -> &'static str,
+    pub join: unsafe fn(&mut Buffer, &Buffer),
+    pub default: fn() -> Buffer,
     pub as_debug: unsafe fn(&Buffer) -> &dyn Debug,
     pub as_serialize: unsafe fn(&Buffer) -> &dyn erased_serde::Serialize,
-    pub deserialize: unsafe fn(&mut dyn erased_serde::Deserializer) -> erased_serde::Result<Buffer>,
+    pub deserialize: fn(&mut dyn erased_serde::Deserializer) -> erased_serde::Result<Buffer>,
+    pub clone: unsafe fn(&Buffer) -> Buffer,
     pub drop: unsafe fn(&mut Buffer),
 }
 
@@ -37,28 +39,25 @@ impl StatVTable {
         StatVTable {
             vtable: ErasedStatVTable {
                 name: |id| T::index_to_name(id),
-                as_debug: |buffer| {
+                join: |to, from| {
                     validate::<T::Value>();
-                    let ptr = ptr::from_ref(buffer).cast::<T::Value>();
-                    unsafe { ptr.as_ref() }.unwrap()
+                    let to = ptr::from_mut(to).cast::<T::Value>();
+                    let from = ptr::from_ref(from).cast::<T::Value>();
+                    unsafe { to.as_mut() }
+                        .unwrap()
+                        .join_by_ref(unsafe { from.as_ref().unwrap() })
                 },
-                as_serialize: |buffer| {
-                    validate::<T::Value>();
-                    let ptr = ptr::from_ref(buffer).cast::<T::Value>();
-                    unsafe { ptr.as_ref() }.unwrap()
-                },
+                default: || Buffer::from(T::Value::default()),
+                as_debug: |buffer| unsafe { buffer.as_ref::<T::Value>() },
+                as_serialize: |buffer| unsafe { buffer.as_ref::<T::Value>() },
                 deserialize: |deserializer| {
                     validate::<T::Value>();
                     let value: T::Value = erased_serde::deserialize(deserializer)?;
-                    let mut buffer = [MaybeUninit::uninit(); 3];
-                    let ptr = buffer.as_mut_ptr() as *mut T::Value;
-                    unsafe { ptr.write(value) };
-                    Ok(buffer)
+                    Ok(Buffer::from(value))
                 },
+                clone: |buffer| Buffer::from(unsafe { buffer.as_ref::<T::Value>() }.clone()),
                 drop: |buffer| {
-                    validate::<T::Value>();
-                    let ptr = ptr::from_ref(buffer).cast::<T::Value>();
-                    let value = unsafe { ptr.read() };
+                    let value = unsafe { buffer.read_move::<T::Value>() };
                     drop(value)
                 },
             },
@@ -71,6 +70,15 @@ impl StatVTable {
         StatVTable {
             vtable: ErasedStatVTable {
                 name: |id| T::index_to_name(id),
+                join: |to, from| {
+                    validate::<T::Value>();
+                    let to = ptr::from_mut(to).cast::<T::Value>();
+                    let from = ptr::from_ref(from).cast::<T::Value>();
+                    unsafe { to.as_mut() }
+                        .unwrap()
+                        .join_by_ref(unsafe { from.as_ref().unwrap() })
+                },
+                default: || Buffer::from(T::Value::default()),
                 as_debug: |buffer| {
                     validate::<T::Value>();
                     let ptr = ptr::from_ref(buffer).cast::<T::Value>();
@@ -78,10 +86,9 @@ impl StatVTable {
                 },
                 as_serialize: |_| panic!("Serialization is not supported."),
                 deserialize: |_| panic!("Deserialization is not supported."),
+                clone: |buffer| Buffer::from(unsafe { buffer.as_ref::<T::Value>() }.clone()),
                 drop: |buffer| {
-                    validate::<T::Value>();
-                    let ptr = ptr::from_ref(buffer).cast::<T::Value>();
-                    let value = unsafe { ptr.read() };
+                    let value = unsafe { buffer.read_move::<T::Value>() };
                     drop(value)
                 },
             },
@@ -100,6 +107,14 @@ fn ref_cmp<T>(a: &T, b: &T) -> Ordering {
     (a as *const T as usize).cmp(&(b as *const T as usize))
 }
 
+/// Instance of a stat.
+///
+/// # Safety Invariant
+///
+/// If two [`StatInst`]s are equal, their corresponding [`Stat`] and [`StatValue`]
+/// they are constructed from must be equal.
+/// This is achieved through the constraint placed on construction of [`StatVTable`], which makes
+/// having the same [`ErasedStatVTable`] on two different [`Stat`]s impossible in safe rust.
 #[derive(Debug, Clone, Copy)]
 pub struct StatInst {
     pub(crate) index: u64,
@@ -109,6 +124,14 @@ pub struct StatInst {
 impl StatInst {
     pub fn name(&self) -> &'static str {
         (self.vtable.name)(self.index)
+    }
+
+    pub unsafe fn clone_buffer(&self, buffer: &Buffer) -> Buffer {
+        (self.vtable.clone)(buffer)
+    }
+
+    pub unsafe fn drop_buffer(&self, buffer: &mut Buffer) {
+        (self.vtable.drop)(buffer)
     }
 }
 
@@ -175,10 +198,15 @@ pub trait Stat: Shareable {
 
     /// Register all fields for serialization.
     fn values() -> impl IntoIterator<Item = Self>;
+
+    /// Check for equality on generic stats.
+    fn is<T: Stat>(&self, other: &T) -> bool {
+        self.as_entry() == other.as_entry()
+    }
 }
 
 /// Extension methods to [`Stat`].
-pub trait StatExt: Stat {
+pub(crate) trait StatExt: Stat {
     fn index_to_name(index: u64) -> &'static str {
         Self::from_index(index).name()
     }
@@ -188,11 +216,6 @@ pub trait StatExt: Stat {
             index: self.as_index(),
             vtable: &Self::vtable().vtable,
         }
-    }
-
-    /// Check for equality on generic stats.
-    fn is<T: Stat>(&self, other: &T) -> bool {
-        self.as_entry() == other.as_entry()
     }
 
     /// Cast a generic [`Stat::Value`] to a concrete one. This is usually free in a generic context due to monomorphization.
@@ -290,5 +313,76 @@ impl<'de> Deserialize<'de> for StatInst {
                 )))
             }
         })?
+    }
+}
+
+/// A pair of stat and value in a query.
+///
+/// # Safety Invariant
+/// `value` must be the correct [`Stat::Value`].
+pub struct StatValuePair {
+    pub(crate) stat: StatInst,
+    pub(crate) value: Buffer,
+}
+
+impl Debug for StatValuePair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StatValuePair")
+            .field("stat", &self.stat.name())
+            .field("value", unsafe {
+                &(self.stat.vtable.as_debug)(&self.value)
+            })
+            .finish()
+    }
+}
+
+impl StatValuePair {
+    pub fn new<S: Stat>(stat: &S, value: S::Value) -> Self {
+        StatValuePair {
+            stat: stat.as_entry(),
+            value: Buffer::from(value),
+        }
+    }
+
+    pub fn new_default<S: Stat>(stat: &S) -> Self {
+        StatValuePair {
+            stat: stat.as_entry(),
+            value: Buffer::from(S::Value::default()),
+        }
+    }
+
+    /// Check for equality on generic stats.
+    pub fn is<T: Stat>(&self, other: &T) -> bool {
+        self.stat == other.as_entry()
+    }
+
+    /// Cast a generic [`Stat::Value`] to a concrete one. This is usually free in a generic context due to monomorphization.
+    pub fn cast<'t, T: Stat>(&mut self) -> Option<(T, &'t mut T::Value)> {
+        validate::<T>();
+        if ptr::eq(self.stat.vtable, &T::vtable().vtable) {
+            let ptr = ptr::from_mut(&mut self.value) as *mut T::Value;
+            Some((
+                T::from_index(self.stat.index),
+                unsafe { ptr.as_mut() }.unwrap(),
+            ))
+        } else {
+            None
+        }
+    }
+
+    /// Cast a generic [`Stat::Value`] to a concrete one if stat is equal.
+    pub fn is_then_cast<'t, T: Stat>(&mut self, other: &T) -> Option<&'t mut T::Value> {
+        validate::<T>();
+        if self.stat == other.as_entry() {
+            let ptr = ptr::from_mut(&mut self.value) as *mut T::Value;
+            unsafe { ptr.as_mut() }
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn clone_buffer(&self) -> Buffer {
+        // Safety: Safe because invariant.
+        unsafe { self.stat.clone_buffer(&self.value) }
     }
 }

@@ -1,8 +1,7 @@
 use bevy_stat_query::{
     operations::StatOperation::{Add, Max, Mul},
     types::StatIntPercentAdditive,
-    NoopQuerier, Qualifier, QualifierFlag, QualifierQuery, Stat, StatMap, StatStream, StatVTable,
-    StatValue,
+    Qualifier, QualifierFlag, QualifierQuery, Stat, StatMap, StatStreamExt, StatVTable,
 };
 
 bitflags::bitflags! {
@@ -143,53 +142,22 @@ pub fn qualifier_test() {
     map.insert_base(none, S, 1);
     map.insert_base(fire, S, 2);
     map.insert_base(fire_magic, S, 4);
-    let mut data = StatIntPercentAdditive::<i32>::default();
-    map.stream_stat(&QualifierQuery::none(), &S, &mut data, &NoopQuerier);
-    assert_eq!(data.eval(), 1);
-
-    let mut data = StatIntPercentAdditive::<i32>::default();
-    map.stream_stat(
-        &QualifierQuery::Aggregate(Q::Fire),
-        &S,
-        &mut data,
-        &NoopQuerier,
+    assert_eq!(map.eval_stat(&QualifierQuery::none(), &S), 1);
+    assert_eq!(map.eval_stat(&QualifierQuery::Aggregate(Q::Fire), &S), 3);
+    assert_eq!(
+        map.eval_stat(&QualifierQuery::Aggregate(Q::Fire | Q::Magic), &S),
+        7
     );
-    assert_eq!(data.eval(), 3);
-
-    let mut data = StatIntPercentAdditive::<i32>::default();
-    map.stream_stat(
-        &QualifierQuery::Aggregate(Q::Fire | Q::Magic),
-        &S,
-        &mut data,
-        &NoopQuerier,
-    );
-    assert_eq!(data.eval(), 7);
 
     let mut map = StatMap::<Q>::new();
     map.modify(none, S, Add(2));
     // + 100%
     map.modify(fire, S, Mul(100));
     map.modify(fire_magic, S, Max(2));
-
-    let mut data = StatIntPercentAdditive::<i32>::default();
-    map.stream_stat(&QualifierQuery::none(), &S, &mut data, &NoopQuerier);
-    assert_eq!(data.eval(), 2);
-
-    let mut data = StatIntPercentAdditive::<i32>::default();
-    map.stream_stat(
-        &QualifierQuery::Aggregate(Q::Fire),
-        &S,
-        &mut data,
-        &NoopQuerier,
+    assert_eq!(map.eval_stat(&QualifierQuery::none(), &S), 2);
+    assert_eq!(map.eval_stat(&QualifierQuery::Aggregate(Q::Fire), &S), 4);
+    assert_eq!(
+        map.eval_stat(&QualifierQuery::Aggregate(Q::Fire | Q::Magic), &S),
+        2
     );
-    assert_eq!(data.eval(), 4);
-
-    let mut data = StatIntPercentAdditive::<i32>::default();
-    map.stream_stat(
-        &QualifierQuery::Aggregate(Q::Fire | Q::Magic),
-        &S,
-        &mut data,
-        &NoopQuerier,
-    );
-    assert_eq!(data.eval(), 2);
 }

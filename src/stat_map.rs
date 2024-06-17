@@ -1,6 +1,7 @@
 use crate::operations::StatOperation;
+use crate::stat::StatValuePair;
 use crate::{
-    validate, Buffer, Qualifier, QualifierFlag, Stat, StatExt, StatInst, StatStream, StatValue,
+    Buffer, Qualifier, QualifierFlag, Querier, Stat, StatExt, StatInst, StatStream, StatValue,
 };
 use bevy_ecs::component::Component;
 use bevy_reflect::TypePath;
@@ -10,17 +11,15 @@ use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
 use std::ops::{Bound, RangeBounds};
 use std::{borrow::Borrow, collections::BTreeMap, hash::Hash};
 
 /// A map-like, type erased storage of qualified stats.
 ///
-/// # Panics
+/// # Safety Invariant
 ///
-/// This type can only store [`Stat::Value`] with up to `24` bytes and alignments up to `8`.
-/// Storing types that do not adhere to this requirement will cause a panic.
-#[derive(Clone, Component, TypePath)]
+/// [`StatInst`] and [`Buffer`] must match on all entries.
+#[derive(Component, TypePath)]
 pub struct StatMap<Q: QualifierFlag> {
     inner: BTreeMap<(StatInst, Qualifier<Q>), Buffer>,
 }
@@ -34,6 +33,18 @@ impl<Q: QualifierFlag> Debug for StatMap<Q> {
             map.entry(&(q, Stat(s.name())), unsafe { (s.vtable.as_debug)(b) });
         }
         map.finish()
+    }
+}
+
+impl<Q: QualifierFlag> Clone for StatMap<Q> {
+    fn clone(&self) -> Self {
+        StatMap {
+            inner: self
+                .inner
+                .iter()
+                .map(|((s, q), b)| ((*s, q.clone()), unsafe { s.clone_buffer(b) }))
+                .collect(),
+        }
     }
 }
 
@@ -51,28 +62,6 @@ impl<Q: QualifierFlag> Default for StatMap<Q> {
             inner: BTreeMap::new(),
         }
     }
-}
-
-unsafe fn from_buffer_ref<T>(buffer: &Buffer) -> &T {
-    validate::<T>();
-    unsafe { (buffer.as_ptr() as *const T).as_ref() }.unwrap()
-}
-
-unsafe fn from_buffer_mut<T>(buffer: &mut Buffer) -> &mut T {
-    validate::<T>();
-    unsafe { (buffer.as_mut_ptr() as *mut T).as_mut() }.unwrap()
-}
-
-unsafe fn from_buffer<T>(mut buffer: Buffer) -> T {
-    validate::<T>();
-    unsafe { (buffer.as_mut_ptr() as *mut T).read() }
-}
-
-unsafe fn into_buffer<T>(item: T) -> Buffer {
-    validate::<T>();
-    let mut buffer = [MaybeUninit::uninit(); 3];
-    unsafe { (buffer.as_mut_ptr() as *mut T).write(item) };
-    buffer
 }
 
 impl<Q: QualifierFlag> StatMap<Q> {
@@ -93,7 +82,7 @@ impl<Q: QualifierFlag> StatMap<Q> {
     /// Inserts a [`Stat::Value`] in its component form.
     pub fn insert<S: Stat>(&mut self, qualifier: Qualifier<Q>, stat: S, value: S::Value) {
         self.inner
-            .insert((stat.as_entry(), qualifier), unsafe { into_buffer(value) });
+            .insert((stat.as_entry(), qualifier), Buffer::from(value));
     }
 
     /// Inserts a [`Stat::Value`] in its evaluated form.
@@ -103,16 +92,17 @@ impl<Q: QualifierFlag> StatMap<Q> {
         stat: S,
         base: <S::Value as StatValue>::Base,
     ) {
-        self.inner.insert((stat.as_entry(), qualifier), unsafe {
-            into_buffer(S::Value::from_base(base))
-        });
+        self.inner.insert(
+            (stat.as_entry(), qualifier),
+            Buffer::from(S::Value::from_base(base)),
+        );
     }
 
     /// Obtains a [`Stat::Value`].
     pub fn get<S: Stat>(&self, qualifier: &Qualifier<Q>, stat: &S) -> Option<&S::Value> {
         self.inner
             .get(&(stat.as_entry(), qualifier) as &dyn QueryStatEntry<Q>)
-            .map(|buffer| unsafe { from_buffer_ref(buffer) })
+            .map(|buffer| unsafe { buffer.as_ref() })
     }
 
     /// Obtains a mutable [`Stat::Value`].
@@ -123,14 +113,14 @@ impl<Q: QualifierFlag> StatMap<Q> {
     ) -> Option<&mut S::Value> {
         self.inner
             .get_mut(&(stat.as_entry(), qualifier) as &dyn QueryStatEntry<Q>)
-            .map(|buffer| unsafe { from_buffer_mut(buffer) })
+            .map(|buffer| unsafe { buffer.as_mut() })
     }
 
     /// Removes and obtains a [`Stat::Value`].
     pub fn remove<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S) -> Option<S::Value> {
         self.inner
             .remove(&(stat.as_entry(), qualifier) as &dyn QueryStatEntry<Q>)
-            .map(|buffer| unsafe { from_buffer(buffer) })
+            .map(|buffer| unsafe { buffer.into() })
     }
 
     /// Obtains a [`Stat::Value`] in its evaluated form.
@@ -141,14 +131,14 @@ impl<Q: QualifierFlag> StatMap<Q> {
     ) -> Option<<S::Value as StatValue>::Out> {
         self.inner
             .get(&(stat.as_entry(), qualifier) as &dyn QueryStatEntry<Q>)
-            .map(|buffer| unsafe { from_buffer_ref::<S::Value>(buffer).eval() })
+            .map(|buffer| unsafe { buffer.as_ref::<S::Value>().eval() })
     }
 
     /// Iterate over a particular stat.
     pub fn iter<S: Stat>(&self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &S::Value)> {
         self.inner
             .range(stat.as_entry())
-            .map(|((_, q), v)| (q, unsafe { from_buffer_ref(v) }))
+            .map(|((_, q), v)| (q, unsafe { v.as_ref() }))
     }
 
     /// Iterate over a particular stat.
@@ -158,14 +148,14 @@ impl<Q: QualifierFlag> StatMap<Q> {
     ) -> impl Iterator<Item = (&Qualifier<Q>, &mut S::Value)> {
         self.inner
             .range_mut(stat.as_entry())
-            .map(|((_, q), v)| (q, unsafe { from_buffer_mut(v) }))
+            .map(|((_, q), v)| (q, unsafe { v.as_mut() }))
     }
 
     /// Remove all instances of a given stat.
     pub fn remove_all<S: Stat>(&mut self, stat: &S) {
         self.inner.retain(|(s, _), v| {
             if s == &stat.as_entry() {
-                unsafe { (s.vtable.drop)(v) }
+                unsafe { s.drop_buffer(v) }
                 false
             } else {
                 true
@@ -184,8 +174,8 @@ impl<Q: QualifierFlag> StatMap<Q> {
     ) {
         self.inner
             .entry((stat.as_entry(), qualifier))
-            .and_modify(|buffer| value.write_to(unsafe { from_buffer_mut(buffer) }))
-            .or_insert(unsafe { into_buffer(value.into_stat()) });
+            .and_modify(|buffer| value.write_to(unsafe { buffer.as_mut() }))
+            .or_insert(Buffer::from(value.into_stat()));
     }
 
     /// Create or modify a stat via a closure.
@@ -208,16 +198,15 @@ impl<Q: QualifierFlag> StatMap<Q> {
 }
 
 impl<Q: QualifierFlag> StatStream<Q> for StatMap<Q> {
-    fn stream_stat<S: Stat>(
+    fn stream_stat(
         &self,
         qualifier: &crate::QualifierQuery<Q>,
-        stat: &S,
-        value: &mut S::Value,
-        _: &impl crate::Querier<Q>,
+        stat_value: &mut StatValuePair,
+        _: Querier<Q>,
     ) {
-        self.iter(stat).for_each(|(q, v)| {
+        self.inner.range(stat_value.stat).for_each(|((s, q), v)| {
             if q.qualifies_as(qualifier) {
-                value.join_by_ref(v)
+                unsafe { (s.vtable.join)(&mut stat_value.value, v) };
             }
         })
     }
@@ -403,7 +392,7 @@ impl<'de, Q: QualifierFlag + Deserialize<'de>> Visitor<'de> for &mut StatMap<Q> 
 pub struct TupleSeed<Q: QualifierFlag>(PhantomData<Q>);
 
 pub struct DynSeed<Q: QualifierFlag> {
-    f: unsafe fn(&mut dyn erased_serde::Deserializer) -> erased_serde::Result<Buffer>,
+    f: fn(&mut dyn erased_serde::Deserializer) -> erased_serde::Result<Buffer>,
     q: PhantomData<Q>,
 }
 
@@ -451,6 +440,6 @@ impl<'de, Q: QualifierFlag> DeserializeSeed<'de> for DynSeed<Q> {
 
     fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
         let deserializer = &mut <dyn erased_serde::Deserializer>::erase(deserializer);
-        unsafe { (self.f)(deserializer) }.map_err(serde::de::Error::custom)
+        (self.f)(deserializer).map_err(serde::de::Error::custom)
     }
 }

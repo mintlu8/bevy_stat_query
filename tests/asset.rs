@@ -9,8 +9,8 @@ use bevy_ecs::{
 use bevy_hierarchy::BuildChildren;
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    types::StatFloat, ComponentStream, QualifierQuery, Querier, Stat, StatEntity, StatExt,
-    StatExtension, StatQuery, StatVTable, StatValue,
+    types::StatFloat, ComponentStream, QualifierQuery, Querier, Stat, StatEntity, StatExtension,
+    StatQuery, StatVTable, StatValue, StatValuePair,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -94,16 +94,15 @@ pub struct WeaponHandle {
 impl ComponentStream<u32> for WeaponHandle {
     type Cx = Res<'static, Assets<Weapon>>;
 
-    fn stream<S: Stat>(
+    fn stream(
         _: Entity,
         cx: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         component: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<u32>,
-        stat: &S,
-        value: &mut S::Value,
-        _: &impl bevy_stat_query::Querier<u32>,
+        stat_value: &mut StatValuePair,
+        _: Querier<u32>,
     ) {
-        if let Some(value) = stat.is_then_cast(&Damage, value) {
+        if let Some(value) = stat_value.is_then_cast(&Damage) {
             let Some(weapon) = cx.get(component.weapon) else {
                 return;
             };

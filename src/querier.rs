@@ -1,7 +1,12 @@
+use std::fmt::Debug;
+
+use crate::stat::StatExt;
 use crate::{
-    plugin::StatDefaults, ComponentStream, CxComponentStream, QualifierFlag, QualifierQuery,
-    QueryRelationStream, QueryStream, RelationStream, Stat, StatCache, StatValue,
+    plugin::StatDefaults, stat::StatValuePair, Buffer, ComponentStream, CxComponentStream,
+    QualifierFlag, QualifierQuery, QueryRelationStream, QueryStream, RelationStream, Stat,
+    StatCache, StatInst,
 };
+use crate::{validate, StatValue};
 use bevy_ecs::{
     component::Component,
     entity::Entity,
@@ -45,39 +50,140 @@ pub struct JoinedQuerier<
 /// An erased type that can query for stats on entities in the world.
 ///
 /// Notable implementors are [`NoopQuerier`] and [`JoinedQuerier`].
-pub trait Querier<Q: QualifierFlag> {
-    fn query_stat<S: Stat>(
+trait ErasedQuerier<Q: QualifierFlag> {
+    fn query_stat_erased(
+        &self,
+        entity: Entity,
+        query: &QualifierQuery<Q>,
+        stat: StatInst,
+    ) -> Option<Buffer>;
+
+    fn query_relation_erased(
+        &self,
+        from: Entity,
+        to: Entity,
+        query: &QualifierQuery<Q>,
+        stat: StatInst,
+    ) -> Option<Buffer>;
+}
+
+/// An erased type that can query for stats on entities in the world.
+pub struct Querier<'t, Q: QualifierFlag>(&'t dyn ErasedQuerier<Q>);
+
+impl<Q: QualifierFlag> Clone for Querier<'_, Q> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<Q: QualifierFlag> Copy for Querier<'_, Q> {}
+
+impl<Q: QualifierFlag> Debug for Querier<'_, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Querier").finish_non_exhaustive()
+    }
+}
+
+impl<Q: QualifierFlag> Querier<'_, Q> {
+    /// Create a noop querier.
+    pub fn noop(querier: &NoopQuerier) -> Querier<Q> {
+        Querier(querier)
+    }
+
+    pub fn query_stat<S: Stat>(
         &self,
         entity: Entity,
         query: &QualifierQuery<Q>,
         stat: &S,
-    ) -> Option<S::Value>;
+    ) -> Option<S::Value> {
+        validate::<S::Value>();
+        self.0
+            .query_stat_erased(entity, query, stat.as_entry())
+            .map(|x| unsafe { x.into() })
+    }
 
-    fn query_relation<S: Stat>(
+    pub fn query_relation<S: Stat>(
         &self,
         from: Entity,
         to: Entity,
         query: &QualifierQuery<Q>,
         stat: &S,
-    ) -> Option<S::Value>;
+    ) -> Option<S::Value> {
+        validate::<S::Value>();
+        self.0
+            .query_relation_erased(from, to, query, stat.as_entry())
+            .map(|x| unsafe { x.into() })
+    }
 
-    fn query_eval<S: Stat>(
+    pub fn query_eval<S: Stat>(
         &self,
         entity: Entity,
         query: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<<S::Value as StatValue>::Out> {
+        validate::<S::Value>();
         self.query_stat(entity, query, stat)
             .map(|x| StatValue::eval(&x))
     }
 
-    fn query_relation_eval<S: Stat>(
+    pub fn query_relation_eval<S: Stat>(
         &self,
         from: Entity,
         to: Entity,
         query: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<<S::Value as StatValue>::Out> {
+        validate::<S::Value>();
+        self.query_relation(from, to, query, stat)
+            .map(|x| StatValue::eval(&x))
+    }
+}
+
+impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStream<Q>>
+    JoinedQuerier<'_, '_, '_, Q, A, B, C>
+{
+    pub fn query_stat<S: Stat>(
+        &self,
+        entity: Entity,
+        query: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> Option<S::Value> {
+        validate::<S::Value>();
+        self.query_stat_erased(entity, query, stat.as_entry())
+            .map(|x| unsafe { x.into() })
+    }
+
+    pub fn query_relation<S: Stat>(
+        &self,
+        from: Entity,
+        to: Entity,
+        query: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> Option<S::Value> {
+        validate::<S::Value>();
+        self.query_relation_erased(from, to, query, stat.as_entry())
+            .map(|x| unsafe { x.into() })
+    }
+
+    pub fn query_eval<S: Stat>(
+        &self,
+        entity: Entity,
+        query: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> Option<<S::Value as StatValue>::Out> {
+        validate::<S::Value>();
+        self.query_stat(entity, query, stat)
+            .map(|x| StatValue::eval(&x))
+    }
+
+    pub fn query_relation_eval<S: Stat>(
+        &self,
+        from: Entity,
+        to: Entity,
+        query: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> Option<<S::Value as StatValue>::Out> {
+        validate::<S::Value>();
         self.query_relation(from, to, query, stat)
             .map(|x| StatValue::eval(&x))
     }
@@ -86,31 +192,31 @@ pub trait Querier<Q: QualifierFlag> {
 /// A [`Querier`] that does not provide the ability to query other entities.
 pub struct NoopQuerier;
 
-impl<Q: QualifierFlag> Querier<Q> for NoopQuerier {
-    fn query_stat<S: Stat>(&self, _: Entity, _: &QualifierQuery<Q>, _: &S) -> Option<S::Value> {
-        None
-    }
-
-    fn query_relation<S: Stat>(
+impl<Q: QualifierFlag> ErasedQuerier<Q> for NoopQuerier {
+    fn query_relation_erased(
         &self,
         _: Entity,
         _: Entity,
         _: &QualifierQuery<Q>,
-        _: &S,
-    ) -> Option<S::Value> {
+        _: StatInst,
+    ) -> Option<Buffer> {
+        None
+    }
+
+    fn query_stat_erased(&self, _: Entity, _: &QualifierQuery<Q>, _: StatInst) -> Option<Buffer> {
         None
     }
 }
 
-impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStream<Q>> Querier<Q>
-    for JoinedQuerier<'_, '_, '_, Q, A, B, C>
+impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStream<Q>>
+    ErasedQuerier<Q> for JoinedQuerier<'_, '_, '_, Q, A, B, C>
 {
-    fn query_stat<S: Stat>(
+    fn query_stat_erased(
         &self,
         entity: Entity,
         query: &QualifierQuery<Q>,
-        stat: &S,
-    ) -> Option<S::Value> {
+        stat: StatInst,
+    ) -> Option<Buffer> {
         if !self.querier.entities.contains(entity) {
             return None;
         }
@@ -118,49 +224,56 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .querier
             .cache
             .as_ref()
-            .and_then(|c| c.try_get_cached(entity, query, stat))
+            .and_then(|c| c.try_get_cached_dyn(entity, query, stat))
         {
             return Some(cached);
         }
-        let mut result = self
+        let value = self
             .querier
             .defaults
             .as_ref()
-            .map(|d| d.get(stat))
-            .unwrap_or_default();
+            .map(|d| d.get_dyn(stat))
+            .unwrap_or((stat.vtable.default)());
+        let mut pair = StatValuePair { stat, value };
         self.component_streams
-            .stream(entity, &[entity], query, stat, &mut result, self);
+            .stream(entity, &[entity], query, &mut pair, Querier(self));
         self.relationship_streams
-            .stream(entity, &[entity], query, stat, &mut result, self);
+            .stream(entity, &[entity], query, &mut pair, Querier(self));
         if let Ok(Some(children)) = self.querier.entities.get(entity) {
-            self.children_streams
-                .stream(entity, children.as_ref(), query, stat, &mut result, self);
+            self.children_streams.stream(
+                entity,
+                children.as_ref(),
+                query,
+                &mut pair,
+                Querier(self),
+            );
         }
         if let Some(cache) = self.querier.cache.as_ref() {
-            cache.cache(entity, query.clone(), stat, result.clone())
+            cache.cache_pair(entity, query.clone(), &pair)
         }
-        Some(result)
+        Some(pair.value)
     }
 
-    fn query_relation<S: Stat>(
+    fn query_relation_erased(
         &self,
         from: Entity,
         to: Entity,
         query: &QualifierQuery<Q>,
-        stat: &S,
-    ) -> Option<S::Value> {
+        stat: StatInst,
+    ) -> Option<Buffer> {
         if !self.querier.entities.contains(from) || !self.querier.entities.contains(to) {
             return None;
         }
-        let mut result = self
+        let value = self
             .querier
             .defaults
             .as_ref()
-            .map(|d| d.get(stat))
-            .unwrap_or_default();
+            .map(|d| d.get_dyn(stat))
+            .unwrap_or((stat.vtable.default)());
+        let mut pair = StatValuePair { stat, value };
         self.relationship_streams
-            .relation(from, to, query, stat, &mut result, self);
-        Some(result)
+            .relation(from, to, query, &mut pair, Querier(self));
+        Some(pair.value)
     }
 }
 

@@ -26,7 +26,7 @@ impl<T: Int, R: Rounding, const S: i64> Default for StatIntPercentAdditive<T, R,
             addend: T::ZERO,
             min: T::MIN_VALUE,
             max: T::MAX_VALUE,
-            mult: T::from_i64(S),
+            mult: T::ZERO,
             rounding: PhantomData,
         }
     }
@@ -44,7 +44,7 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, 
     }
 
     fn eval(&self) -> Self::Out {
-        let numer = self.addend * self.mult;
+        let numer = self.addend * (self.mult + T::from_i64(S));
         let base = T::from_fraction(R::round(numer.build_fraction(T::from_i64(S))));
         base.min(self.max).max(self.min)
     }
@@ -77,7 +77,7 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, 
             addend: base,
             min: T::MIN_VALUE,
             max: T::MAX_VALUE,
-            mult: T::from_i64(S),
+            mult: T::ZERO,
             rounding: PhantomData,
         }
     }

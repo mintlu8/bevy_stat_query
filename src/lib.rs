@@ -69,9 +69,9 @@
 //!     all_of: Magic,
 //! }
 //! ```
-//! 
+//!
 //! ## [Stat]
-//! 
+//!
 //! An app usually has a single [`QualifierFlag`] but multiple [`Stat`] implementors. This is because
 //! each [`Stat`] can associate to a different type. For example `strength` and `magic` can be a `i32`,
 //! `hp` can be a `f32`, `is_dragon` can be a `bool` etc. `Stat`s are usually enums and you might find
@@ -92,7 +92,7 @@
 //! [`StatQuery`] is the [`SystemParam`] to query stats. `StatQuery` only collects [`StatEntity`]s, which are
 //! marker components for queryable entities. To actually query for stats, you need to join it with
 //! [`ComponentStream`]s and [`RelationStream`]s. They can query stats from components and children of
-//! the `Entity`. 
+//! the `Entity`.
 //!
 //! ## Relations
 //!
@@ -110,15 +110,15 @@
 //! via [`bevy_serde_lens`]. `Reflect` is currently not supported.
 //!
 //! Call [`StatExtension::register_stat`] on the world for each [`Stat`] used in deserialization.
-//! 
+//!
 //! # [StatCache]
-//! 
+//!
 //! A resource that must be manually added.
-//! If added, will cache all query results. 
+//! If added, will cache all query results.
 //! If invalidated, must be manually cleared via [`StatQuery`].
-//! 
+//!
 //! # [StatDefaults]
-//! 
+//!
 //! A resource that is lazily added. You can modify it directly or from
 //! extension methods on the `App`. This sets the default values of stats.
 #[allow(unused)]
@@ -140,48 +140,25 @@ mod qualifier;
 pub mod types;
 pub use qualifier::{Qualifier, QualifierFlag, QualifierQuery};
 mod stat;
+pub(crate) use stat::StatExt;
 pub(crate) use stat::StatInst;
-pub use stat::{Stat, StatExt, StatVTable};
+pub use stat::{Stat, StatVTable, StatValuePair};
 pub mod operations;
 pub use operations::StatValue;
 mod cache;
 pub use cache::StatCache;
 mod plugin;
-pub use plugin::{StatExtension, StatDefaults};
+pub use plugin::{StatDefaults, StatExtension};
 mod stat_map;
 pub use stat_map::StatMap;
+mod buffer;
 pub mod rounding;
-
-use std::{
-    any::type_name,
-    fmt::Debug,
-    mem::{align_of, size_of, MaybeUninit},
-};
+use std::fmt::Debug;
 
 mod sealed {
     pub trait Sealed {}
 
     impl<T: ?Sized> Sealed for T {}
-}
-
-type Buffer = [MaybeUninit<u64>; 3];
-
-#[inline(always)]
-fn validate<T>() {
-    if !matches!(align_of::<T>(), 1 | 2 | 4 | 8) {
-        panic!(
-            "{} has alignment {}. StatMap can only store values with alignment 1, 2, 4 or 8.",
-            type_name::<T>(),
-            align_of::<T>()
-        )
-    }
-    if size_of::<T>() > 24 {
-        panic!(
-            "{} has size {}. StatMap can only store values up to 24 bytes.",
-            type_name::<T>(),
-            size_of::<T>()
-        )
-    }
 }
 
 /// Alias for `Clone + Debug + Send + Sync + 'static`.
@@ -207,50 +184,50 @@ macro_rules! vtable {
     }};
 }
 
-/// Downcast a generic stat value pair to a concrete stat value pair.
-/// This is usually free when used to implement [`StatStream`]
-/// due to monomorphization.
+/// Downcast [`StatValuePair`] to a concrete pair of stat and value.
 ///
 /// # Syntax
 ///
 /// ```
-/// match_stat!((stat, value) {
-///     // if stat is `MyStat::A`, downcast `value` to `MyStat::Value` as `v`.
+/// match_stat!(stat_value_pair => {
+///     // if stat is `MyStat::A`, downcast the value to `MyStat::Value` as `value`.
 ///     (MyStat::A, v) => {
 ///         value.add(1);
 ///     },
-///     // if stat is `MyStat`, downcast `stat` as `s` and `value` as `v`.
-///     (s @ MyStat, v) => {
+///     // if stat is `MyStat`, downcast the stat as `stat` and the value as `value`.
+///     (stat @ MyStat, value) => {
 ///         value.add(*v as i32);
 ///     },
 /// }
 /// ```
 #[macro_export]
 macro_rules! match_stat {
-    (($stat: expr, $data: expr) {($ident: ident @ $ty: ty, $value: pat) => $expr: expr $(, $($tt: tt)*)?}) => {
-        if let Some(($ident, $value)) = $crate::StatExt::cast::<$ty>($stat, $data) {
+    ($stat_value: expr => {($ident: ident @ $ty: ty, $value: pat) => $expr: expr $(, $($tt: tt)*)?}) => {
+        if let Some(($ident, $value)) = $stat_value.cast::<$ty>() {
             $expr
         } $(
             else {
-                $crate::match_stat!(($stat, $data) {$($tt)*})
+                $crate::match_stat!($stat_value => {$($tt)*})
             }
         )?
     };
-    (($stat: expr, $data: expr) {($is: expr, $value: pat) => $expr: expr $(, $($tt: tt)*)?}) => {
-        if let Some($value) = $crate::StatExt::is_then_cast($stat, &$is, $data) {
+    ($stat_value: expr => {($is: expr, $value: pat) => $expr: expr $(, $($tt: tt)*)?}) => {
+        if let Some($value) = $stat_value.is_then_cast(&$is) {
             $expr
         } $(
             else {
-                $crate::match_stat!(($stat, $data) {$($tt)*})
+                $crate::match_stat!($stat_value => {$($tt)*})
             }
         )?
     };
-    (($stat: expr, $data: expr) {_ => $expr: expr $(,)?}) => {
+    ($stat_value: expr => {_ => $expr: expr $(,)?}) => {
         $expr
     };
     // Matches the last comma case.
-    (($stat: expr, $data: expr) {}) => {()};
+    ($stat_value: expr => {}) => {()};
 }
+
+use buffer::{validate, Buffer};
 
 #[cfg(test)]
 mod test {
@@ -259,8 +236,9 @@ mod test {
     use strum::{EnumIter, IntoEnumIterator, IntoStaticStr};
 
     use crate::{
+        stat::StatValuePair,
         types::{StatFlags, StatIntPercentAdditive},
-        ComponentStream, Stat, StatVTable, StatValue,
+        ComponentStream, Querier, Stat, StatVTable, StatValue,
     };
 
     #[derive(Component)]
@@ -337,35 +315,36 @@ mod test {
     impl ComponentStream<u32> for &X {
         type Cx = ();
 
-        fn stream<S: crate::Stat>(
+        fn stream(
             _: bevy::prelude::Entity,
             _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
             _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
             _: &crate::QualifierQuery<u32>,
-            stat: &S,
-            value: &mut S::Value,
-            _: &impl crate::Querier<u32>,
+            stat_value: &mut StatValuePair,
+            _: Querier<u32>,
         ) {
-            match_stat!((stat, value) {
-                (IntStat::A, value) => {
-                    value.add(1);
-                },
-                (IntStat::B, value) => {
-                    value.add(2);
-                },
-                (v @ IntStat, value) => {
-                    value.add(*v as i32);
-                },
-                (FlagsStat::E, value) => {
-                    value.or(1);
-                },
-                (FlagsStat::F, value) => {
-                    value.not(2);
-                },
-                (v @ FlagsStat, value) => {
-                    value.or(*v as i32);
-                },
-            })
+            match_stat!(
+                stat_value => {
+                    (IntStat::A, value) => {
+                        value.add(1);
+                    },
+                    (IntStat::B, value) => {
+                        value.add(2);
+                    },
+                    (v @ IntStat, value) => {
+                        value.add(v as i32);
+                    },
+                    (FlagsStat::E, value) => {
+                        value.or(1);
+                    },
+                    (FlagsStat::F, value) => {
+                        value.not(2);
+                    },
+                    (v @ FlagsStat, value) => {
+                        value.or(v as i32);
+                    },
+                }
+            )
         }
     }
 }

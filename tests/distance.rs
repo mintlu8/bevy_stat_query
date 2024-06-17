@@ -8,8 +8,8 @@ use bevy_hierarchy::BuildWorldChildren;
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
     types::{StatInt, StatOnce},
-    ComponentStream, QualifierQuery, Querier, RelationStream, Stat, StatCache, StatEntity, StatExt,
-    StatExtension, StatQuery, StatVTable, StatValue,
+    ComponentStream, QualifierQuery, Querier, RelationStream, Stat, StatCache, StatEntity,
+    StatExtension, StatQuery, StatVTable, StatValue, StatValuePair,
 };
 use serde::{Deserialize, Serialize};
 
@@ -123,29 +123,27 @@ pub struct B;
 impl ComponentStream<bool> for &Position {
     type Cx = ();
 
-    fn stream<S: Stat>(
+    fn stream(
         _: Entity,
         _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<bool>,
-        _: &S,
-        _: &mut S::Value,
-        _: &impl bevy_stat_query::Querier<bool>,
+        _: &mut StatValuePair,
+        _: Querier<bool>,
     ) {
     }
 }
 
 impl RelationStream<bool> for &Position {
-    fn relation<S: Stat>(
+    fn relation(
         this: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         other: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: &QualifierQuery<bool>,
-        stat: &S,
-        value: &mut S::Value,
-        _: &impl bevy_stat_query::Querier<bool>,
+        stat_value: &mut StatValuePair,
+        _: Querier<bool>,
     ) {
-        if let Some(v) = stat.is_then_cast(&StatDistance, value) {
+        if let Some(v) = stat_value.is_then_cast(&StatDistance) {
             v.set((this.0[0] - other.0[0]).abs() + (this.0[1] - other.0[1]).abs())
         }
     }
@@ -154,29 +152,27 @@ impl RelationStream<bool> for &Position {
 impl ComponentStream<bool> for &mut Position {
     type Cx = ();
 
-    fn stream<S: Stat>(
+    fn stream(
         _: Entity,
         _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<bool>,
-        _: &S,
-        _: &mut S::Value,
-        _: &impl bevy_stat_query::Querier<bool>,
+        _: &mut StatValuePair,
+        _: Querier<bool>,
     ) {
     }
 }
 
 impl RelationStream<bool> for &mut Position {
-    fn relation<S: Stat>(
+    fn relation(
         this: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         other: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: &QualifierQuery<bool>,
-        stat: &S,
-        value: &mut S::Value,
-        _: &impl bevy_stat_query::Querier<bool>,
+        stat_value: &mut StatValuePair,
+        _: Querier<bool>,
     ) {
-        if let Some(v) = stat.is_then_cast(&StatDistance, value) {
+        if let Some(v) = stat_value.is_then_cast(&StatDistance) {
             v.set((this.0[0] - other.0[0]).abs() + (this.0[1] - other.0[1]).abs())
         }
     }
@@ -185,29 +181,27 @@ impl RelationStream<bool> for &mut Position {
 impl ComponentStream<bool> for &Allegiance {
     type Cx = ();
 
-    fn stream<S: Stat>(
+    fn stream(
         _: Entity,
         _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<bool>,
-        _: &S,
-        _: &mut S::Value,
-        _: &impl bevy_stat_query::Querier<bool>,
+        _: &mut StatValuePair,
+        _: Querier<bool>,
     ) {
     }
 }
 
 impl RelationStream<bool> for &Allegiance {
-    fn relation<S: Stat>(
+    fn relation(
         this: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         other: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: &QualifierQuery<bool>,
-        stat: &S,
-        value: &mut S::Value,
-        _: &impl bevy_stat_query::Querier<bool>,
+        stat_value: &mut StatValuePair,
+        _: Querier<bool>,
     ) {
-        if let Some(v) = stat.is_then_cast(&StatAllegiance, value) {
+        if let Some(v) = stat_value.is_then_cast(&StatAllegiance) {
             if this == other {
                 v.set(Relation::Ally)
             } else {
@@ -220,29 +214,27 @@ impl RelationStream<bool> for &Allegiance {
 impl ComponentStream<bool> for &mut Allegiance {
     type Cx = ();
 
-    fn stream<S: Stat>(
+    fn stream(
         _: Entity,
         _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &QualifierQuery<bool>,
-        _: &S,
-        _: &mut S::Value,
-        _: &impl bevy_stat_query::Querier<bool>,
+        _: &mut StatValuePair,
+        _: Querier<bool>,
     ) {
     }
 }
 
 impl RelationStream<bool> for &mut Allegiance {
-    fn relation<S: Stat>(
+    fn relation(
         this: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         other: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: &QualifierQuery<bool>,
-        stat: &S,
-        value: &mut S::Value,
-        _: &impl bevy_stat_query::Querier<bool>,
+        stat_value: &mut StatValuePair,
+        _: Querier<bool>,
     ) {
-        if let Some(v) = stat.is_then_cast(&StatAllegiance, value) {
+        if let Some(v) = stat_value.is_then_cast(&StatAllegiance) {
             if this == other {
                 v.set(Relation::Ally)
             } else {
@@ -301,16 +293,15 @@ impl Stat for StatEffects {
 impl ComponentStream<bool> for &DistanceAura {
     type Cx = ();
 
-    fn stream<S: Stat>(
+    fn stream(
         this: Entity,
         _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         component: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<bool>,
-        stat: &S,
-        value: &mut S::Value,
-        querier: &impl bevy_stat_query::Querier<bool>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<bool>,
     ) {
-        if let Some(v) = stat.is_then_cast(&StatEffects::Distance, value) {
+        if let Some(v) = stat_value.is_then_cast(&StatEffects::Distance) {
             // could panic or return default or write to ctx etc.
             let distance = querier
                 .query_relation(this, component.0, qualifier, &StatDistance)
@@ -324,16 +315,15 @@ impl ComponentStream<bool> for &DistanceAura {
 impl ComponentStream<bool> for &AllegianceAura {
     type Cx = ();
 
-    fn stream<S: Stat>(
+    fn stream(
         this: Entity,
         _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         component: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
         qualifier: &QualifierQuery<bool>,
-        stat: &S,
-        value: &mut S::Value,
-        querier: &impl bevy_stat_query::Querier<bool>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<bool>,
     ) {
-        if let Some(v) = stat.is_then_cast(&StatEffects::Allegiance, value) {
+        if let Some(v) = stat_value.is_then_cast(&StatEffects::Allegiance) {
             let distance = querier
                 .query_relation(this, component.1, qualifier, &StatAllegiance)
                 .unwrap()
