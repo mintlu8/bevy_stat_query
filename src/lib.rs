@@ -115,21 +115,21 @@
 //!
 //! A resource that must be manually added.
 //! If added, will cache all query results.
-//! If state has changed, must be manually cleared 
+//! If state has changed, must be manually cleared
 //! either via [`StatQuery`] or directly on the resource.
 //!
 //! # [GlobalStatDefaults]
 //!
 //! A resource that contains default values of stats. If
 //! you want to constrain `HP` to `0..=99` it should be done here.
-//! 
+//!
 //! Extension methods exists on the `App` like [`StatExtension::register_stat_max`] to
 //! set default values of stats.
 //!
 //! # [GlobalStatRelations]
 //!
 //! A resource that contains [`StatStream`]s that runs on all queries.
-//! 
+//!
 //! Extension method [`StatExtension::register_stat_relation`] on `App` can be used to
 //! register these.
 #[allow(unused)]
