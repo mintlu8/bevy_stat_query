@@ -1,6 +1,8 @@
+use std::fmt::Debug;
+
 use crate::operations::StatOperation;
 use crate::stat::StatInstances;
-use crate::{Buffer, QualifierFlag, Stat, StatExt, StatValue};
+use crate::{Buffer, QualifierFlag, Stat, StatExt, StatStream, StatValue};
 use crate::{StatCache, StatInst};
 use bevy_app::App;
 use bevy_ecs::system::Resource;
@@ -22,7 +24,7 @@ pub trait StatExtension {
     /// Register a default stat value.
     ///
     /// This is the standard way
-    /// to add default bounds to a stat, e.g, in `1..15`.
+    /// to add default bounds to a stat, e.g, in `1..=15`.
     fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Value) -> &mut Self;
 
     /// Register the minimum value of a stat.
@@ -33,6 +35,13 @@ pub trait StatExtension {
 
     /// Clear all cached stats.
     fn clear_stat_cache<Q: QualifierFlag>(&mut self);
+
+    /// Register a global stat relation
+    /// that will be run on every stat query.
+    fn register_stat_relation<Q: QualifierFlag>(
+        &mut self,
+        relation: impl StatStream<Q> + Send + Sync + 'static,
+    ) -> &mut Self;
 }
 
 impl StatExtension for World {
@@ -43,25 +52,34 @@ impl StatExtension for World {
     }
 
     fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Value) -> &mut Self {
-        self.get_resource_or_insert_with::<StatDefaults>(Default::default)
+        self.get_resource_or_insert_with::<GlobalStatDefaults>(Default::default)
             .insert(stat, value);
         self
     }
 
     fn register_stat_min<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
-        self.get_resource_or_insert_with::<StatDefaults>(Default::default)
+        self.get_resource_or_insert_with::<GlobalStatDefaults>(Default::default)
             .patch(stat, StatOperation::Min(value));
         self
     }
 
     fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
-        self.get_resource_or_insert_with::<StatDefaults>(Default::default)
+        self.get_resource_or_insert_with::<GlobalStatDefaults>(Default::default)
             .patch(stat, StatOperation::Max(value));
         self
     }
 
     fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
         self.resource_mut::<StatCache<Q>>().clear();
+    }
+
+    fn register_stat_relation<Q: QualifierFlag>(
+        &mut self,
+        relation: impl StatStream<Q> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.get_resource_or_insert_with(GlobalStatRelations::<Q>::default)
+            .push(relation);
+        self
     }
 }
 
@@ -89,17 +107,25 @@ impl StatExtension for App {
     fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
         self.world.clear_stat_cache::<Q>()
     }
+
+    fn register_stat_relation<Q: QualifierFlag>(
+        &mut self,
+        relation: impl StatStream<Q> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.world.register_stat_relation(relation);
+        self
+    }
 }
 
 /// [`Resource`] that stores default [`StatValue`]s per [`Stat`].
 ///
 /// Stats that are not registered are still returned with [`Default::default()`] instead.
 #[derive(Resource, Default, TypePath)]
-pub struct StatDefaults {
+pub struct GlobalStatDefaults {
     stats: FxHashMap<StatInst, Buffer>,
 }
 
-impl std::fmt::Debug for StatDefaults {
+impl std::fmt::Debug for GlobalStatDefaults {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         #[derive(Debug)]
         struct Stat(&'static str);
@@ -111,7 +137,7 @@ impl std::fmt::Debug for StatDefaults {
     }
 }
 
-impl StatDefaults {
+impl GlobalStatDefaults {
     pub fn new() -> Self {
         Self {
             stats: FxHashMap::default(),
@@ -156,10 +182,54 @@ impl StatDefaults {
     }
 }
 
-impl Drop for StatDefaults {
+impl Drop for GlobalStatDefaults {
     fn drop(&mut self) {
         for (k, v) in self.stats.iter_mut() {
             unsafe { k.drop_buffer(v) };
+        }
+    }
+}
+
+/// [`Resource`] that stores global [`StatStream`]s that runs on every query.
+#[derive(Resource, TypePath)]
+pub struct GlobalStatRelations<Q: QualifierFlag> {
+    stats: Vec<Box<dyn StatStream<Q> + Send + Sync>>,
+}
+
+impl<Q: QualifierFlag> Debug for GlobalStatRelations<Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GlobalStatRelations")
+            .finish_non_exhaustive()
+    }
+}
+
+impl<Q: QualifierFlag> Default for GlobalStatRelations<Q> {
+    fn default() -> Self {
+        Self { stats: Vec::new() }
+    }
+}
+
+impl<Q: QualifierFlag> GlobalStatRelations<Q> {
+    pub fn push<S: StatStream<Q> + Send + Sync + 'static>(&mut self, stream: S) -> &mut Self {
+        self.stats.push(Box::new(stream));
+        self
+    }
+
+    pub fn with<S: StatStream<Q> + Send + Sync + 'static>(mut self, stream: S) -> Self {
+        self.stats.push(Box::new(stream));
+        self
+    }
+}
+
+impl<Q: QualifierFlag> StatStream<Q> for GlobalStatRelations<Q> {
+    fn stream_stat(
+        &self,
+        qualifier: &crate::QualifierQuery<Q>,
+        stat_value: &mut crate::StatValuePair,
+        querier: crate::Querier<Q>,
+    ) {
+        for item in self.stats.iter() {
+            item.stream_stat(qualifier, stat_value, querier)
         }
     }
 }

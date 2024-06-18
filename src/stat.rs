@@ -356,7 +356,7 @@ impl StatValuePair {
         self.stat == other.as_entry()
     }
 
-    /// Cast a generic [`Stat::Value`] to a concrete one. This is usually free in a generic context due to monomorphization.
+    /// Cast to a concrete [`Stat::Value`].
     pub fn cast<'t, T: Stat>(&mut self) -> Option<(T, &'t mut T::Value)> {
         validate::<T>();
         if ptr::eq(self.stat.vtable, &T::vtable().vtable) {
@@ -370,12 +370,22 @@ impl StatValuePair {
         }
     }
 
-    /// Cast a generic [`Stat::Value`] to a concrete one if stat is equal.
+    /// Cast to a concrete [`Stat::Value`].
     pub fn is_then_cast<'t, T: Stat>(&mut self, other: &T) -> Option<&'t mut T::Value> {
         validate::<T>();
         if self.stat == other.as_entry() {
             let ptr = ptr::from_mut(&mut self.value) as *mut T::Value;
             unsafe { ptr.as_mut() }
+        } else {
+            None
+        }
+    }
+
+    /// Cast to a concrete [`Stat::Value`].
+    pub fn into_result<T: Stat>(self) -> Option<T::Value> {
+        validate::<T>();
+        if ptr::eq(self.stat.vtable, &T::vtable().vtable) {
+            Some(unsafe { self.value.into() })
         } else {
             None
         }

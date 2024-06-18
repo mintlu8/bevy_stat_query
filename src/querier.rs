@@ -1,10 +1,11 @@
 use std::fmt::Debug;
 
+use crate::plugin::GlobalStatRelations;
 use crate::stat::StatExt;
 use crate::{
-    plugin::StatDefaults, stat::StatValuePair, Buffer, ComponentStream, CxComponentStream,
+    plugin::GlobalStatDefaults, stat::StatValuePair, Buffer, ComponentStream, CxComponentStream,
     QualifierFlag, QualifierQuery, QueryRelationStream, QueryStream, RelationStream, Stat,
-    StatCache, StatInst,
+    StatCache, StatInst, StatStream,
 };
 use crate::{validate, StatValue};
 use bevy_ecs::{
@@ -27,7 +28,8 @@ pub struct StatEntity;
 #[derive(Debug, SystemParam)]
 pub struct StatQuery<'w, 's, Q: QualifierFlag> {
     cache: Option<Res<'w, StatCache<Q>>>,
-    defaults: Option<Res<'w, StatDefaults>>,
+    defaults: Option<Res<'w, GlobalStatDefaults>>,
+    relations: Option<Res<'w, GlobalStatRelations<Q>>>,
     entities: Query<'w, 's, Option<&'static Children>, With<StatEntity>>,
 }
 
@@ -235,6 +237,9 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .map(|d| d.get_dyn(stat))
             .unwrap_or((stat.vtable.default)());
         let mut pair = StatValuePair { stat, value };
+        if let Some(relations) = self.querier.relations.as_ref() {
+            relations.stream_stat(query, &mut pair, Querier(self));
+        }
         self.component_streams
             .stream(entity, &[entity], query, &mut pair, Querier(self));
         self.relationship_streams
@@ -271,6 +276,9 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .map(|d| d.get_dyn(stat))
             .unwrap_or((stat.vtable.default)());
         let mut pair = StatValuePair { stat, value };
+        if let Some(relations) = self.querier.relations.as_ref() {
+            relations.stream_stat(query, &mut pair, Querier(self));
+        }
         self.relationship_streams
             .relation(from, to, query, &mut pair, Querier(self));
         Some(pair.value)

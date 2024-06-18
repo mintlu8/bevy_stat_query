@@ -115,12 +115,23 @@
 //!
 //! A resource that must be manually added.
 //! If added, will cache all query results.
-//! If invalidated, must be manually cleared via [`StatQuery`].
+//! If state has changed, must be manually cleared 
+//! either via [`StatQuery`] or directly on the resource.
 //!
-//! # [StatDefaults]
+//! # [GlobalStatDefaults]
 //!
-//! A resource that is lazily added. You can modify it directly or from
-//! extension methods on the `App`. This sets the default values of stats.
+//! A resource that contains default values of stats. If
+//! you want to constrain `HP` to `0..=99` it should be done here.
+//! 
+//! Extension methods exists on the `App` like [`StatExtension::register_stat_max`] to
+//! set default values of stats.
+//!
+//! # [GlobalStatRelations]
+//!
+//! A resource that contains [`StatStream`]s that runs on all queries.
+//! 
+//! Extension method [`StatExtension::register_stat_relation`] on `App` can be used to
+//! register these.
 #[allow(unused)]
 use bevy_ecs::{component::Component, query::QueryData, system::SystemParam};
 
@@ -148,7 +159,7 @@ pub use operations::StatValue;
 mod cache;
 pub use cache::StatCache;
 mod plugin;
-pub use plugin::{StatDefaults, StatExtension};
+pub use plugin::{GlobalStatDefaults, GlobalStatRelations, StatExtension};
 mod stat_map;
 pub use stat_map::StatMap;
 mod buffer;
