@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
 use crate::operations::StatOperation;
-use crate::stat::StatInstances;
 use crate::{Buffer, QualifierFlag, Stat, StatExt, StatStream, StatValue};
 use crate::{StatCache, StatInst};
 use bevy_app::App;
@@ -46,7 +45,7 @@ pub trait StatExtension {
 
 impl StatExtension for World {
     fn register_stat<T: Stat>(&mut self) -> &mut Self {
-        self.get_resource_or_insert_with::<StatInstances>(Default::default)
+        self.get_resource_or_insert_with::<StatDeserializers>(Default::default)
             .register::<T>();
         self
     }
@@ -231,5 +230,48 @@ impl<Q: QualifierFlag> StatStream<Q> for GlobalStatRelations<Q> {
         for item in self.stats.iter() {
             item.stream_stat(qualifier, stat_value, querier)
         }
+    }
+}
+
+#[derive(Resource, Default)]
+pub struct StatDeserializers {
+    pub(crate) concrete: FxHashMap<&'static str, StatInst>,
+}
+
+impl Debug for StatDeserializers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StatInstances")
+            .field("concrete", &self.concrete)
+            .finish()
+    }
+}
+
+impl StatDeserializers {
+    /// Register all members of a [`Stat`].
+    ///
+    /// # Panics
+    ///
+    /// If a stat registered conflicts with a previous entry.
+    pub fn register<T: Stat>(&mut self) {
+        T::values().into_iter().for_each(|x| {
+            if let Some(prev) = self.concrete.get(x.name()) {
+                assert_eq!(prev, &x.as_entry(), "duplicate key {}", x.name())
+            } else {
+                self.concrete.insert(x.name(), x.as_entry());
+            }
+        })
+    }
+
+    /// Register all members of a [`Stat`].
+    ///
+    /// Always replaces a registered [`Stat`] of the same key.
+    pub fn register_replace<T: Stat>(&mut self) {
+        T::values().into_iter().for_each(|x| {
+            self.concrete.insert(x.name(), x.as_entry());
+        })
+    }
+
+    pub fn get(&self, name: &str) -> Option<StatInst> {
+        self.concrete.get(name).copied()
     }
 }

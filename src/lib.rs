@@ -159,7 +159,7 @@ pub use operations::StatValue;
 mod cache;
 pub use cache::StatCache;
 mod plugin;
-pub use plugin::{GlobalStatDefaults, GlobalStatRelations, StatExtension};
+pub use plugin::{GlobalStatDefaults, GlobalStatRelations, StatDeserializers, StatExtension};
 mod stat_map;
 pub use stat_map::StatMap;
 mod buffer;

@@ -8,12 +8,10 @@ use std::{
     ptr,
 };
 
-use bevy_ecs::system::Resource;
 use bevy_serde_lens::with_world_mut;
-use rustc_hash::FxHashMap;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::{validate, Buffer, Shareable, StatValue};
+use crate::{plugin::StatDeserializers, validate, Buffer, Shareable, StatValue};
 
 /// A `vtable` of dynamic functions on [`Stat::Value`].
 #[repr(transparent)]
@@ -245,49 +243,6 @@ pub(crate) trait StatExt: Stat {
 
 impl<T> StatExt for T where T: Stat {}
 
-#[derive(Resource, Default)]
-pub struct StatInstances {
-    pub(crate) concrete: FxHashMap<String, StatInst>,
-}
-
-impl Debug for StatInstances {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StatInstances")
-            .field("concrete", &self.concrete)
-            .finish()
-    }
-}
-
-impl StatInstances {
-    /// Register all members of a [`Stat`].
-    ///
-    /// # Panics
-    ///
-    /// If a stat registered conflicts with a previous entry.
-    pub fn register<T: Stat>(&mut self) {
-        T::values().into_iter().for_each(|x| {
-            if let Some(prev) = self.concrete.get(x.name()) {
-                assert_eq!(prev, &x.as_entry(), "duplicate key {}", x.name())
-            } else {
-                self.concrete.insert(x.name().to_owned(), x.as_entry());
-            }
-        })
-    }
-
-    /// Register all members of a [`Stat`].
-    ///
-    /// Always replaces a registered [`Stat`] of the same key.
-    pub fn register_replace<T: Stat>(&mut self) {
-        T::values().into_iter().for_each(|x| {
-            self.concrete.insert(x.name().to_owned(), x.as_entry());
-        })
-    }
-
-    pub fn get(&self, name: &str) -> Option<StatInst> {
-        self.concrete.get(name).copied()
-    }
-}
-
 impl Serialize for StatInst {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -304,7 +259,7 @@ impl<'de> Deserialize<'de> for StatInst {
     {
         let s = <Cow<str>>::deserialize(deserializer)?;
         with_world_mut::<_, D>(|world| {
-            let ctx = world.resource::<StatInstances>();
+            let ctx = world.resource::<StatDeserializers>();
             if let Some(result) = ctx.concrete.get(s.as_ref()) {
                 Ok(*result)
             } else {
