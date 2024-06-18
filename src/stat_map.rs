@@ -16,9 +16,13 @@ use std::{borrow::Borrow, collections::BTreeMap, hash::Hash};
 
 /// A map-like, type erased storage of qualified stats.
 ///
+/// # Serialization
+///
+/// Serialization must be done via [`bevy_serde_lens`].
+///
 /// # Safety Invariant
 ///
-/// [`StatInst`] and [`Buffer`] must match on all entries.
+/// `StatInst` and `Buffer` must match on all entries.
 #[derive(Component, TypePath)]
 pub struct StatMap<Q: QualifierFlag> {
     inner: BTreeMap<(StatInst, Qualifier<Q>), Buffer>,
