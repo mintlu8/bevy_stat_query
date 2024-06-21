@@ -166,15 +166,13 @@ pub enum QualifierQuery<Q: QualifierFlag> {
 }
 
 impl<Q: QualifierFlag> QualifierQuery<Q> {
-    pub fn qualifies_none(&self) -> bool{
+    pub fn qualifies_none(&self) -> bool {
         Qualifier::none().qualifies_as(self)
     }
 
-
-    pub fn qualify(&self, qualifier: &Qualifier<Q>) -> bool{
+    pub fn qualify(&self, qualifier: &Qualifier<Q>) -> bool {
         qualifier.qualifies_as(self)
     }
-
 }
 
 impl<Q: QualifierFlag> Default for QualifierQuery<Q> {
