@@ -1,6 +1,6 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
-use bevy_serde_lens::{bind_object, DefaultInit, WorldExtension};
+use bevy_serde_lens::{BevyObject, DefaultInit, WorldExtension};
 use bevy_stat_query::StatVTable;
 use bevy_stat_query::{
     operations::StatOperation, types::*, Fraction, Qualifier, Stat, StatExtension, StatMap,
@@ -67,38 +67,35 @@ impl_stat!(
 #[derive(Debug, Component, Serialize, Deserialize, Default, TypePath)]
 pub struct BaseMarker;
 
-bind_object!(
-    #[serde(transparent)]
-    pub struct Base as BaseMarker{
-        #[serde(skip)]
-        marker: DefaultInit<BaseMarker>,
-        map: StatMap<bool>,
-    }
-);
+#[derive(Debug, BevyObject)]
+#[serde(transparent)]
+pub struct Base{
+    #[serde(skip)]
+    marker: DefaultInit<BaseMarker>,
+    map: StatMap<bool>,
+}
 
 #[derive(Debug, Component, Serialize, Deserialize, Default, TypePath)]
 pub struct OpMarker;
 
-bind_object!(
-    #[serde(transparent)]
-    pub struct Op as OpMarker{
-        #[serde(skip)]
-        marker: DefaultInit<OpMarker>,
-        map: StatMap<bool>,
-    }
-);
+#[derive(Debug, BevyObject)]
+#[serde(transparent)]
+pub struct Op{
+    #[serde(skip)]
+    marker: DefaultInit<OpMarker>,
+    map: StatMap<bool>,
+}
 
 #[derive(Debug, Component, Serialize, Deserialize, Default, TypePath)]
 pub struct FullMarker;
 
-bind_object!(
-    #[serde(transparent)]
-    pub struct Full as FullMarker{
-        #[serde(skip)]
-        marker: DefaultInit<FullMarker>,
-        map: StatMap<bool>,
-    }
-);
+#[derive(Debug, BevyObject)]
+#[serde(transparent)]
+pub struct Full{
+    #[serde(skip)]
+    marker: DefaultInit<FullMarker>,
+    map: StatMap<bool>,
+}
 
 #[test]
 pub fn serde_test() {

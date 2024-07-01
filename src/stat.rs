@@ -258,7 +258,7 @@ impl<'de> Deserialize<'de> for StatInst {
         D: serde::Deserializer<'de>,
     {
         let s = <Cow<str>>::deserialize(deserializer)?;
-        with_world_mut::<_, D>(|world| {
+        with_world_mut::<_>(|world| {
             let ctx = world.resource::<StatDeserializers>();
             if let Some(result) = ctx.concrete.get(s.as_ref()) {
                 Ok(*result)
@@ -267,7 +267,7 @@ impl<'de> Deserialize<'de> for StatInst {
                     "Unable to parse Stat \"{s}\"."
                 )))
             }
-        })?
+        }).map_err(serde::de::Error::custom)?
     }
 }
 

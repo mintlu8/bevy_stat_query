@@ -84,34 +84,34 @@ impl StatExtension for World {
 
 impl StatExtension for App {
     fn register_stat<T: Stat>(&mut self) -> &mut Self {
-        self.world.register_stat::<T>();
+        self.world_mut().register_stat::<T>();
         self
     }
 
     fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Value) -> &mut Self {
-        self.world.register_stat_default::<S>(stat, value);
+        self.world_mut().register_stat_default::<S>(stat, value);
         self
     }
 
     fn register_stat_min<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
-        self.world.register_stat_min(stat, value);
+        self.world_mut().register_stat_min(stat, value);
         self
     }
 
     fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
-        self.world.register_stat_max(stat, value);
+        self.world_mut().register_stat_max(stat, value);
         self
     }
 
     fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
-        self.world.clear_stat_cache::<Q>()
+        self.world_mut().clear_stat_cache::<Q>()
     }
 
     fn register_stat_relation<Q: QualifierFlag>(
         &mut self,
         relation: impl StatStream<Q> + Send + Sync + 'static,
     ) -> &mut Self {
-        self.world.register_stat_relation(relation);
+        self.world_mut().register_stat_relation(relation);
         self
     }
 }
