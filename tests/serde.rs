@@ -69,7 +69,7 @@ pub struct BaseMarker;
 
 #[derive(Debug, BevyObject)]
 #[serde(transparent)]
-pub struct Base{
+pub struct Base {
     #[serde(skip)]
     marker: DefaultInit<BaseMarker>,
     map: StatMap<bool>,
@@ -80,7 +80,7 @@ pub struct OpMarker;
 
 #[derive(Debug, BevyObject)]
 #[serde(transparent)]
-pub struct Op{
+pub struct Op {
     #[serde(skip)]
     marker: DefaultInit<OpMarker>,
     map: StatMap<bool>,
@@ -91,7 +91,7 @@ pub struct FullMarker;
 
 #[derive(Debug, BevyObject)]
 #[serde(transparent)]
-pub struct Full{
+pub struct Full {
     #[serde(skip)]
     marker: DefaultInit<FullMarker>,
     map: StatMap<bool>,

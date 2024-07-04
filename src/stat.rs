@@ -267,7 +267,8 @@ impl<'de> Deserialize<'de> for StatInst {
                     "Unable to parse Stat \"{s}\"."
                 )))
             }
-        }).map_err(serde::de::Error::custom)?
+        })
+        .map_err(serde::de::Error::custom)?
     }
 }
 
