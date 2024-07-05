@@ -8,7 +8,7 @@ use std::{
     ptr,
 };
 
-use bevy_serde_lens::with_world_mut;
+use bevy_serde_lens_core::with_world_mut;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{plugin::StatDeserializers, validate, Buffer, Shareable, StatValue};

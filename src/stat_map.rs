@@ -4,9 +4,10 @@ use crate::{
     Buffer, Qualifier, QualifierFlag, Querier, Stat, StatExt, StatInst, StatStream, StatValue,
 };
 use bevy_ecs::component::Component;
-use bevy_reflect::TypePath;
+use bevy_ecs::reflect::ReflectComponent;
+use bevy_reflect::{Reflect, ReflectDeserialize, ReflectSerialize, TypePath};
 use ref_cast::RefCast;
-use serde::de::{DeserializeSeed, Visitor};
+use serde::de::{DeserializeOwned, DeserializeSeed, Visitor};
 use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt::Debug;
@@ -23,8 +24,11 @@ use std::{borrow::Borrow, collections::BTreeMap, hash::Hash};
 /// # Safety Invariant
 ///
 /// `StatInst` and `Buffer` must match on all entries.
-#[derive(Component, TypePath)]
+#[derive(Component, Reflect)]
+#[reflect(Component, Serialize, Deserialize)]
+#[reflect(where Q: Serialize + DeserializeOwned)]
 pub struct StatMap<Q: QualifierFlag> {
+    #[reflect(ignore)]
     inner: BTreeMap<(StatInst, Qualifier<Q>), Buffer>,
 }
 

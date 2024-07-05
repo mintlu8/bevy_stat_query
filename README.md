@@ -107,12 +107,13 @@ query for relationship between entities, for example to model an aura effect bas
 
 ## Serialization
 
-Due to the type of dynamic dispatch used by `StatMap`, this type can only be serialized
-via `bevy_serde_lens`. `Reflect` is currently not supported.
-
+Due to the type of dynamic dispatch used by `StatMap`, we only have native serialization support
+via `bevy_serde_lens`.
 Call `StatExtension::register_stat` on the world for each `Stat` used in deserialization.
 
-## StatCache
+To use `Reflect` deserialization you must wrap your deserialization inside
+a `bevy_serde_lens_core::private::de_scope` scope.
+tatCache
 
 A resource that must be manually added.
 If added, will cache all query results.

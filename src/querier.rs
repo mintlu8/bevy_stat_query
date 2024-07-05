@@ -8,6 +8,7 @@ use crate::{
     StatCache, StatInst, StatStream,
 };
 use crate::{validate, StatValue};
+use bevy_ecs::reflect::ReflectComponent;
 use bevy_ecs::{
     component::Component,
     entity::Entity,
@@ -20,6 +21,7 @@ use serde::{Deserialize, Serialize};
 
 /// The core marker component. Stat querying is only allowed on entities marked as [`StatEntity`].
 #[derive(Debug, Component, Clone, PartialEq, Eq, Default, Serialize, Deserialize, Reflect)]
+#[reflect(Component)]
 pub struct StatEntity;
 
 /// A root [`SystemParam`] that curates all entities marked as [`StatEntity`].
