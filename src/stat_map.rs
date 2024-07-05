@@ -5,7 +5,7 @@ use crate::{
 };
 use bevy_ecs::component::Component;
 use bevy_ecs::reflect::ReflectComponent;
-use bevy_reflect::{Reflect, ReflectDeserialize, ReflectSerialize, TypePath};
+use bevy_reflect::{Reflect, ReflectDeserialize, ReflectSerialize};
 use ref_cast::RefCast;
 use serde::de::{DeserializeOwned, DeserializeSeed, Visitor};
 use serde::ser::SerializeSeq;
@@ -19,7 +19,7 @@ use std::{borrow::Borrow, collections::BTreeMap, hash::Hash};
 ///
 /// # Serialization
 ///
-/// Serialization must be done via [`bevy_serde_lens`].
+/// Deserialization must be done inside a [`bevy_serde_lens_core`] deserialize scope.
 ///
 /// # Safety Invariant
 ///

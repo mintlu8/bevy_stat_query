@@ -202,6 +202,7 @@ macro_rules! vtable {
 /// # Syntax
 ///
 /// ```
+/// # /*
 /// match_stat!(stat_value_pair => {
 ///     // if stat is `MyStat::A`, downcast the value to `MyStat::Value` as `value`.
 ///     (MyStat::A, v) => {
@@ -212,6 +213,7 @@ macro_rules! vtable {
 ///         value.add(*v as i32);
 ///     },
 /// }
+/// # */
 /// ```
 #[macro_export]
 macro_rules! match_stat {

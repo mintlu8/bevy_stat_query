@@ -115,6 +115,8 @@ To use `Reflect` deserialization you must wrap your deserialization inside
 a `bevy_serde_lens_core::private::de_scope` scope.
 tatCache
 
+## StatCache
+
 A resource that must be manually added.
 If added, will cache all query results.
 If state has changed, must be manually cleared

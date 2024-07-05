@@ -233,6 +233,7 @@ impl<Q: QualifierFlag> StatStream<Q> for GlobalStatRelations<Q> {
     }
 }
 
+/// Resource containing a name to instance map of [`Stat`]s.
 #[derive(Resource, Default)]
 pub struct StatDeserializers {
     pub(crate) concrete: FxHashMap<&'static str, StatInst>,
