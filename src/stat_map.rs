@@ -87,10 +87,33 @@ impl<Q: QualifierFlag> StatMap<Q> {
         self.inner.clear()
     }
 
+    /// Returns true if the map contains no elements.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    /// Returns the number of elements in the map.
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
     /// Inserts a [`Stat::Value`] in its component form.
     pub fn insert<S: Stat>(&mut self, qualifier: Qualifier<Q>, stat: S, value: S::Value) {
         self.inner
             .insert((stat.as_entry(), qualifier), Buffer::from(value));
+    }
+
+    /// Inserts a [`Stat::Value`] in its [`StatOperation`] form.
+    pub fn insert_op<S: Stat>(
+        &mut self,
+        qualifier: Qualifier<Q>,
+        stat: S,
+        value: StatOperation<S::Value>,
+    ) {
+        self.inner.insert(
+            (stat.as_entry(), qualifier),
+            Buffer::from(value.into_stat()),
+        );
     }
 
     /// Inserts a [`Stat::Value`] in its evaluated form.
@@ -212,9 +235,10 @@ impl<Q: QualifierFlag> StatStream<Q> for StatMap<Q> {
         stat_value: &mut StatValuePair,
         _: Querier<Q>,
     ) {
-        self.inner.range(stat_value.stat).for_each(|((s, q), v)| {
+        let f = stat_value.stat.vtable.join;
+        self.inner.range(stat_value.stat).for_each(|((_, q), v)| {
             if q.qualifies_as(qualifier) {
-                unsafe { (s.vtable.join)(&mut stat_value.value, v) };
+                unsafe { f(&mut stat_value.value, v) };
             }
         })
     }

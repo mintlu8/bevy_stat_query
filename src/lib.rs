@@ -109,7 +109,7 @@
 //! Due to the type of dynamic dispatch used by [`StatMap`], we only have native serialization support
 //! via `bevy_serde_lens`.
 //! Call [`StatExtension::register_stat`] on the world for each [`Stat`] used in deserialization.
-//! 
+//!
 //! To use `Reflect` deserialization you must wrap your deserialization inside
 //! a [`bevy_serde_lens_core::private::de_scope`] scope.
 //!
@@ -153,6 +153,8 @@ mod qualifier;
 pub mod types;
 pub use qualifier::{Qualifier, QualifierFlag, QualifierQuery};
 mod stat;
+#[cfg(feature = "derive")]
+pub use bevy_stat_query_derive::Stat;
 pub(crate) use stat::StatExt;
 pub(crate) use stat::StatInst;
 pub use stat::{Stat, StatVTable, StatValuePair};

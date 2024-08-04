@@ -1,7 +1,7 @@
 use bevy_stat_query::{
     operations::StatOperation::{Add, Max, Mul},
     types::StatIntPercentAdditive,
-    Qualifier, QualifierFlag, QualifierQuery, Stat, StatMap, StatStreamExt, StatVTable,
+    Qualifier, QualifierFlag, QualifierQuery, Stat, StatMap, StatStreamExt,
 };
 
 bitflags::bitflags! {
@@ -17,33 +17,9 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[derive(Debug, Clone, Copy, Stat)]
+#[stat(value = "StatIntPercentAdditive<i32>")]
 pub struct S;
-
-impl Stat for S {
-    type Value = StatIntPercentAdditive<i32>;
-
-    fn name(&self) -> &'static str {
-        "s"
-    }
-
-    fn values() -> impl IntoIterator<Item = Self> {
-        [S]
-    }
-
-    fn vtable() -> &'static StatVTable<Self> {
-        static VTABLE: StatVTable<S> = StatVTable::of::<S>();
-        &VTABLE
-    }
-
-    fn as_index(&self) -> u64 {
-        0
-    }
-
-    fn from_index(_: u64) -> Self {
-        Self
-    }
-}
 
 #[test]
 pub fn qualifier_test() {

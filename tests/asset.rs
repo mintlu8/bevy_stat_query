@@ -13,33 +13,9 @@ use bevy_stat_query::{
     StatQuery, StatVTable, StatValue, StatValuePair,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Stat)]
+#[stat(value = "StatFloat<f32>")]
 pub struct Damage;
-
-impl Stat for Damage {
-    type Value = StatFloat<f32>;
-
-    fn name(&self) -> &'static str {
-        "Damage"
-    }
-
-    fn values() -> impl IntoIterator<Item = Self> {
-        [Damage]
-    }
-
-    fn vtable() -> &'static StatVTable<Damage> {
-        static VTABLE: StatVTable<Damage> = StatVTable::of::<Damage>();
-        &VTABLE
-    }
-
-    fn as_index(&self) -> u64 {
-        0
-    }
-
-    fn from_index(_: u64) -> Self {
-        Damage
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Defense;

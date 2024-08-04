@@ -13,61 +13,13 @@ use bevy_stat_query::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Stat)]
+#[stat(value = "StatOnce<i32>")]
 pub struct StatDistance;
 
-impl Stat for StatDistance {
-    type Value = StatOnce<i32>;
-
-    fn name(&self) -> &'static str {
-        "Distance"
-    }
-
-    fn values() -> impl IntoIterator<Item = Self> {
-        [StatDistance]
-    }
-
-    fn vtable() -> &'static StatVTable<Self> {
-        static VTABLE: StatVTable<StatDistance> = StatVTable::of::<StatDistance>();
-        &VTABLE
-    }
-
-    fn as_index(&self) -> u64 {
-        0
-    }
-
-    fn from_index(_: u64) -> Self {
-        Self
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Stat)]
+#[stat(value = "StatOnce<Relation>")]
 pub struct StatAllegiance;
-
-impl Stat for StatAllegiance {
-    type Value = StatOnce<Relation>;
-
-    fn name(&self) -> &'static str {
-        "Allegiance"
-    }
-
-    fn values() -> impl IntoIterator<Item = Self> {
-        [StatAllegiance]
-    }
-
-    fn vtable() -> &'static StatVTable<Self> {
-        static VTABLE: StatVTable<StatAllegiance> = StatVTable::of::<StatAllegiance>();
-        &VTABLE
-    }
-
-    fn as_index(&self) -> u64 {
-        0
-    }
-
-    fn from_index(_: u64) -> Self {
-        Self
-    }
-}
 
 #[derive(
     Debug,
