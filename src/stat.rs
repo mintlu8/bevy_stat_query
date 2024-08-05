@@ -20,6 +20,7 @@ pub struct StatVTable<T = ()> {
     p: PhantomData<T>,
 }
 
+#[repr(C)]
 pub(crate) struct ErasedStatVTable {
     pub name: fn(u64) -> &'static str,
     pub join: unsafe fn(&mut Buffer, &Buffer),
@@ -216,7 +217,7 @@ pub(crate) trait StatExt: Stat {
         }
     }
 
-    /// Cast a generic [`Stat::Value`] to a concrete one. This is usually free in a generic context due to monomorphization.
+    /// Cast a generic [`Stat::Value`] to a concrete one.
     fn cast<'t, T: Stat>(&self, value: &'t mut Self::Value) -> Option<(&T, &'t mut T::Value)> {
         if TypeId::of::<Self>() == TypeId::of::<T>() {
             Some((

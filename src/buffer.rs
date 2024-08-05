@@ -24,7 +24,11 @@ pub(crate) fn validate<T>() {
 
 /// A type that should be able to hold everything in rust within constraints.
 ///
-/// Might drop `UnsafeCell` with stablized `Freeze`.
+/// # Compatibility
+/// 
+/// This version requires [`UnsafeCell`] for soundness, if `Freeze` is stabilized,
+/// we might drop [`UnsafeCell`] for performance, thus preventing internally mutable
+/// types like `Mutex` from being used as `StatValue`.
 #[repr(C, align(8))]
 pub struct Buffer(UnsafeCell<[MaybeUninit<u8>; 24]>);
 
