@@ -20,11 +20,12 @@ fn cast<A: 'static, B: 'static>(item: A) -> B {
 /// 
 /// Types supported are `bool`, `i32`, `u32`, `f32`, `String`, `Fraction<i32>`.
 /// 
-/// If you want to use an exotic type, add those methods there.
+/// If you want to use an exotic type, add those methods there instead.
 pub struct LuaStatValue<T: StatValue>(pub(crate) T);
 
 impl<T: StatValue> UserData for LuaStatValue<T> {
     fn add_methods<'t, M: UserDataMethods<'t, Self>>(methods: &mut M) {
+        let mut eval_to_primitive = false;
         macro_rules! tri {
             ($($T: ty),*) => {
                 $(
@@ -60,12 +61,28 @@ impl<T: StatValue> UserData for LuaStatValue<T> {
                             Ok(())
                         });
                     }
+                    if TypeId::of::<$T>() == TypeId::of::<T::Out>() {
+                        methods.add_method("eval", |_, this, ()| {
+                            Ok(cast::<_, $T>(this.0.eval()))
+                        });
+                        eval_to_primitive = true;
+                    }
                 )*
             };
         }
         tri!(i32, u32, f32, bool, String, Fraction<i32>);
+        if !eval_to_primitive {
+            methods.add_method("eval", |_, this, ()| {
+                Ok(LuaValue(this.0.eval()))
+            });
+        }
     }
 }
+
+#[repr(transparent)]
+pub struct LuaValue<T>(pub(crate) T);
+
+impl<T> UserData for LuaValue<T> {}
 
 impl<'l, T: StatValue> FromLua<'l> for LuaStatValue<T> {
     fn from_lua(value: mlua::Value<'l>, _: &'l mlua::Lua) -> mlua::Result<Self> {
@@ -102,10 +119,11 @@ impl<Q: QualifierFlag> UserData for QualifierQuery<Q> {
     
 }
 
-impl<'t, Q: QualifierFlag> UserData for Querier<'t, Q> {
-    
+impl<'l, Q: QualifierFlag> FromLua<'l> for QualifierQuery<Q> {
+    fn from_lua(value: mlua::Value<'l>, lua: &'l Lua) -> mlua::Result<Self> {
+        todo!()
+    }
 }
-
 
 impl<'lua, Q: QualifierFlag + IntoLua<'lua>> StatStream<Q> for StatScript<Q> {
     fn stream_stat(
@@ -121,6 +139,9 @@ impl<'lua, Q: QualifierFlag + IntoLua<'lua>> StatStream<Q> for StatScript<Q> {
             globals.set("qualifier", qualifier.clone())?;
             globals.set("stat", stat_value.stat.name())?;
             globals.set("value", stat_value.to_lua(&lua)?)?;
+            globals.set("query", lua.create_function(|_, (qualifier, stat): (QualifierQuery<Q>, String)| {
+                Ok(mlua::Value::Nil)
+            })?)?;
             lua.load(script).exec()?;
             stat_value.from_lua(&globals, "value")?;
             Ok::<(), Error>(())
