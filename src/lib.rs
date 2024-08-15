@@ -170,29 +170,55 @@ mod buffer;
 pub mod rounding;
 use std::fmt::Debug;
 
+#[cfg(feature = "engine_mlua")]
+mod lua;
+
+#[cfg(feature = "engine_mlua")]
+pub use mlua;
+
 mod sealed {
     pub trait Sealed {}
 
     impl<T: ?Sized> Sealed for T {}
 }
 
+/// Types that implements `FromLua` and `IntoLua`.
+///
+/// On non-lua mode, this compiles and is implemented on every type.
+#[cfg(not(feature = "engine_mlua"))]
+pub trait LuaOwned {}
+
+#[cfg(not(feature = "engine_mlua"))]
+impl<T> LuaOwned for T {}
+
 /// Alias for `Clone + Debug + Send + Sync + 'static`.
 pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
+
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 
-/// Construct a reference to a static [`StatVTable`] with serialization support.
-/// ```
-/// vtable!(Type);
-/// ```
-/// Equivalent to
-/// ```
-/// {
-///     static VTABLE: StatVTable<Type> = StatVTable::of::<Type>();
-///     &VTABLE
-/// }
-/// ```
+#[doc(hidden)]
 #[macro_export]
 macro_rules! vtable {
+    ($ty: ty) => {{
+        static _VTABLE: $crate::StatVTable<$ty> = $crate::StatVTable::of::<$ty>();
+        &_VTABLE
+    }};
+}
+
+#[cfg(feature = "engine_mlua")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! vtable_lua {
+    ($ty: ty) => {{
+        static _VTABLE: $crate::StatVTable<$ty> = $crate::StatVTable::of_lua::<$ty>();
+        &_VTABLE
+    }};
+}
+
+#[cfg(not(feature = "engine_mlua"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! vtable_lua {
     ($ty: ty) => {{
         static _VTABLE: $crate::StatVTable<$ty> = $crate::StatVTable::of::<$ty>();
         &_VTABLE
@@ -246,6 +272,12 @@ macro_rules! match_stat {
 
 use buffer::{validate, Buffer};
 
+#[cfg(all(feature = "engine_none", feature = "engine_mlua"))]
+compile_error!("Can only specify one engine.");
+
+#[cfg(not(any(feature = "engine_none", feature = "engine_mlua")))]
+compile_error!("Must specify an engine.");
+
 #[cfg(test)]
 mod test {
     use bevy_ecs::component::Component;
@@ -270,6 +302,8 @@ mod test {
         C,
         D,
     }
+
+    impl mlua::UserData for IntStat {}
 
     impl Stat for IntStat {
         type Value = StatIntPercentAdditive<i32>;

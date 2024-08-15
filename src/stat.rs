@@ -11,7 +11,7 @@ use std::{
 use bevy_serde_lens_core::with_world_mut;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::{plugin::StatDeserializers, validate, Buffer, Shareable, StatValue};
+use crate::{plugin::StatDeserializers, validate, Buffer, StatValue};
 
 /// A `vtable` of dynamic functions on [`Stat::Value`].
 #[repr(transparent)]
@@ -30,38 +30,23 @@ pub(crate) struct ErasedStatVTable {
     pub deserialize: fn(&mut dyn erased_serde::Deserializer) -> erased_serde::Result<Buffer>,
     pub clone: unsafe fn(&Buffer) -> Buffer,
     pub drop: unsafe fn(&mut Buffer),
+    #[cfg(feature = "engine_mlua")]
+    pub as_lua: for<'t> unsafe fn (&'t mlua::Lua, &Buffer) -> mlua::Result<mlua::Value<'t>>,
+    #[cfg(feature = "engine_mlua")]
+    pub from_lua: fn (&mlua::Table, &str) -> mlua::Result<Buffer>,
 }
 
 impl StatVTable {
     /// Create a [`StatVTable`] of a given [`Stat`] type, complete with serialization support.
     pub const fn of<T: Stat<Value: Serialize + DeserializeOwned>>() -> StatVTable<T> {
-        StatVTable {
-            vtable: ErasedStatVTable {
-                name: |id| T::index_to_name(id),
-                join: |to, from| {
-                    validate::<T::Value>();
-                    let to = ptr::from_mut(to).cast::<T::Value>();
-                    let from = ptr::from_ref(from).cast::<T::Value>();
-                    unsafe { to.as_mut() }
-                        .unwrap()
-                        .join_by_ref(unsafe { from.as_ref().unwrap() })
-                },
-                default: || Buffer::from(T::Value::default()),
-                as_debug: |buffer| unsafe { buffer.as_ref::<T::Value>() },
-                as_serialize: |buffer| unsafe { buffer.as_ref::<T::Value>() },
-                deserialize: |deserializer| {
-                    validate::<T::Value>();
-                    let value: T::Value = erased_serde::deserialize(deserializer)?;
-                    Ok(Buffer::from(value))
-                },
-                clone: |buffer| Buffer::from(unsafe { buffer.as_ref::<T::Value>() }.clone()),
-                drop: |buffer| {
-                    let value = unsafe { buffer.read_move::<T::Value>() };
-                    drop(value)
-                },
-            },
-            p: PhantomData,
-        }
+        let mut vtable = Self::no_serialize::<T>();
+        vtable.vtable.as_serialize = |buffer| unsafe { buffer.as_ref::<T::Value>() };
+        vtable.vtable.deserialize = |deserializer| {
+            validate::<T::Value>();
+            let value: T::Value = erased_serde::deserialize(deserializer)?;
+            Ok(Buffer::from(value))
+        };
+        vtable
     }
 
     /// Create a [`StatVTable`] of a given [`Stat`] type, panics on serialization.
@@ -90,6 +75,14 @@ impl StatVTable {
                     let value = unsafe { buffer.read_move::<T::Value>() };
                     drop(value)
                 },
+                as_lua: |lua, buffer| {
+                    let value = unsafe { buffer.as_ref::<T::Value>().clone() };
+                    mlua::IntoLua::into_lua(crate::lua::LuaStatValue(value.clone()), lua)
+                },
+                from_lua: |table, name| {
+                    let value = table.get::<_, crate::lua::LuaStatValue<T::Value>>(name)?;
+                    Ok(Buffer::from(value.0))
+                }
             },
             p: PhantomData,
         }
@@ -164,7 +157,7 @@ impl Hash for StatInst {
 /// Implement this on your types to qualify them as a [`Stat`].
 ///
 /// Each implementor can have its own `Value` type so you may want multiple of them.
-pub trait Stat: Shareable {
+pub trait Stat: Clone + Sized + 'static {
     type Value: StatValue;
 
     /// Returns a globally unique name of the stat.
@@ -351,5 +344,16 @@ impl StatValuePair {
     pub(crate) fn clone_buffer(&self) -> Buffer {
         // Safety: Safe because invariant.
         unsafe { self.stat.clone_buffer(&self.value) }
+    }
+
+    #[cfg(feature = "engine_mlua")]
+    pub(crate) fn to_lua<'t>(&self, lua: &'t mlua::Lua) -> mlua::Result<mlua::Value<'t>> {
+        unsafe {(self.stat.vtable.as_lua)(lua, &self.value)}
+    }
+
+    #[cfg(feature = "engine_mlua")]
+    pub(crate) fn from_lua(&mut self, table: &mlua::Table, name: &str) -> mlua::Result<()> {
+        self.value = (self.stat.vtable.from_lua)(table, name)?;
+        Ok(())
     }
 }

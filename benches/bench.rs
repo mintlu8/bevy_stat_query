@@ -20,6 +20,25 @@ pub fn query_many(c: &mut Criterion) {
         bt.insert(Qualifier::all_of(i), 1);
         bt_dyn.insert(Qualifier::all_of(i), Box::new(1) as Box<dyn Any>);
     }
+    c.bench_function("btree_dyn_create", |b| {
+        b.iter(|| {
+            let mut result = BTreeMap::default();
+            (0i32..1024i32).for_each(|v| {
+                result.insert(Qualifier::all_of(v), Box::new(1) as Box<dyn Any>);
+            });
+            result
+        })
+    });
+
+    c.bench_function("stat_map_create", |b| {
+        b.iter(|| {
+            let mut result = StatMap::default();
+            (0i32..1024i32).for_each(|v| {
+                result.insert_op(Qualifier::all_of(v), S, Add(1));
+            });
+            result
+        })
+    });
 
     c.bench_function("btree_aggregate_many", |b| {
         b.iter(|| {
@@ -34,7 +53,8 @@ pub fn query_many(c: &mut Criterion) {
     c.bench_function("btree_dyn_aggregate_many", |b| {
         b.iter(|| {
             let mut result = StatIntPercentAdditive::<i32>::default();
-            bt_dyn.iter()
+            bt_dyn
+                .range(..)
                 .filter(|(q, _)| q.qualifies_as(&QualifierQuery::Aggregate(255)))
                 .map(|(_, v)| v.downcast_ref::<i32>().copied().unwrap())
                 .for_each(|v| result.join(Add(v).into_stat()));

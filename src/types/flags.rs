@@ -1,4 +1,4 @@
-use crate::num_traits::Flags;
+use crate::Flags;
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;

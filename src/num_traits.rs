@@ -1,10 +1,8 @@
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
-use std::{
-    fmt::Debug,
-    num::{Saturating, Wrapping},
-    ops::*,
-};
+#[allow(unused)]
+use std::num::{Saturating, Wrapping};
+use std::{fmt::Debug, ops::*};
 
 use crate::Shareable;
 
@@ -132,6 +130,7 @@ macro_rules! impl_int {
 
 impl_int!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize,);
 
+#[allow(unused)]
 macro_rules! impl_int_newtype {
     ($($base: ident {$($ty: ty),* $(,)?}),* $(,)?) => {
         $($(impl Int for $base<$ty> {
@@ -288,7 +287,7 @@ impl Float for f64 {
 )]
 #[repr(transparent)]
 #[serde(transparent)]
-pub struct Fraction<I: Int + NumInteger>(num_rational::Ratio<I>);
+pub struct Fraction<I: Int + NumInteger>(pub(crate) num_rational::Ratio<I>);
 
 impl<I: Int + NumInteger> Deref for Fraction<I> {
     type Target = num_rational::Ratio<I>;

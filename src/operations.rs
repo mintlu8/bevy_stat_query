@@ -41,6 +41,20 @@ impl<S: StatValue> StatOperation<S> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize)]
 pub enum Unsupported {}
 
+#[cfg(feature = "engine_mlua")]
+impl<'lua> mlua::IntoLua<'lua> for Unsupported {
+    fn into_lua(self, _: &'lua mlua::Lua) -> mlua::Result<mlua::Value<'lua>> {
+        Err(mlua::Error::UserDataTypeMismatch)
+    }
+}
+
+#[cfg(feature = "engine_mlua")]
+impl<'lua> mlua::FromLua<'lua> for Unsupported {
+    fn from_lua(_: mlua::Value<'lua>, _: &'lua mlua::Lua) -> mlua::Result<Self> {
+        Err(mlua::Error::UserDataTypeMismatch)
+    }
+}
+
 /// Defines unordered operations on a stat's value.
 #[allow(unused_variables)]
 pub trait StatValue: Shareable + Default {

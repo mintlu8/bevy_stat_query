@@ -65,11 +65,11 @@ where
 /// # Example
 ///
 /// ```
-/// // Requires 'fire' to receive buff from 'fire damage'.
+/// // Requires 'fire' to receive buff for 'fire damage'.
 /// let fire = QualifierFlags::all_of(Fire);
-/// // Requires both 'ice' and 'piercing' to receive buff from 'ice piercing damage'
+/// // Requires both 'ice' and 'piercing' to receive buff for 'ice piercing damage'
 /// let ice_piercing = QualifierFlags::all_of(Ice | Piercing);
-/// // Requires at least one of the elements to receive buff from 'elemental damage'.
+/// // Requires at least one of the elements to receive buff for 'elemental damage'.
 /// let elemental = QualifierFlags::any_of(Fire | Water | Earth | Air);
 /// // Requires one of the elements and 'piercing'.
 /// let elemental_piercing = QualifierFlags::any_of(Fire | Water | Earth | Air)
