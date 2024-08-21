@@ -240,7 +240,7 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .unwrap_or((stat.vtable.default)());
         let mut pair = StatValuePair { stat, value };
         if let Some(relations) = self.querier.relations.as_ref() {
-            relations.stream_stat(query, &mut pair, Querier(self));
+            relations.stream_stat(entity, query, &mut pair, Querier(self));
         }
         self.component_streams
             .stream(entity, &[entity], query, &mut pair, Querier(self));
@@ -279,7 +279,8 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .unwrap_or((stat.vtable.default)());
         let mut pair = StatValuePair { stat, value };
         if let Some(relations) = self.querier.relations.as_ref() {
-            relations.stream_stat(query, &mut pair, Querier(self));
+            // Using entity in relations is unspecified behavior.
+            relations.stream_stat(Entity::PLACEHOLDER, query, &mut pair, Querier(self));
         }
         self.relationship_streams
             .relation(from, to, query, &mut pair, Querier(self));

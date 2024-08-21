@@ -4,6 +4,7 @@ use crate::operations::StatOperation;
 use crate::{Buffer, QualifierFlag, Stat, StatExt, StatStream, StatValue};
 use crate::{StatCache, StatInst};
 use bevy_app::App;
+use bevy_ecs::entity::Entity;
 use bevy_ecs::system::Resource;
 use bevy_ecs::world::World;
 use bevy_reflect::TypePath;
@@ -223,12 +224,13 @@ impl<Q: QualifierFlag> GlobalStatRelations<Q> {
 impl<Q: QualifierFlag> StatStream<Q> for GlobalStatRelations<Q> {
     fn stream_stat(
         &self,
+        entity: Entity,
         qualifier: &crate::QualifierQuery<Q>,
         stat_value: &mut crate::StatValuePair,
         querier: crate::Querier<Q>,
     ) {
         for item in self.stats.iter() {
-            item.stream_stat(qualifier, stat_value, querier)
+            item.stream_stat(entity, qualifier, stat_value, querier)
         }
     }
 }

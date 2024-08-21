@@ -2,7 +2,7 @@ use std::{any::Any, collections::BTreeMap};
 
 use bevy_stat_query::{
     operations::StatOperation::Add, types::StatIntPercentAdditive, Qualifier, QualifierQuery, Stat,
-    StatMap, StatStreamExt, StatValue,
+    StatMap, StatValue,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 
@@ -34,7 +34,8 @@ pub fn query_many(c: &mut Criterion) {
     c.bench_function("btree_dyn_aggregate_many", |b| {
         b.iter(|| {
             let mut result = StatIntPercentAdditive::<i32>::default();
-            bt_dyn.iter()
+            bt_dyn
+                .iter()
                 .filter(|(q, _)| q.qualifies_as(&QualifierQuery::Aggregate(255)))
                 .map(|(_, v)| v.downcast_ref::<i32>().copied().unwrap())
                 .for_each(|v| result.join(Add(v).into_stat()));

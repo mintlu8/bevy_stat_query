@@ -1,6 +1,4 @@
-use crate::{
-    stat::StatValuePair, NoopQuerier, QualifierFlag, QualifierQuery, Querier, Stat, StatValue,
-};
+use crate::{stat::StatValuePair, QualifierFlag, QualifierQuery, Querier};
 #[allow(unused)]
 use bevy_ecs::component::Component;
 use bevy_ecs::{
@@ -13,30 +11,12 @@ use bevy_ecs::{
 pub trait StatStream<Q: QualifierFlag> {
     fn stream_stat(
         &self,
+        entity: Entity,
         qualifier: &QualifierQuery<Q>,
         stat_value: &mut StatValuePair,
         querier: Querier<Q>,
     );
 }
-
-/// Extension methods for [`StatStream`].
-pub trait StatStreamExt<Q: QualifierFlag>: StatStream<Q> {
-    fn query_stat<S: Stat>(&self, qualifier: &QualifierQuery<Q>, stat: &S) -> S::Value {
-        let mut stat = StatValuePair::new_default(stat);
-        self.stream_stat(qualifier, &mut stat, Querier::noop(&NoopQuerier));
-        unsafe { stat.value.into::<S::Value>() }
-    }
-
-    fn eval_stat<S: Stat>(
-        &self,
-        qualifier: &QualifierQuery<Q>,
-        stat: &S,
-    ) -> <S::Value as StatValue>::Out {
-        self.query_stat(qualifier, stat).eval()
-    }
-}
-
-impl<T, Q: QualifierFlag> StatStreamExt<Q> for T where T: StatStream<Q> {}
 
 mod sealed {
     use bevy_ecs::entity::Entity;

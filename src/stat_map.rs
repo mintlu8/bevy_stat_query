@@ -1,9 +1,11 @@
 use crate::operations::StatOperation;
 use crate::stat::StatValuePair;
 use crate::{
-    Buffer, Qualifier, QualifierFlag, Querier, Stat, StatExt, StatInst, StatStream, StatValue,
+    Buffer, NoopQuerier, Qualifier, QualifierFlag, QualifierQuery, Querier, Stat, StatExt,
+    StatInst, StatStream, StatValue,
 };
 use bevy_ecs::component::Component;
+use bevy_ecs::entity::Entity;
 use bevy_ecs::reflect::ReflectComponent;
 use bevy_reflect::{Reflect, ReflectDeserialize, ReflectSerialize};
 use ref_cast::RefCast;
@@ -226,11 +228,31 @@ impl<Q: QualifierFlag> StatMap<Q> {
             self.insert(qualifier, stat.clone(), val);
         }
     }
+
+    pub fn query_stat<S: Stat>(&self, qualifier: &QualifierQuery<Q>, stat: &S) -> S::Value {
+        let mut stat = StatValuePair::new_default(stat);
+        self.stream_stat(
+            Entity::PLACEHOLDER,
+            qualifier,
+            &mut stat,
+            Querier::noop(&NoopQuerier),
+        );
+        unsafe { stat.value.into::<S::Value>() }
+    }
+
+    pub fn eval_stat<S: Stat>(
+        &self,
+        qualifier: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> <S::Value as StatValue>::Out {
+        self.query_stat(qualifier, stat).eval()
+    }
 }
 
 impl<Q: QualifierFlag> StatStream<Q> for StatMap<Q> {
     fn stream_stat(
         &self,
+        _: Entity,
         qualifier: &crate::QualifierQuery<Q>,
         stat_value: &mut StatValuePair,
         _: Querier<Q>,
