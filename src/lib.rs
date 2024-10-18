@@ -169,6 +169,8 @@ pub use stat_map::StatMap;
 mod buffer;
 pub mod rounding;
 use std::fmt::Debug;
+mod attributes;
+pub use attributes::AttributeMap;
 
 mod sealed {
     pub trait Sealed {}

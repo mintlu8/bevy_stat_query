@@ -38,6 +38,7 @@ num-traits = { version = "0.2.18", default-features = false }
 bevy_serde_lens_core = { version = "0.14.0" }
 rustc-hash = "2.0.0"
 bevy_stat_query_derive = { version = "0.1", path = "./derive", optional = true }
+ecow = "0.2.2"
 
 [dev-dependencies]
 bevy = "0.14.0"
