@@ -363,5 +363,15 @@ mod test {
                 }
             )
         }
+
+        fn has_attribute(
+            _: bevy::prelude::Entity,
+            _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
+            _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
+            _: &str,
+            _: Querier<u32>,
+        ) -> bool {
+            false
+        }
     }
 }

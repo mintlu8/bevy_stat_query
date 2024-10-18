@@ -1,12 +1,12 @@
+use crate::Shareable;
 use bevy_reflect::TypePath;
+use num_rational::Ratio;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
     num::{Saturating, Wrapping},
     ops::*,
 };
-
-use crate::Shareable;
 
 pub trait NumInteger: num_integer::Integer + num_traits::NumAssign {}
 impl<T> NumInteger for T where T: num_integer::Integer + num_traits::NumAssign {}
@@ -331,6 +331,20 @@ macro_rules! impl_ops {
         impl<I: Int + NumInteger> $d for Fraction<I> {
             fn $e(&mut self, rhs: Self) {
                 self.0 $f rhs.0
+            }
+        }
+
+        impl<I: Int + NumInteger> $a<I> for Fraction<I> {
+            type Output = Self;
+
+            fn $b(self, rhs: I) -> Self::Output {
+                Self(self.0 $c Ratio::new(rhs, I::ONE))
+            }
+        }
+
+        impl<I: Int + NumInteger> $d<I> for Fraction<I> {
+            fn $e(&mut self, rhs: I) {
+                self.0 $f Ratio::new(rhs, I::ONE)
             }
         }
     };

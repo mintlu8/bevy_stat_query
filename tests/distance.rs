@@ -132,16 +132,6 @@ impl RelationStream<bool> for &mut Position {
 
 impl ComponentStream<bool> for &Allegiance {
     type Cx = ();
-
-    fn stream(
-        _: Entity,
-        _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        _: &QualifierQuery<bool>,
-        _: &mut StatValuePair,
-        _: Querier<bool>,
-    ) {
-    }
 }
 
 impl RelationStream<bool> for &Allegiance {
@@ -165,16 +155,6 @@ impl RelationStream<bool> for &Allegiance {
 
 impl ComponentStream<bool> for &mut Allegiance {
     type Cx = ();
-
-    fn stream(
-        _: Entity,
-        _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        _: &QualifierQuery<bool>,
-        _: &mut StatValuePair,
-        _: Querier<bool>,
-    ) {
-    }
 }
 
 impl RelationStream<bool> for &mut Allegiance {

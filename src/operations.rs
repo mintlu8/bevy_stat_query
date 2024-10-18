@@ -71,3 +71,29 @@ pub trait StatValue: Shareable + Default {
 
     fn from_base(base: Self::Base) -> Self;
 }
+
+impl StatValue for bool {
+    type Out = bool;
+
+    fn join(&mut self, other: Self) {
+        *self |= other
+    }
+
+    fn eval(&self) -> Self::Out {
+        *self
+    }
+
+    type Add = Unsupported;
+
+    type Mul = Unsupported;
+
+    type Bit = Self;
+
+    type Bounds = Unsupported;
+
+    type Base = Self;
+
+    fn from_base(base: Self::Base) -> Self {
+        base
+    }
+}

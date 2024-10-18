@@ -55,6 +55,8 @@ pub struct JoinedQuerier<
 ///
 /// Notable implementors are [`NoopQuerier`] and [`JoinedQuerier`].
 trait ErasedQuerier<Q: QualifierFlag> {
+    
+    /// Query for a stat in its component form.
     fn query_stat_erased(
         &self,
         entity: Entity,
@@ -62,6 +64,7 @@ trait ErasedQuerier<Q: QualifierFlag> {
         stat: StatInst,
     ) -> Option<Buffer>;
 
+    /// Query for a relation stat in its component form.
     fn query_relation_erased(
         &self,
         from: Entity,
@@ -69,6 +72,9 @@ trait ErasedQuerier<Q: QualifierFlag> {
         query: &QualifierQuery<Q>,
         stat: StatInst,
     ) -> Option<Buffer>;
+
+    /// Query for the existence of a string attribute.
+    fn has_attribute_erased(&self, entity: Entity, attribute: &str) -> bool;
 }
 
 /// An erased type that can query for stats on entities in the world.
@@ -94,6 +100,7 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
         Querier(querier)
     }
 
+    /// Query for a stat in its component form.
     pub fn query_stat<S: Stat>(
         &self,
         entity: Entity,
@@ -106,6 +113,7 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
             .map(|x| unsafe { x.into() })
     }
 
+    /// Query for a relation stat in its component form.
     pub fn query_relation<S: Stat>(
         &self,
         from: Entity,
@@ -119,6 +127,7 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
             .map(|x| unsafe { x.into() })
     }
 
+    /// Query for a stat in its evaluated form.
     pub fn query_eval<S: Stat>(
         &self,
         entity: Entity,
@@ -130,6 +139,7 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
             .map(|x| StatValue::eval(&x))
     }
 
+    /// Query for a relation stat in its evaluated form.
     pub fn query_relation_eval<S: Stat>(
         &self,
         from: Entity,
@@ -141,11 +151,17 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
         self.query_relation(from, to, query, stat)
             .map(|x| StatValue::eval(&x))
     }
+
+    /// Query for the existence of a string attribute.
+    pub fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+        self.0.has_attribute_erased(entity, attribute)
+    }
 }
 
 impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStream<Q>>
     JoinedQuerier<'_, '_, '_, Q, A, B, C>
 {
+    /// Query for a stat in its component form.
     pub fn query_stat<S: Stat>(
         &self,
         entity: Entity,
@@ -157,6 +173,7 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .map(|x| unsafe { x.into() })
     }
 
+    /// Query for a relation stat in its component form.
     pub fn query_relation<S: Stat>(
         &self,
         from: Entity,
@@ -169,6 +186,7 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .map(|x| unsafe { x.into() })
     }
 
+    /// Query for a stat in its evaluated form.
     pub fn query_eval<S: Stat>(
         &self,
         entity: Entity,
@@ -180,6 +198,7 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
             .map(|x| StatValue::eval(&x))
     }
 
+    /// Query for a relation stat in its evaluated form.
     pub fn query_relation_eval<S: Stat>(
         &self,
         from: Entity,
@@ -190,6 +209,11 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
         validate::<S::Value>();
         self.query_relation(from, to, query, stat)
             .map(|x| StatValue::eval(&x))
+    }
+
+    /// Query for the existence of a string attribute.
+    pub fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+        self.has_attribute_erased(entity, attribute)
     }
 }
 
@@ -209,6 +233,10 @@ impl<Q: QualifierFlag> ErasedQuerier<Q> for NoopQuerier {
 
     fn query_stat_erased(&self, _: Entity, _: &QualifierQuery<Q>, _: StatInst) -> Option<Buffer> {
         None
+    }
+
+    fn has_attribute_erased(&self, _: Entity, _: &str) -> bool {
+        false
     }
 }
 
@@ -285,6 +313,32 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>, C: QueryRelationStr
         self.relationship_streams
             .relation(from, to, query, &mut pair, Querier(self));
         Some(pair.value)
+    }
+
+    fn has_attribute_erased(&self, entity: Entity, attribute: &str) -> bool {
+        if self
+            .component_streams
+            .has_attribute(entity, &[entity], attribute, Querier(self))
+        {
+            return true;
+        }
+        if self
+            .relationship_streams
+            .has_attribute(entity, &[entity], attribute, Querier(self))
+        {
+            return true;
+        }
+        if let Ok(Some(children)) = self.querier.entities.get(entity) {
+            if self.children_streams.has_attribute(
+                entity,
+                children.as_ref(),
+                attribute,
+                Querier(self),
+            ) {
+                return true;
+            }
+        }
+        false
     }
 }
 

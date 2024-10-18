@@ -184,7 +184,8 @@ pub trait Stat: Shareable {
     /// # Safety
     ///
     /// The resulting pointer must be unique across all implementors, this is achieved
-    /// by having a generic constraint of `Self`.
+    /// by having a generic constraint of `Self`. This can technically return multiple
+    /// tables which would cause logical errors but not unsafety.
     fn vtable() -> &'static StatVTable<Self>;
 
     /// Returns a locally unique index of the stat, used in equality comparisons.
