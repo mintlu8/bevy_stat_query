@@ -12,26 +12,14 @@ pub struct S;
 
 pub fn query_many(c: &mut Criterion) {
     let mut m = StatMap::<u32>::new();
-    let mut bt = BTreeMap::new();
     let mut bt_dyn = BTreeMap::new();
 
     for i in 0..1024 {
-        m.insert_op(Qualifier::all_of(i), S, Add(1));
-        bt.insert(Qualifier::all_of(i), 1);
+        m.insert_base(Qualifier::all_of(i), S, 1);
         bt_dyn.insert(Qualifier::all_of(i), Box::new(1) as Box<dyn Any>);
     }
 
-    c.bench_function("btree_aggregate_many", |b| {
-        b.iter(|| {
-            let mut result = StatIntPercentAdditive::<i32>::default();
-            bt.iter()
-                .filter(|(q, _)| q.qualifies_as(&QualifierQuery::Aggregate(255)))
-                .for_each(|(_, v)| result.join(Add(*v).into_stat()));
-            result
-        })
-    });
-
-    c.bench_function("btree_dyn_aggregate_many", |b| {
+    c.bench_function("naive_btree_aggregate_many", |b| {
         b.iter(|| {
             let mut result = StatIntPercentAdditive::<i32>::default();
             bt_dyn

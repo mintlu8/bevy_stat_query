@@ -67,13 +67,7 @@ impl<Q: QualifierFlag> QueryStream<Q> for () {
     ) {
     }
 
-    fn has_attribute(
-        &self,
-        _: Entity,
-        _: &[Entity],
-        _: &str,
-        _: Querier<Q>,
-    ) -> bool {
+    fn has_attribute(&self, _: Entity, _: &[Entity], _: &str, _: Querier<Q>) -> bool {
         false
     }
 }
@@ -100,7 +94,8 @@ impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>> QueryStream<Q> for 
         attribute: &str,
         querier: Querier<Q>,
     ) -> bool {
-        self.0.has_attribute(entity, entities, attribute, querier) || self.1.has_attribute(entity, entities, attribute, querier)
+        self.0.has_attribute(entity, entities, attribute, querier)
+            || self.1.has_attribute(entity, entities, attribute, querier)
     }
 }
 
@@ -145,15 +140,18 @@ pub trait ComponentStream<Q: QualifierFlag>: QueryData {
         qualifier: &QualifierQuery<Q>,
         stat_value: &mut StatValuePair,
         querier: Querier<Q>,
-    ){}
-    
+    ) {
+    }
+
     fn has_attribute(
         this: Entity,
         cx: &<Self::Cx as SystemParam>::Item<'_, '_>,
         component: <Self::ReadOnly as WorldQuery>::Item<'_>,
         attribute: &str,
         querier: Querier<Q>,
-    ) -> bool { false }
+    ) -> bool {
+        false
+    }
 }
 
 /// A [`Component`] or [`QueryData`] that can be used to query relation between entities.

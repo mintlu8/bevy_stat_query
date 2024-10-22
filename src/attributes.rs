@@ -34,7 +34,7 @@ impl AttributeMap {
         self.0.remove(attribute);
     }
 
-    pub fn contains(&self, attribute: &str) -> bool{
+    pub fn contains(&self, attribute: &str) -> bool {
         self.0.contains(attribute)
     }
 }
@@ -52,4 +52,3 @@ impl<Q: QualifierFlag> ComponentStream<Q> for &AttributeMap {
         component.contains(attribute)
     }
 }
-

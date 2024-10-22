@@ -55,7 +55,6 @@ pub struct JoinedQuerier<
 ///
 /// Notable implementors are [`NoopQuerier`] and [`JoinedQuerier`].
 trait ErasedQuerier<Q: QualifierFlag> {
-    
     /// Query for a stat in its component form.
     fn query_stat_erased(
         &self,
