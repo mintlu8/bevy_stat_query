@@ -4,7 +4,7 @@ use bevy_ecs::{
     system::{Query, RunSystemOnce},
     world::World,
 };
-use bevy_hierarchy::BuildWorldChildren;
+use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
     types::{StatInt, StatOnce},
@@ -266,7 +266,7 @@ pub fn main() {
     world.entity_mut(b).with_children(|f| {
         f.spawn((DistanceAura(a), AllegianceAura(7, a)));
     });
-    world.run_system_once({
+    let _ = world.run_system_once({
         move |query: StatQuery<bool>,
               mut allegiance: Query<&mut Allegiance>,
               mut position: Query<&mut Position>,
@@ -360,5 +360,5 @@ pub fn main() {
                 Some(7)
             );
         }
-    })
+    });
 }

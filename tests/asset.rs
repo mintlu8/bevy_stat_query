@@ -6,7 +6,7 @@ use bevy_ecs::{
     query::{QueryData, With},
     system::{Commands, Query, Res},
 };
-use bevy_hierarchy::BuildChildren;
+use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
     types::StatFloat, ComponentStream, QualifierQuery, Querier, Stat, StatEntity, StatExtension,
@@ -50,6 +50,9 @@ pub struct Weapon {
     pub damage: f32,
 }
 
+#[derive(Debug, Component)]
+pub struct WeaponHandle(Handle<Weapon>);
+
 #[derive(Component)]
 pub struct WeaponState {
     pub durability: f32,
@@ -62,12 +65,12 @@ pub struct A;
 pub struct B;
 
 #[derive(QueryData)]
-pub struct WeaponHandle {
-    weapon: &'static Handle<Weapon>,
+pub struct WeaponQuery {
+    weapon: &'static WeaponHandle,
     state: &'static WeaponState,
 }
 
-impl ComponentStream<u32> for WeaponHandle {
+impl ComponentStream<u32> for WeaponQuery {
     type Cx = Res<'static, Assets<Weapon>>;
 
     fn stream(
@@ -79,7 +82,7 @@ impl ComponentStream<u32> for WeaponHandle {
         _: Querier<u32>,
     ) {
         if let Some(value) = stat_value.is_then_cast(&Damage) {
-            let Some(weapon) = cx.get(component.weapon) else {
+            let Some(weapon) = cx.get(component.weapon.0.id()) else {
                 return;
             };
             value.add(weapon.damage * component.state.durability)
@@ -112,17 +115,17 @@ pub fn asset_test() {
 fn init(mut commands: Commands, assets: Res<AssetServer>) {
     commands.spawn((StatEntity, A)).with_children(|x| {
         x.spawn((
-            assets.add(Weapon { damage: 4.0 }),
+            WeaponHandle(assets.add(Weapon { damage: 4.0 })),
             WeaponState { durability: 0.5 },
         ));
     });
     commands.spawn((StatEntity, B)).with_children(|x| {
         x.spawn((
-            assets.add(Weapon { damage: 8.0 }),
+            WeaponHandle(assets.add(Weapon { damage: 8.0 })),
             WeaponState { durability: 1.0 },
         ));
         x.spawn((
-            assets.add(Weapon { damage: 6.0 }),
+            WeaponHandle(assets.add(Weapon { damage: 6.0 })),
             WeaponState { durability: 2.0 },
         ));
     });
@@ -130,7 +133,7 @@ fn init(mut commands: Commands, assets: Res<AssetServer>) {
 
 fn query(
     querier: StatQuery<u32>,
-    weapon_query: Query<WeaponHandle>,
+    weapon_query: Query<WeaponQuery>,
     cx: Res<Assets<Weapon>>,
     a: Query<Entity, (With<StatEntity>, With<A>)>,
     b: Query<Entity, (With<StatEntity>, With<B>)>,
