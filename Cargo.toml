@@ -24,10 +24,11 @@ derive = ["bevy_stat_query_derive"]
 doctest = false
 
 [dependencies]
-bevy_ecs = { version = "0.15.0-rc.2" }
-bevy_hierarchy = { version = "0.15.0-rc.2" }
-bevy_app = { version = "0.15.0-rc.2" }
-bevy_reflect = { version = "0.15.0-rc.2" }
+bevy_ecs = { version = "0.15.0" }
+bevy_hierarchy = { version = "0.15.0" }
+bevy_app = { version = "0.15.0" }
+bevy_reflect = { version = "0.15.0" }
+bevy_serde_lens_core = { version = "0.15.0" }
 serde = { version = "1", features = ["derive"] }
 erased-serde = "0.4.3"
 ref-cast = "1"
@@ -35,19 +36,18 @@ thiserror = "1"
 num-integer = { version = "0.1", default-features = false }
 num-rational = { version = "0.4.1", default-features = false, features = ["serde"] }
 num-traits = { version = "0.2.18", default-features = false }
-bevy_serde_lens_core = { version = "0.15.0-rc.2" }
 rustc-hash = "2.0.0"
 bevy_stat_query_derive = { version = "0.1", path = "./derive", optional = true }
 ecow = "0.2.2"
 
 [dev-dependencies]
-bevy = "0.15.0-rc.2"
+bevy = "0.15.0"
 bitflags = "2.4.2"
 num_enum = "0.7.2"
 postcard = { version = "1.0.8", features = ["alloc"], default-features = false }
 serde_json = "1.0.114"
 strum = { version = "0.26.2", features = ["derive"] }
-bevy_serde_lens = { version = "0.4.0" }
+bevy_serde_lens = { version = "0.5.0" }
 criterion = "0.5.1"
 
 [[bench]]

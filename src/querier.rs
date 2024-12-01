@@ -351,7 +351,7 @@ impl<'w, 's, Q: QualifierFlag> StatQuery<'w, 's, Q> {
     pub fn with_component<'t, D, F: QueryFilter>(
         &'t self,
         query: &'t Query<'w, 's, D, F>,
-    ) -> JoinedQuerier<'_, 'w, 's, Q, impl QueryStream<Q> + 't, (), ()>
+    ) -> JoinedQuerier<'t, 'w, 's, Q, impl QueryStream<Q> + 't, (), ()>
     where
         D: ComponentStream<Q, Cx = ()>,
     {
@@ -366,7 +366,7 @@ impl<'w, 's, Q: QualifierFlag> StatQuery<'w, 's, Q> {
     pub fn with_children<'t, D, F: QueryFilter>(
         &'t self,
         query: &'t Query<'w, 's, D, F>,
-    ) -> JoinedQuerier<'_, 'w, 's, Q, (), impl QueryStream<Q> + 't, ()>
+    ) -> JoinedQuerier<'t, 'w, 's, Q, (), impl QueryStream<Q> + 't, ()>
     where
         D: ComponentStream<Q, Cx = ()>,
     {
@@ -381,7 +381,7 @@ impl<'w, 's, Q: QualifierFlag> StatQuery<'w, 's, Q> {
     pub fn with_relation<'t, D, F: QueryFilter>(
         &'t self,
         query: &'t Query<'w, 's, D, F>,
-    ) -> JoinedQuerier<'_, 'w, 's, Q, (), (), impl QueryRelationStream<Q> + 't>
+    ) -> JoinedQuerier<'t, 'w, 's, Q, (), (), impl QueryRelationStream<Q> + 't>
     where
         D: RelationStream<Q, Cx = ()>,
     {
@@ -397,7 +397,7 @@ impl<'w, 's, Q: QualifierFlag> StatQuery<'w, 's, Q> {
         &'t self,
         query: &'t Query<'w, 's, D, F>,
         cx: &'t <D::Cx as SystemParam>::Item<'w, 's>,
-    ) -> JoinedQuerier<'_, 'w, 's, Q, impl QueryStream<Q> + 't, (), ()>
+    ) -> JoinedQuerier<'t, 'w, 's, Q, impl QueryStream<Q> + 't, (), ()>
     where
         D: ComponentStream<Q>,
         't: 'w,
@@ -415,7 +415,7 @@ impl<'w, 's, Q: QualifierFlag> StatQuery<'w, 's, Q> {
         &'t self,
         query: &'t Query<'w, 's, D, F>,
         cx: &'t <D::Cx as SystemParam>::Item<'w, 's>,
-    ) -> JoinedQuerier<'_, 'w, 's, Q, (), impl QueryStream<Q> + 't, ()>
+    ) -> JoinedQuerier<'t, 'w, 's, Q, (), impl QueryStream<Q> + 't, ()>
     where
         D: ComponentStream<Q>,
         't: 'w,
@@ -433,7 +433,7 @@ impl<'w, 's, Q: QualifierFlag> StatQuery<'w, 's, Q> {
         &'t self,
         query: &'t Query<'w, 's, D, F>,
         cx: &'t <D::Cx as SystemParam>::Item<'w, 's>,
-    ) -> JoinedQuerier<'_, 'w, 's, Q, (), (), impl QueryRelationStream<Q> + 't>
+    ) -> JoinedQuerier<'t, 'w, 's, Q, (), (), impl QueryRelationStream<Q> + 't>
     where
         D: RelationStream<Q>,
         't: 'w,
