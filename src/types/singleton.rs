@@ -38,9 +38,7 @@ impl StatValue for StatExists {
 }
 
 /// Finds a single entry of a given stat.
-#[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize,
-)]
+#[derive(Debug, Default, Clone, Copy, TypePath, Serialize, Deserialize)]
 #[repr(C, align(8))]
 pub enum StatOnce<T: Shareable> {
     #[default]
@@ -142,39 +140,5 @@ impl<T: Shareable> StatValue for StatOnce<T> {
 
     fn from_base(base: Self::Base) -> Self {
         Self::Found(base)
-    }
-}
-
-/// Try obtain a single or a default value.
-///
-/// This is not unordered and new values will overwrite previous ones.
-#[derive(Debug, Default, Clone, Copy, TypePath, Serialize, Deserialize)]
-#[repr(C, align(8))]
-pub struct StatSingle<T: Default>(pub T);
-
-impl<T: Default + Shareable> StatValue for StatSingle<T> {
-    type Out = T;
-    type Base = T;
-
-    fn join(&mut self, other: Self) {
-        *self = other
-    }
-
-    fn eval(&self) -> Self::Out {
-        self.0.clone()
-    }
-
-    type Add = Unsupported;
-    type Mul = Unsupported;
-    type Bounds = Unsupported;
-
-    type Bit = T;
-
-    fn or(&mut self, other: Self::Bit) {
-        self.0 = other
-    }
-
-    fn from_base(base: Self::Base) -> Self {
-        Self(base)
     }
 }
