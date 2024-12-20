@@ -186,3 +186,9 @@ impl<Q: QualifierFlag> QualifierQuery<Q> {
         Self::Aggregate(Q::none())
     }
 }
+
+impl<Q: QualifierFlag> From<Q> for QualifierQuery<Q> {
+    fn from(value: Q) -> Self {
+        QualifierQuery::Aggregate(value)
+    }
+}

@@ -354,9 +354,6 @@ mod test {
                     (FlagsStat::E, value) => {
                         value.or(1);
                     },
-                    (FlagsStat::F, value) => {
-                        value.not(2);
-                    },
                     (v @ FlagsStat, value) => {
                         value.or(v as i32);
                     },

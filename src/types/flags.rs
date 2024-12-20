@@ -10,7 +10,6 @@ use crate::{operations::Unsupported, StatValue};
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, TypePath)]
 #[repr(C, align(8))]
 pub struct StatFlags<T: Flags> {
-    not: T,
     or: T,
 }
 
@@ -20,11 +19,10 @@ impl<T: Flags> StatValue for StatFlags<T> {
 
     fn join(&mut self, other: Self) {
         self.or |= other.or;
-        self.not |= other.not;
     }
 
     fn eval(&self) -> Self::Out {
-        self.or.clone().exclude(self.not.clone())
+        self.or.clone()
     }
 
     type Add = Unsupported;
@@ -37,13 +35,8 @@ impl<T: Flags> StatValue for StatFlags<T> {
         self.or |= other
     }
 
-    fn not(&mut self, other: Self::Bit) {
-        self.not |= other
-    }
-
     fn from_base(base: Self::Base) -> Self {
         Self {
-            not: Default::default(),
             or: base,
         }
     }

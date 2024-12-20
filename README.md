@@ -2,6 +2,8 @@
 
 Versatile RPG stat system for the bevy engine.
 
+## Overview
+
 ## Qualified Stats
 
 We describe each stat as a `Qualifier` and a `Stat`.

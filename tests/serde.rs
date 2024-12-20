@@ -141,7 +141,7 @@ pub fn serde_test() {
         map.modify(q_false, SUInt, Max(7));
         map.modify(q_false, SFloat32, Min(3.5));
         map.modify(q_false, SFlags, Or(MyFlags::F));
-        map.modify(q_false, SString, Not("Ferris the Rustacean".into()));
+        map.modify(q_false, SString, Or("Ferris the Rustacean".into()));
         map.modify(q_false, SIntFrac, Mul(Fraction::new(43, -47)));
         map.modify(q_false, SIntPct, Mul(32));
         map.modify(q_false, SMul, Mul(102.125));

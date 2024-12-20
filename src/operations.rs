@@ -7,7 +7,6 @@ pub enum StatOperation<S: StatValue> {
     Add(S::Add),
     Mul(S::Mul),
     Or(S::Bit),
-    Not(S::Bit),
     Min(S::Bounds),
     Max(S::Bounds),
     Base(S::Base),
@@ -23,7 +22,6 @@ impl<S: StatValue> StatOperation<S> {
             StatOperation::Add(item) => to.add(item),
             StatOperation::Mul(item) => to.mul(item),
             StatOperation::Or(item) => to.or(item),
-            StatOperation::Not(item) => to.not(item),
             StatOperation::Min(item) => to.min(item),
             StatOperation::Max(item) => to.max(item),
             StatOperation::Base(item) => *to = S::from_base(item),
@@ -62,8 +60,6 @@ pub trait StatValue: Shareable + Default {
 
     fn add(&mut self, other: Self::Add) {}
     fn mul(&mut self, other: Self::Mul) {}
-
-    fn not(&mut self, other: Self::Bit) {}
     fn or(&mut self, other: Self::Bit) {}
 
     fn min(&mut self, other: Self::Bounds) {}
