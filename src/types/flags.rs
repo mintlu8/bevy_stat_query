@@ -36,8 +36,6 @@ impl<T: Flags> StatValue for StatFlags<T> {
     }
 
     fn from_base(base: Self::Base) -> Self {
-        Self {
-            or: base,
-        }
+        Self { or: base }
     }
 }

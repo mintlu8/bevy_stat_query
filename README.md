@@ -4,6 +4,20 @@ Versatile RPG stat system for the bevy engine.
 
 ## Overview
 
+In order to represent stats, stat buffs and stat queries in an ECS,
+`bevy_stat_query` exclusively uses unordered operations to represent
+stats, this includes `add`, `multiply`, `min`, `max` and `or`.
+
+For instance if we want to evaluate a character's strength,
+taken into account buffs and debuffs this can look something like this:
+
+```rust
+clamp((42 + 4 + 7) * 2 * 0.75, 1, 99)
+```
+
+Note how the order of evaluation doesn't matter, which fits perfectly into
+the "insert component and have effect" usage pattern of the ECS.
+
 ## Qualified Stats
 
 We describe each stat as a `Qualifier` and a `Stat`.

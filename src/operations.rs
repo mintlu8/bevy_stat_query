@@ -65,6 +65,41 @@ pub trait StatValue: Shareable + Default {
     fn min(&mut self, other: Self::Bounds) {}
     fn max(&mut self, other: Self::Bounds) {}
 
+    fn with_add(mut self, other: Self::Add) -> Self {
+        self.add(other);
+        self
+    }
+
+    fn with_mul(mut self, other: Self::Mul) -> Self {
+        self.mul(other);
+        self
+    }
+
+    fn with_min(mut self, other: Self::Bounds) -> Self {
+        self.min(other);
+        self
+    }
+
+    fn with_max(mut self, other: Self::Bounds) -> Self {
+        self.max(other);
+        self
+    }
+
+    fn with_or(mut self, other: Self::Bit) -> Self {
+        self.or(other);
+        self
+    }
+
+    fn with_join(mut self, other: Self) -> Self {
+        self.join(other);
+        self
+    }
+
+    fn with_join_ref(mut self, other: &Self) -> Self {
+        self.join_by_ref(other);
+        self
+    }
+
     fn from_base(base: Self::Base) -> Self;
 }
 
