@@ -1,15 +1,10 @@
-use bevy_ecs::{
-    component::Component,
-    entity::Entity,
-    system::{Query, RunSystemOnce},
-    world::World,
-};
+use bevy_ecs::{component::Component, entity::Entity, system::RunSystemOnce, world::World};
 use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
     types::{StatInt, StatOnce},
-    ComponentStream, QualifierQuery, Querier, RelationStream, Stat, StatCache, StatEntity,
-    StatExtension, StatQuery, StatVTable, StatValue, StatValuePair,
+    QualifierQuery, Querier, Stat, StatCache, StatEntities, StatEntity, StatExtension, StatQuery,
+    StatQueryMut, StatStream, StatVTable, StatValue, StatValuePair,
 };
 use serde::{Deserialize, Serialize};
 
@@ -72,82 +67,38 @@ pub struct A;
 #[derive(Component)]
 pub struct B;
 
-impl ComponentStream<bool> for &Position {
-    type Cx = ();
-}
+impl StatStream for Position {
+    type Qualifier = bool;
 
-impl RelationStream<bool> for &Position {
-    fn relation(
-        this: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        other: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        _: &QualifierQuery<bool>,
+    fn stream_relation(
+        &self,
+        other: &Self,
+        _: Entity,
+        _: Entity,
+        _: &QualifierQuery<Self::Qualifier>,
         stat_value: &mut StatValuePair,
-        _: Querier<bool>,
+        _: Querier<Self::Qualifier>,
     ) {
         if let Some(v) = stat_value.is_then_cast(&StatDistance) {
-            v.set((this.0[0] - other.0[0]).abs() + (this.0[1] - other.0[1]).abs())
+            v.set((self.0[0] - other.0[0]).abs() + (self.0[1] - other.0[1]).abs())
         }
     }
 }
 
-impl ComponentStream<bool> for &mut Position {
-    type Cx = ();
-}
+impl StatStream for Allegiance {
+    type Qualifier = bool;
 
-impl RelationStream<bool> for &mut Position {
-    fn relation(
-        this: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        other: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        _: &QualifierQuery<bool>,
+    fn stream_relation(
+        &self,
+        other: &Self,
+        _: Entity,
+        _: Entity,
+        _: &QualifierQuery<Self::Qualifier>,
         stat_value: &mut StatValuePair,
-        _: Querier<bool>,
-    ) {
-        if let Some(v) = stat_value.is_then_cast(&StatDistance) {
-            v.set((this.0[0] - other.0[0]).abs() + (this.0[1] - other.0[1]).abs())
-        }
-    }
-}
-
-impl ComponentStream<bool> for &Allegiance {
-    type Cx = ();
-}
-
-impl RelationStream<bool> for &Allegiance {
-    fn relation(
-        this: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        other: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        _: &QualifierQuery<bool>,
-        stat_value: &mut StatValuePair,
-        _: Querier<bool>,
+        _: Querier<Self::Qualifier>,
     ) {
         if let Some(v) = stat_value.is_then_cast(&StatAllegiance) {
-            if this == other {
-                v.set(Relation::Ally)
-            } else {
-                v.set(Relation::Enemy)
-            }
-        }
-    }
-}
-
-impl ComponentStream<bool> for &mut Allegiance {
-    type Cx = ();
-}
-
-impl RelationStream<bool> for &mut Allegiance {
-    fn relation(
-        this: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        other: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        _: &QualifierQuery<bool>,
-        stat_value: &mut StatValuePair,
-        _: Querier<bool>,
-    ) {
-        if let Some(v) = stat_value.is_then_cast(&StatAllegiance) {
-            if this == other {
+            if self == other {
                 v.set(Relation::Ally)
             } else {
                 v.set(Relation::Enemy)
@@ -202,21 +153,20 @@ impl Stat for StatEffects {
     }
 }
 
-impl ComponentStream<bool> for &DistanceAura {
-    type Cx = ();
+impl StatStream for DistanceAura {
+    type Qualifier = bool;
 
-    fn stream(
-        this: Entity,
-        _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        component: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        qualifier: &QualifierQuery<bool>,
+    fn stream_stat(
+        &self,
+        entity: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
         stat_value: &mut StatValuePair,
-        querier: Querier<bool>,
+        querier: Querier<Self::Qualifier>,
     ) {
         if let Some(v) = stat_value.is_then_cast(&StatEffects::Distance) {
             // could panic or return default or write to ctx etc.
             let distance = querier
-                .query_relation(this, component.0, qualifier, &StatDistance)
+                .query_relation(self.0, entity, qualifier, &StatDistance)
                 .unwrap()
                 .unwrap();
             v.add(distance);
@@ -224,24 +174,23 @@ impl ComponentStream<bool> for &DistanceAura {
     }
 }
 
-impl ComponentStream<bool> for &AllegianceAura {
-    type Cx = ();
+impl StatStream for AllegianceAura {
+    type Qualifier = bool;
 
-    fn stream(
-        this: Entity,
-        _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        component: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        qualifier: &QualifierQuery<bool>,
+    fn stream_stat(
+        &self,
+        entity: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
         stat_value: &mut StatValuePair,
-        querier: Querier<bool>,
+        querier: Querier<Self::Qualifier>,
     ) {
         if let Some(v) = stat_value.is_then_cast(&StatEffects::Allegiance) {
             let distance = querier
-                .query_relation(this, component.1, qualifier, &StatAllegiance)
+                .query_relation(self.1, entity, qualifier, &StatAllegiance)
                 .unwrap()
                 .unwrap();
             v.add(match distance {
-                Relation::Ally => component.0,
+                Relation::Ally => self.0,
                 Relation::Enemy => 0,
             });
         }
@@ -267,48 +216,48 @@ pub fn main() {
         f.spawn((DistanceAura(a), AllegianceAura(7, a)));
     });
     let _ = world.run_system_once({
-        move |query: StatQuery<bool>,
-              mut allegiance: Query<&mut Allegiance>,
-              mut position: Query<&mut Position>,
-              allegiance_aura: Query<&AllegianceAura>,
-              distance_aura: Query<&DistanceAura>| {
+        move |query: StatEntities<bool>,
+              mut allegiance: StatQueryMut<Allegiance>,
+              mut position: StatQueryMut<Position>,
+              allegiance_aura: StatQuery<AllegianceAura>,
+              distance_aura: StatQuery<DistanceAura>| {
             macro_rules! querier {
                 () => {
                     query
-                        .with_relation(&allegiance)
-                        .with_relation(&position)
-                        .with_children(&allegiance_aura)
-                        .with_children(&distance_aura)
+                        .join(&allegiance)
+                        .join(&position)
+                        .join(&allegiance_aura)
+                        .join(&distance_aura)
                 };
             }
             assert_eq!(
-                querier!().query_eval(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
+                querier!().eval_stat(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
                 Some(7)
             );
             assert_eq!(
-                querier!().query_eval(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
+                querier!().eval_stat(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
                 Some(7)
             );
-            position.get_mut(a).unwrap().0[1] = -7;
+            position.query.get_mut(a).unwrap().0[1] = -7;
             assert_eq!(
-                querier!().query_eval(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
+                querier!().eval_stat(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
                 Some(7)
             );
             assert_eq!(
-                querier!().query_eval(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
+                querier!().eval_stat(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
                 Some(7)
             );
             query.clear_cache();
             assert_eq!(
-                querier!().query_eval(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
+                querier!().eval_stat(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
                 Some(17)
             );
             assert_eq!(
-                querier!().query_eval(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
+                querier!().eval_stat(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
                 Some(17)
             );
             assert_eq!(
-                querier!().query_eval(
+                querier!().eval_stat(
                     a,
                     &QualifierQuery::Aggregate(false),
                     &StatEffects::Allegiance
@@ -316,17 +265,17 @@ pub fn main() {
                 Some(0)
             );
             assert_eq!(
-                querier!().query_eval(
+                querier!().eval_stat(
                     b,
                     &QualifierQuery::Aggregate(false),
                     &StatEffects::Allegiance
                 ),
                 Some(0)
             );
-            *allegiance.get_mut(b).unwrap() = Allegiance::Player;
+            *allegiance.query.get_mut(b).unwrap() = Allegiance::Player;
 
             assert_eq!(
-                querier!().query_eval(
+                querier!().eval_stat(
                     a,
                     &QualifierQuery::Aggregate(false),
                     &StatEffects::Allegiance
@@ -334,7 +283,7 @@ pub fn main() {
                 Some(0)
             );
             assert_eq!(
-                querier!().query_eval(
+                querier!().eval_stat(
                     b,
                     &QualifierQuery::Aggregate(false),
                     &StatEffects::Allegiance
@@ -344,7 +293,7 @@ pub fn main() {
             query.clear_cache();
 
             assert_eq!(
-                querier!().query_eval(
+                querier!().eval_stat(
                     a,
                     &QualifierQuery::Aggregate(false),
                     &StatEffects::Allegiance
@@ -352,7 +301,7 @@ pub fn main() {
                 Some(5)
             );
             assert_eq!(
-                querier!().query_eval(
+                querier!().eval_stat(
                     b,
                     &QualifierQuery::Aggregate(false),
                     &StatEffects::Allegiance

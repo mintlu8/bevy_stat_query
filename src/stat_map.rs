@@ -360,7 +360,9 @@ impl<Q: QualifierFlag> StatMap<Q> {
     }
 }
 
-impl<Q: QualifierFlag> StatStream<Q> for StatMap<Q> {
+impl<Q: QualifierFlag> StatStream for StatMap<Q> {
+    type Qualifier = Q;
+
     fn stream_stat(
         &self,
         _: Entity,

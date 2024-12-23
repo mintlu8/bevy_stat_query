@@ -1,7 +1,10 @@
 use std::fmt::Debug;
 
 use crate::operations::StatOperation;
-use crate::{Buffer, QualifierFlag, Stat, StatExt, StatStream, StatValue};
+use crate::{
+    Buffer, QualifierFlag, QualifierQuery, Querier, Stat, StatExt, StatStream, StatValue,
+    StatValuePair,
+};
 use crate::{StatCache, StatInst};
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
@@ -40,7 +43,10 @@ pub trait StatExtension {
     /// that will be run on every stat query.
     fn register_stat_relation<Q: QualifierFlag>(
         &mut self,
-        relation: impl StatStream<Q> + Send + Sync + 'static,
+        relation: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
+            + Send
+            + Sync
+            + 'static,
     ) -> &mut Self;
 }
 
@@ -75,7 +81,10 @@ impl StatExtension for World {
 
     fn register_stat_relation<Q: QualifierFlag>(
         &mut self,
-        relation: impl StatStream<Q> + Send + Sync + 'static,
+        relation: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
+            + Send
+            + Sync
+            + 'static,
     ) -> &mut Self {
         self.get_resource_or_insert_with(GlobalStatRelations::<Q>::default)
             .push(relation);
@@ -110,7 +119,10 @@ impl StatExtension for App {
 
     fn register_stat_relation<Q: QualifierFlag>(
         &mut self,
-        relation: impl StatStream<Q> + Send + Sync + 'static,
+        relation: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
+            + Send
+            + Sync
+            + 'static,
     ) -> &mut Self {
         self.world_mut().register_stat_relation(relation);
         self
@@ -193,7 +205,8 @@ impl Drop for GlobalStatDefaults {
 /// [`Resource`] that stores global [`StatStream`]s that runs on every query.
 #[derive(Resource, TypePath)]
 pub struct GlobalStatRelations<Q: QualifierFlag> {
-    stats: Vec<Box<dyn StatStream<Q> + Send + Sync>>,
+    stats:
+        Vec<Box<dyn Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>) + Send + Sync>>,
 }
 
 impl<Q: QualifierFlag> Debug for GlobalStatRelations<Q> {
@@ -210,18 +223,32 @@ impl<Q: QualifierFlag> Default for GlobalStatRelations<Q> {
 }
 
 impl<Q: QualifierFlag> GlobalStatRelations<Q> {
-    pub fn push<S: StatStream<Q> + Send + Sync + 'static>(&mut self, stream: S) -> &mut Self {
+    pub fn push(
+        &mut self,
+        stream: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
+            + Send
+            + Sync
+            + 'static,
+    ) -> &mut Self {
         self.stats.push(Box::new(stream));
         self
     }
 
-    pub fn with<S: StatStream<Q> + Send + Sync + 'static>(mut self, stream: S) -> Self {
+    pub fn with(
+        mut self,
+        stream: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
+            + Send
+            + Sync
+            + 'static,
+    ) -> Self {
         self.stats.push(Box::new(stream));
         self
     }
 }
 
-impl<Q: QualifierFlag> StatStream<Q> for GlobalStatRelations<Q> {
+impl<Q: QualifierFlag> StatStream for GlobalStatRelations<Q> {
+    type Qualifier = Q;
+
     fn stream_stat(
         &self,
         entity: Entity,
@@ -229,8 +256,8 @@ impl<Q: QualifierFlag> StatStream<Q> for GlobalStatRelations<Q> {
         stat_value: &mut crate::StatValuePair,
         querier: crate::Querier<Q>,
     ) {
-        for item in self.stats.iter() {
-            item.stream_stat(entity, qualifier, stat_value, querier)
+        for f in self.stats.iter() {
+            f(entity, qualifier, stat_value, querier)
         }
     }
 }

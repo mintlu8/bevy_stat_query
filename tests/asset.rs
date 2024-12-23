@@ -1,16 +1,19 @@
-use bevy::asset::{Asset, AssetApp, AssetPlugin, AssetServer, Assets, Handle};
+use bevy::{
+    asset::{Asset, AssetApp, AssetPlugin, AssetServer, Assets, Handle},
+    prelude::Single,
+};
 use bevy_app::{App, Startup, Update};
 use bevy_ecs::{
     component::Component,
     entity::Entity,
     query::{QueryData, With},
-    system::{Commands, Query, Res},
+    system::{Commands, Res},
 };
 use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    types::StatFloat, ComponentStream, QualifierQuery, Querier, Stat, StatEntity, StatExtension,
-    StatQuery, StatVTable, StatValue, StatValuePair,
+    types::StatFloat, QualifierQuery, Querier, QueryStream, Stat, StatEntities, StatEntity,
+    StatExtension, StatQuery, StatVTable, StatValue, StatValuePair,
 };
 
 #[derive(Debug, Clone, Copy, Stat)]
@@ -70,33 +73,25 @@ pub struct WeaponQuery {
     state: &'static WeaponState,
 }
 
-impl ComponentStream<u32> for WeaponQuery {
-    type Cx = Res<'static, Assets<Weapon>>;
+impl QueryStream for WeaponQuery {
+    type Qualifier = u32;
+    type Context = Res<'static, Assets<Weapon>>;
+    type Query = WeaponQuery;
 
-    fn stream(
+    fn stream_stat(
+        query: <<Self::Query as QueryData>::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
+        context: &<Self::Context as bevy_ecs::system::SystemParam>::Item<'_, '_>,
         _: Entity,
-        cx: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        component: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        _: &QualifierQuery<u32>,
+        _: &QualifierQuery<Self::Qualifier>,
         stat_value: &mut StatValuePair,
-        _: Querier<u32>,
+        _: Querier<Self::Qualifier>,
     ) {
         if let Some(value) = stat_value.is_then_cast(&Damage) {
-            let Some(weapon) = cx.get(component.weapon.0.id()) else {
+            let Some(weapon) = context.get(query.weapon.0.id()) else {
                 return;
             };
-            value.add(weapon.damage * component.state.durability)
+            value.add(weapon.damage * query.state.durability)
         }
-    }
-
-    fn has_attribute(
-        _: Entity,
-        _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-        _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        _: &str,
-        _: Querier<u32>,
-    ) -> bool {
-        false
     }
 }
 
@@ -132,30 +127,27 @@ fn init(mut commands: Commands, assets: Res<AssetServer>) {
 }
 
 fn query(
-    querier: StatQuery<u32>,
-    weapon_query: Query<WeaponQuery>,
-    cx: Res<Assets<Weapon>>,
-    a: Query<Entity, (With<StatEntity>, With<A>)>,
-    b: Query<Entity, (With<StatEntity>, With<B>)>,
+    querier: StatEntities<u32>,
+    weapon_query: StatQuery<WeaponQuery>,
+    a: Single<Entity, (With<StatEntity>, With<A>)>,
+    b: Single<Entity, (With<StatEntity>, With<B>)>,
 ) {
-    let querier = querier.with_children_cx(&weapon_query, &cx);
-    let a = a.single();
+    let querier = querier.join(&weapon_query);
     assert_eq!(
-        querier.query_eval(a, &QualifierQuery::Aggregate(0u32), &Damage),
+        querier.eval_stat(*a, &QualifierQuery::Aggregate(0u32), &Damage),
         Some(2.0)
     );
     assert_eq!(
-        querier.query_eval(a, &QualifierQuery::Aggregate(0u32), &Defense),
+        querier.eval_stat(*a, &QualifierQuery::Aggregate(0u32), &Defense),
         Some(0.0)
     );
 
-    let b = b.single();
     assert_eq!(
-        querier.query_eval(b, &QualifierQuery::Aggregate(0u32), &Damage),
+        querier.eval_stat(*b, &QualifierQuery::Aggregate(0u32), &Damage),
         Some(20.0)
     );
     assert_eq!(
-        querier.query_eval(b, &QualifierQuery::Aggregate(0u32), &Defense),
+        querier.eval_stat(*b, &QualifierQuery::Aggregate(0u32), &Defense),
         Some(0.0)
     );
 }

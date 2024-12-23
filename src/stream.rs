@@ -3,232 +3,293 @@ use crate::{stat::StatValuePair, QualifierFlag, QualifierQuery, Querier};
 use bevy_ecs::component::Component;
 use bevy_ecs::{
     entity::Entity,
-    query::{QueryData, QueryFilter, WorldQuery},
-    system::{Query, ReadOnlySystemParam, SystemParam},
+    query::{QueryData, WorldQuery},
+    system::{Query, StaticSystemParam, SystemParam},
 };
 
 /// A stream that writes to a given stat query.
-pub trait StatStream<Q: QualifierFlag> {
+#[allow(unused_variables)]
+pub trait StatStream {
+    type Qualifier: QualifierFlag;
+
     fn stream_stat(
         &self,
         entity: Entity,
-        qualifier: &QualifierQuery<Q>,
+        qualifier: &QualifierQuery<Self::Qualifier>,
         stat_value: &mut StatValuePair,
-        querier: Querier<Q>,
-    );
-}
-
-mod sealed {
-    use bevy_ecs::entity::Entity;
-
-    use crate::{stat::StatValuePair, QualifierFlag, QualifierQuery, Querier};
-
-    pub trait QueryStream<Q: QualifierFlag> {
-        fn stream(
-            &self,
-            entity: Entity,
-            entities: &[Entity],
-            qualifier: &QualifierQuery<Q>,
-            stat_value: &mut StatValuePair,
-            querier: Querier<Q>,
-        );
-
-        fn has_attribute(
-            &self,
-            entity: Entity,
-            entities: &[Entity],
-            attribute: &str,
-            querier: Querier<Q>,
-        ) -> bool;
-    }
-
-    pub trait QueryRelationStream<Q: QualifierFlag>: QueryStream<Q> {
-        fn relation(
-            &self,
-            this: Entity,
-            other: Entity,
-            qualifier: &QualifierQuery<Q>,
-            stat_value: &mut StatValuePair,
-            querier: Querier<Q>,
-        );
-    }
-}
-
-pub(crate) use sealed::*;
-
-impl<Q: QualifierFlag> QueryStream<Q> for () {
-    fn stream(
-        &self,
-        _: Entity,
-        _: &[Entity],
-        _: &QualifierQuery<Q>,
-        _: &mut StatValuePair,
-        _: Querier<Q>,
+        querier: Querier<Self::Qualifier>,
     ) {
     }
 
-    fn has_attribute(&self, _: Entity, _: &[Entity], _: &str, _: Querier<Q>) -> bool {
+    fn stream_relation(
+        &self,
+        other: &Self,
+        entity: Entity,
+        target: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<Self::Qualifier>,
+    ) {
+    }
+
+    fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
         false
     }
 }
 
-impl<Q: QualifierFlag, A: QueryStream<Q>, B: QueryStream<Q>> QueryStream<Q> for (A, B) {
-    fn stream(
+impl<T> StatStream for &T
+where
+    T: StatStream,
+{
+    type Qualifier = T::Qualifier;
+
+    fn stream_stat(
         &self,
         entity: Entity,
-        entities: &[Entity],
-        qualifier: &QualifierQuery<Q>,
+        qualifier: &QualifierQuery<Self::Qualifier>,
         stat_value: &mut StatValuePair,
-        querier: Querier<Q>,
+        querier: Querier<Self::Qualifier>,
+    ) {
+        T::stream_stat(self, entity, qualifier, stat_value, querier);
+    }
+
+    fn stream_relation(
+        &self,
+        other: &Self,
+        entity: Entity,
+        target: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<Self::Qualifier>,
+    ) {
+        T::stream_relation(self, other, entity, target, qualifier, stat_value, querier);
+    }
+
+    fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+        T::has_attribute(self, entity, attribute)
+    }
+}
+
+impl<A, B> StatStream for (A, B)
+where
+    A: StatStream,
+    B: StatStream<Qualifier = A::Qualifier>,
+{
+    type Qualifier = A::Qualifier;
+
+    fn stream_stat(
+        &self,
+        entity: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<Self::Qualifier>,
+    ) {
+        self.0.stream_stat(entity, qualifier, stat_value, querier);
+        self.1.stream_stat(entity, qualifier, stat_value, querier);
+    }
+
+    fn stream_relation(
+        &self,
+        other: &Self,
+        entity: Entity,
+        target: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<Self::Qualifier>,
     ) {
         self.0
-            .stream(entity, entities, qualifier, stat_value, querier);
+            .stream_relation(&other.0, entity, target, qualifier, stat_value, querier);
         self.1
-            .stream(entity, entities, qualifier, stat_value, querier);
+            .stream_relation(&other.1, entity, target, qualifier, stat_value, querier);
     }
 
-    fn has_attribute(
-        &self,
-        entity: Entity,
-        entities: &[Entity],
-        attribute: &str,
-        querier: Querier<Q>,
-    ) -> bool {
-        self.0.has_attribute(entity, entities, attribute, querier)
-            || self.1.has_attribute(entity, entities, attribute, querier)
+    fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+        self.0.has_attribute(entity, attribute) || self.1.has_attribute(entity, attribute)
     }
 }
 
-impl<Q: QualifierFlag> QueryRelationStream<Q> for () {
-    fn relation(
-        &self,
-        _: Entity,
-        _: Entity,
-        _: &QualifierQuery<Q>,
-        _: &mut StatValuePair,
-        _: Querier<Q>,
-    ) {
-    }
-}
-
-impl<Q: QualifierFlag, A: QueryRelationStream<Q>, B: QueryRelationStream<Q>> QueryRelationStream<Q>
-    for (A, B)
-{
-    fn relation(
-        &self,
-        this: Entity,
-        other: Entity,
-        qualifier: &QualifierQuery<Q>,
-        stat_value: &mut StatValuePair,
-        querier: Querier<Q>,
-    ) {
-        self.0.relation(this, other, qualifier, stat_value, querier);
-        self.1.relation(this, other, qualifier, stat_value, querier);
-    }
-}
-
-/// A [`Component`] or [`QueryData`] that can be used to query stats
-/// when added to a [`Entity`] or a child of the entity.
 #[allow(unused_variables)]
-pub trait ComponentStream<Q: QualifierFlag>: QueryData {
-    type Cx: ReadOnlySystemParam;
-    /// Writes to queried stats.
-    fn stream(
-        this: Entity,
-        cx: &<Self::Cx as SystemParam>::Item<'_, '_>,
-        component: <Self::ReadOnly as WorldQuery>::Item<'_>,
-        qualifier: &QualifierQuery<Q>,
+pub trait QueryStream: 'static {
+    type Qualifier: QualifierFlag;
+    type Query: QueryData + 'static;
+    type Context: SystemParam + 'static;
+
+    fn stream_stat(
+        query: <<Self::Query as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
+        context: &<Self::Context as SystemParam>::Item<'_, '_>,
+        entity: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
         stat_value: &mut StatValuePair,
-        querier: Querier<Q>,
+        querier: Querier<Self::Qualifier>,
+    ) {
+    }
+
+    fn stream_relation(
+        this: <<Self::Query as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
+        other: <<Self::Query as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
+        context: &<Self::Context as SystemParam>::Item<'_, '_>,
+        entity: Entity,
+        target: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<Self::Qualifier>,
     ) {
     }
 
     fn has_attribute(
-        this: Entity,
-        cx: &<Self::Cx as SystemParam>::Item<'_, '_>,
-        component: <Self::ReadOnly as WorldQuery>::Item<'_>,
+        query: <<Self::Query as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
+        context: &<Self::Context as SystemParam>::Item<'_, '_>,
+        entity: Entity,
         attribute: &str,
-        querier: Querier<Q>,
     ) -> bool {
         false
     }
 }
 
-/// A [`Component`] or [`QueryData`] that can be used to query relation between entities.
-pub trait RelationStream<Q: QualifierFlag>: ComponentStream<Q> {
-    #[allow(unused)]
-    /// Writes to queried stats representing the relationship between two entities.
-    fn relation(
-        this: <Self::ReadOnly as WorldQuery>::Item<'_>,
-        other: <Self::ReadOnly as WorldQuery>::Item<'_>,
-        cx: &<Self::Cx as SystemParam>::Item<'_, '_>,
-        qualifier: &QualifierQuery<Q>,
-        stat_value: &mut StatValuePair,
-        querier: Querier<Q>,
-    );
-}
-
-pub(crate) struct CxComponentStream<
-    't,
-    'w,
-    's,
-    Q: QualifierFlag,
-    C: ComponentStream<Q>,
-    F: QueryFilter,
-> {
-    pub cx: &'t <C::Cx as SystemParam>::Item<'w, 's>,
-    pub query: &'t Query<'w, 's, C, F>,
-}
-
-impl<Q: QualifierFlag, C: ComponentStream<Q>, F: QueryFilter> QueryStream<Q>
-    for CxComponentStream<'_, '_, '_, Q, C, F>
+impl<T> QueryStream for T
+where
+    T: Component + StatStream,
 {
-    fn stream(
-        &self,
+    type Qualifier = T::Qualifier;
+    type Query = &'static mut T;
+    type Context = ();
+
+    fn stream_stat(
+        query: &T,
+        _: &(),
         entity: Entity,
-        entities: &[Entity],
-        qualifier: &QualifierQuery<Q>,
+        qualifier: &QualifierQuery<T::Qualifier>,
         stat_value: &mut StatValuePair,
-        querier: Querier<Q>,
+        querier: Querier<T::Qualifier>,
     ) {
-        for item in self.query.iter_many(entities) {
-            C::stream(entity, self.cx, item, qualifier, stat_value, querier)
-        }
+        query.stream_stat(entity, qualifier, stat_value, querier);
     }
 
-    fn has_attribute(
-        &self,
+    fn stream_relation(
+        this: &T,
+        other: &T,
+        _: &(),
         entity: Entity,
-        entities: &[Entity],
-        attribute: &str,
-        querier: Querier<Q>,
-    ) -> bool {
-        for item in self.query.iter_many(entities) {
-            if C::has_attribute(entity, self.cx, item, attribute, querier) {
-                return true;
-            }
-        }
-        false
+        target: Entity,
+        qualifier: &QualifierQuery<T::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<T::Qualifier>,
+    ) {
+        this.stream_relation(other, entity, target, qualifier, stat_value, querier);
+    }
+
+    fn has_attribute(query: &T, _: &(), entity: Entity, attribute: &str) -> bool {
+        query.has_attribute(entity, attribute)
     }
 }
 
-impl<Q: QualifierFlag, C: RelationStream<Q>, F: QueryFilter> QueryRelationStream<Q>
-    for CxComponentStream<'_, '_, '_, Q, C, F>
-{
-    fn relation(
+/// [`SystemParam`] for querying a [`QueryStream`].
+#[derive(SystemParam)]
+pub struct StatQuery<'w, 's, T: QueryStream> {
+    pub query: Query<'w, 's, <<T as QueryStream>::Query as QueryData>::ReadOnly>,
+    pub context: StaticSystemParam<'w, 's, <T as QueryStream>::Context>,
+}
+
+/// [`SystemParam`] for querying a [`QueryStream`].
+///
+/// Unlike [`StatQuery`], [`StatQueryMut`]'s query portion uses a mutable query,
+/// this is useful if you want to query and modify at the same time.
+#[derive(SystemParam)]
+pub struct StatQueryMut<'w, 's, T: QueryStream> {
+    pub query: Query<'w, 's, <T as QueryStream>::Query>,
+    pub context: StaticSystemParam<'w, 's, <T as QueryStream>::Context>,
+}
+
+impl<T: QueryStream> StatStream for StatQuery<'_, '_, T> {
+    type Qualifier = T::Qualifier;
+
+    fn stream_stat(
         &self,
-        this: Entity,
-        other: Entity,
-        qualifier: &QualifierQuery<Q>,
+        entity: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
         stat_value: &mut StatValuePair,
-        querier: Querier<Q>,
+        querier: Querier<Self::Qualifier>,
     ) {
-        let Ok(this) = self.query.get(this) else {
-            return;
-        };
-        let Ok(other) = self.query.get(other) else {
-            return;
-        };
-        C::relation(this, other, self.cx, qualifier, stat_value, querier)
+        if let Ok(item) = self.query.get(entity) {
+            T::stream_stat(item, &self.context, entity, qualifier, stat_value, querier);
+        }
+    }
+
+    fn stream_relation(
+        &self,
+        _: &Self,
+        entity: Entity,
+        target: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<Self::Qualifier>,
+    ) {
+        if let Ok([this, other]) = self.query.get_many([entity, target]) {
+            T::stream_relation(
+                this,
+                other,
+                &self.context,
+                entity,
+                target,
+                qualifier,
+                stat_value,
+                querier,
+            );
+        }
+    }
+
+    fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+        if let Ok(item) = self.query.get(entity) {
+            T::has_attribute(item, &self.context, entity, attribute)
+        } else {
+            false
+        }
+    }
+}
+
+impl<T: QueryStream> StatStream for StatQueryMut<'_, '_, T> {
+    type Qualifier = T::Qualifier;
+
+    fn stream_stat(
+        &self,
+        entity: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<Self::Qualifier>,
+    ) {
+        if let Ok(item) = self.query.get(entity) {
+            T::stream_stat(item, &self.context, entity, qualifier, stat_value, querier);
+        }
+    }
+
+    fn stream_relation(
+        &self,
+        _: &Self,
+        entity: Entity,
+        target: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<Self::Qualifier>,
+    ) {
+        if let Ok([this, other]) = self.query.get_many([entity, target]) {
+            T::stream_relation(
+                this,
+                other,
+                &self.context,
+                entity,
+                target,
+                qualifier,
+                stat_value,
+                querier,
+            );
+        }
+    }
+
+    fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+        if let Ok(item) = self.query.get(entity) {
+            T::has_attribute(item, &self.context, entity, attribute)
+        } else {
+            false
+        }
     }
 }

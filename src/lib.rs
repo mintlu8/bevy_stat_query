@@ -255,7 +255,7 @@ mod test {
     use crate::{
         stat::StatValuePair,
         types::{StatFlags, StatIntPercentAdditive},
-        ComponentStream, Querier, Stat, StatValue,
+        Querier, Stat, StatStream, StatValue,
     };
 
     #[derive(Component)]
@@ -329,18 +329,17 @@ mod test {
         }
     }
 
-    impl ComponentStream<u32> for &X {
-        type Cx = ();
+    impl StatStream for X {
+        type Qualifier = u32;
 
-        fn stream(
+        fn stream_stat(
+            &self,
             _: bevy::prelude::Entity,
-            _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-            _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-            _: &crate::QualifierQuery<u32>,
+            _: &crate::QualifierQuery<Self::Qualifier>,
             stat_value: &mut StatValuePair,
-            _: Querier<u32>,
+            _: Querier<Self::Qualifier>,
         ) {
-            match_stat!(
+            match_stat! {
                 stat_value => {
                     (IntStat::A, value) => {
                         value.add(1);
@@ -358,17 +357,7 @@ mod test {
                         value.or(v as i32);
                     },
                 }
-            )
-        }
-
-        fn has_attribute(
-            _: bevy::prelude::Entity,
-            _: &<Self::Cx as bevy_ecs::system::SystemParam>::Item<'_, '_>,
-            _: <Self::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-            _: &str,
-            _: Querier<u32>,
-        ) -> bool {
-            false
+            }
         }
     }
 }
