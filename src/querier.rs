@@ -41,7 +41,7 @@ impl<'w, 's, Q: QualifierFlag> StatEntities<'w, 's, Q> {
         stream: S,
     ) -> JoinedQuerier<'w, 's, 't, Q, S> {
         JoinedQuerier {
-            entities: self,
+            base: self,
             stream,
         }
     }
@@ -54,7 +54,7 @@ impl<'w, 's, Q: QualifierFlag> StatEntities<'w, 's, Q> {
 }
 
 pub struct JoinedQuerier<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> {
-    entities: &'t StatEntities<'w, 's, Q>,
+    base: &'t StatEntities<'w, 's, Q>,
     stream: S,
 }
 
@@ -64,7 +64,7 @@ impl<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> JoinedQuerier<'
         stream: T,
     ) -> JoinedQuerier<'w, 's, 't, Q, (&S, T)> {
         JoinedQuerier {
-            entities: self.entities,
+            base: self.base,
             stream: (&self.stream, stream),
         }
     }
@@ -115,7 +115,7 @@ impl<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> JoinedQuerier<'
     }
 
     pub fn clear_cache(&self) {
-        self.entities.clear_cache()
+        self.base.clear_cache()
     }
 }
 
@@ -129,22 +129,25 @@ impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
         stat: StatInst,
     ) -> Option<Buffer> {
         if let Some(stat) = self
-            .entities
+            .base
             .cache
             .as_ref()
             .and_then(|x| x.try_get_cached_dyn(entity, query, stat))
         {
             return Some(stat);
         }
-        let value = if let Some(defaults) = &self.entities.defaults {
+        let value = if let Some(defaults) = &self.base.defaults {
             defaults.get_dyn(stat)
         } else {
             (stat.vtable.default)()
         };
         let mut pair = StatValuePair { stat, value };
+        if let Some(relations) = &self.base.relations {
+            relations.stream_stat(entity, query, &mut pair, Querier(self));
+        }
         self.stream
             .stream_stat(entity, query, &mut pair, Querier(self));
-        if let Some(cache) = &self.entities.cache {
+        if let Some(cache) = &self.base.cache {
             cache.cache_pair(entity, query, &pair);
         }
         Some(pair.value)
@@ -157,7 +160,7 @@ impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
         query: &QualifierQuery<Q>,
         stat: StatInst,
     ) -> Option<Buffer> {
-        let value = if let Some(defaults) = &self.entities.defaults {
+        let value = if let Some(defaults) = &self.base.defaults {
             defaults.get_dyn(stat)
         } else {
             (stat.vtable.default)()
@@ -217,8 +220,9 @@ impl<Q: QualifierFlag> Debug for Querier<'_, Q> {
 
 impl<Q: QualifierFlag> Querier<'_, Q> {
     /// Create a noop querier.
-    pub fn noop(querier: &NoopQuerier) -> Querier<Q> {
-        Querier(querier)
+    pub fn noop() -> Querier<'static, Q> {
+        static _Q: NoopQuerier = NoopQuerier;
+        Querier(&_Q)
     }
 
     /// Query for a stat in its component form.

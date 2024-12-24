@@ -1,7 +1,7 @@
 use crate::operations::StatOperation;
 use crate::stat::StatValuePair;
 use crate::{
-    Buffer, NoopQuerier, Qualifier, QualifierFlag, QualifierQuery, Querier, Stat, StatExt,
+    Buffer, Qualifier, QualifierFlag, QualifierQuery, Querier, Stat, StatExt,
     StatInst, StatStream, StatValue,
 };
 use bevy_ecs::component::Component;
@@ -346,7 +346,7 @@ impl<Q: QualifierFlag> StatMap<Q> {
             Entity::PLACEHOLDER,
             qualifier,
             &mut stat,
-            Querier::noop(&NoopQuerier),
+            Querier::noop(),
         );
         unsafe { stat.value.into::<S::Value>() }
     }
