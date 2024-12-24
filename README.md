@@ -12,7 +12,7 @@ For instance if we want to evaluate a character's strength,
 taken into account buffs and debuffs this can look something like this:
 
 ```rust
-clamp((42 + 4 + 7) * 2 * 0.75, 1, 99)
+clamp((42 + 4 + 7 + (-4)) * 2 * 0.75, 1, 99)
 ```
 
 Note how the order of evaluation doesn't matter, which fits perfectly into
