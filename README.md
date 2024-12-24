@@ -80,7 +80,7 @@ For example `strength` and `magic` can be a `i32`,
 `hp` can be a `f32`, `is_dragon` can be a `bool` etc.
 
 Different types of stats can still query each other via `Querier`
-to model effects like.
+to model effects like
 
 ```text
 If user is a dragon, increase damage by 50%.
