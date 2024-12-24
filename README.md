@@ -1,5 +1,9 @@
 # bevy-stat-query
 
+[![Crates.io](https://img.shields.io/crates/v/bevy_stat_query.svg)](https://crates.io/crates/bevy_stat_query)
+[![Docs](https://docs.rs/bevy_stat_query/badge.svg)](https://docs.rs/bevy_stat_query/latest/bevy_stat_query/)
+[![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-released%20version-lightblue)](https://bevyengine.org/learn/book/plugin-development/)
+
 Versatile RPG stat system for the bevy engine.
 
 ## Overview
