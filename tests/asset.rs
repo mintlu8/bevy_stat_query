@@ -1,51 +1,26 @@
 use bevy::{
-    asset::{Asset, AssetApp, AssetPlugin, AssetServer, Assets, Handle},
-    prelude::Single,
+    asset::{Asset, AssetApp, AssetPlugin, Assets, Handle},
+    prelude::{ResMut, Single},
 };
-use bevy_app::{App, Startup, Update};
+use bevy_app::App;
 use bevy_ecs::{
     component::Component,
     entity::Entity,
     query::{QueryData, With},
-    system::{Commands, Res},
+    system::{Commands, Res, RunSystemOnce},
 };
 use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
     types::StatFloat, ChildQuery, QualifierQuery, Querier, QueryStream, Stat, StatEntities,
-    StatEntity, StatExtension, StatVTable, StatValue, StatValuePair,
+    StatEntity, StatValue, StatValuePair,
 };
 
 #[derive(Debug, Clone, Copy, Stat)]
 #[stat(value = "StatFloat<f32>")]
-pub struct Damage;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Defense;
-
-impl Stat for Defense {
-    type Value = StatFloat<f32>;
-
-    fn name(&self) -> &'static str {
-        "Defense"
-    }
-
-    fn values() -> impl IntoIterator<Item = Self> {
-        [Defense]
-    }
-
-    fn vtable() -> &'static StatVTable<Defense> {
-        static VTABLE: StatVTable<Defense> = StatVTable::of::<Defense>();
-        &VTABLE
-    }
-
-    fn as_index(&self) -> u64 {
-        0
-    }
-
-    fn from_index(_: u64) -> Self {
-        Defense
-    }
+pub enum Stats {
+    Damage,
+    Defense,
 }
 
 #[derive(Asset, TypePath)]
@@ -86,7 +61,7 @@ impl QueryStream for WeaponQuery {
         stat_value: &mut StatValuePair,
         _: Querier<Self::Qualifier>,
     ) {
-        if let Some(value) = stat_value.is_then_cast(&Damage) {
+        if let Some(value) = stat_value.is_then_cast(&Stats::Damage) {
             let Some(weapon) = context.get(query.weapon.0.id()) else {
                 return;
             };
@@ -97,17 +72,15 @@ impl QueryStream for WeaponQuery {
 
 #[test]
 pub fn asset_test() {
-    App::new()
-        .add_plugins(AssetPlugin::default())
-        .init_asset::<Weapon>()
-        .register_stat::<Damage>()
-        .register_stat::<Defense>()
-        .add_systems(Startup, init)
-        .add_systems(Update, query)
-        .update();
+    let mut app = App::new();
+    app.add_plugins(AssetPlugin::default())
+        .init_asset::<Weapon>();
+    app.world_mut().run_system_once(init).unwrap();
+    app.world_mut().flush();
+    app.world_mut().run_system_once(query).unwrap();
 }
 
-fn init(mut commands: Commands, assets: Res<AssetServer>) {
+fn init(mut commands: Commands, mut assets: ResMut<Assets<Weapon>>) {
     commands.spawn((StatEntity, A)).with_children(|x| {
         x.spawn((
             WeaponHandle(assets.add(Weapon { damage: 4.0 })),
@@ -134,20 +107,20 @@ fn query(
 ) {
     let querier = querier.join(&weapon_query);
     assert_eq!(
-        querier.eval_stat(*a, &QualifierQuery::Aggregate(0u32), &Damage),
+        querier.eval_stat(*a, &QualifierQuery::Aggregate(0u32), &Stats::Damage),
         Some(2.0)
     );
     assert_eq!(
-        querier.eval_stat(*a, &QualifierQuery::Aggregate(0u32), &Defense),
+        querier.eval_stat(*a, &QualifierQuery::Aggregate(0u32), &Stats::Defense),
         Some(0.0)
     );
 
     assert_eq!(
-        querier.eval_stat(*b, &QualifierQuery::Aggregate(0u32), &Damage),
+        querier.eval_stat(*b, &QualifierQuery::Aggregate(0u32), &Stats::Damage),
         Some(20.0)
     );
     assert_eq!(
-        querier.eval_stat(*b, &QualifierQuery::Aggregate(0u32), &Defense),
+        querier.eval_stat(*b, &QualifierQuery::Aggregate(0u32), &Stats::Defense),
         Some(0.0)
     );
 }

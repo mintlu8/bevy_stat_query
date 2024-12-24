@@ -79,8 +79,8 @@ where
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect, Serialize, Deserialize,
 )]
 pub struct Qualifier<Q: QualifierFlag> {
-    pub any_of: Q,
     pub all_of: Q,
+    pub any_of: Q,
 }
 
 impl<Q: QualifierFlag> Default for Qualifier<Q> {
@@ -88,6 +88,15 @@ impl<Q: QualifierFlag> Default for Qualifier<Q> {
         Self {
             any_of: Q::none(),
             all_of: Q::none(),
+        }
+    }
+}
+
+impl<Q: QualifierFlag> From<Q> for Qualifier<Q> {
+    fn from(value: Q) -> Self {
+        Qualifier {
+            all_of: value,
+            any_of: Q::none(),
         }
     }
 }

@@ -1,8 +1,8 @@
 use crate::operations::StatOperation;
 use crate::stat::StatValuePair;
 use crate::{
-    Buffer, Qualifier, QualifierFlag, QualifierQuery, Querier, Stat, StatExt,
-    StatInst, StatStream, StatValue,
+    Buffer, Qualifier, QualifierFlag, QualifierQuery, Querier, Stat, StatExt, StatInst, StatStream,
+    StatValue,
 };
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
@@ -342,12 +342,7 @@ impl<Q: QualifierFlag> StatMap<Q> {
 
     pub fn query_stat<S: Stat>(&self, qualifier: &QualifierQuery<Q>, stat: &S) -> S::Value {
         let mut stat = StatValuePair::new_default(stat);
-        self.stream_stat(
-            Entity::PLACEHOLDER,
-            qualifier,
-            &mut stat,
-            Querier::noop(),
-        );
+        self.stream_stat(Entity::PLACEHOLDER, qualifier, &mut stat, Querier::noop());
         unsafe { stat.value.into::<S::Value>() }
     }
 

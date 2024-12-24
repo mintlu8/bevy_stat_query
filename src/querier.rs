@@ -40,10 +40,7 @@ impl<'w, 's, Q: QualifierFlag> StatEntities<'w, 's, Q> {
         &'t self,
         stream: S,
     ) -> JoinedQuerier<'w, 's, 't, Q, S> {
-        JoinedQuerier {
-            base: self,
-            stream,
-        }
+        JoinedQuerier { base: self, stream }
     }
 
     pub fn clear_cache(&self) {
@@ -60,12 +57,12 @@ pub struct JoinedQuerier<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier =
 
 impl<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> JoinedQuerier<'w, 's, 't, Q, S> {
     pub fn join<T: StatStream<Qualifier = Q>>(
-        &self,
+        self,
         stream: T,
-    ) -> JoinedQuerier<'w, 's, 't, Q, (&S, T)> {
+    ) -> JoinedQuerier<'w, 's, 't, Q, (S, T)> {
         JoinedQuerier {
             base: self.base,
-            stream: (&self.stream, stream),
+            stream: (self.stream, stream),
         }
     }
 
@@ -229,12 +226,12 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
     pub fn query_stat<S: Stat>(
         &self,
         entity: Entity,
-        query: &QualifierQuery<Q>,
+        qualifier: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<S::Value> {
         validate::<S::Value>();
         self.0
-            .query_stat_erased(entity, query, stat.as_entry())
+            .query_stat_erased(entity, qualifier, stat.as_entry())
             .map(|x| unsafe { x.into() })
     }
 
@@ -243,37 +240,37 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
         &self,
         from: Entity,
         to: Entity,
-        query: &QualifierQuery<Q>,
+        qualifier: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<S::Value> {
         validate::<S::Value>();
         self.0
-            .query_relation_erased(from, to, query, stat.as_entry())
+            .query_relation_erased(from, to, qualifier, stat.as_entry())
             .map(|x| unsafe { x.into() })
     }
 
     /// Query for a stat in its evaluated form.
-    pub fn query_eval<S: Stat>(
+    pub fn eval_stat<S: Stat>(
         &self,
         entity: Entity,
-        query: &QualifierQuery<Q>,
+        qualifier: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<<S::Value as StatValue>::Out> {
         validate::<S::Value>();
-        self.query_stat(entity, query, stat)
+        self.query_stat(entity, qualifier, stat)
             .map(|x| StatValue::eval(&x))
     }
 
     /// Query for a relation stat in its evaluated form.
-    pub fn query_relation_eval<S: Stat>(
+    pub fn eval_relation<S: Stat>(
         &self,
         from: Entity,
         to: Entity,
-        query: &QualifierQuery<Q>,
+        qualifier: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<<S::Value as StatValue>::Out> {
         validate::<S::Value>();
-        self.query_relation(from, to, query, stat)
+        self.query_relation(from, to, qualifier, stat)
             .map(|x| StatValue::eval(&x))
     }
 
