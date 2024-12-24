@@ -12,8 +12,8 @@ use bevy_ecs::{
 use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    types::StatFloat, QualifierQuery, Querier, QueryStream, Stat, StatEntities, StatEntity,
-    StatExtension, StatQuery, StatVTable, StatValue, StatValuePair,
+    types::StatFloat, ChildQuery, QualifierQuery, Querier, QueryStream, Stat, StatEntities,
+    StatEntity, StatExtension, StatVTable, StatValue, StatValuePair,
 };
 
 #[derive(Debug, Clone, Copy, Stat)]
@@ -79,8 +79,8 @@ impl QueryStream for WeaponQuery {
     type Query = WeaponQuery;
 
     fn stream_stat(
-        query: <<Self::Query as QueryData>::ReadOnly as bevy_ecs::query::WorldQuery>::Item<'_>,
-        context: &<Self::Context as bevy_ecs::system::SystemParam>::Item<'_, '_>,
+        query: WeaponQueryItem,
+        context: &Res<Assets<Weapon>>,
         _: Entity,
         _: &QualifierQuery<Self::Qualifier>,
         stat_value: &mut StatValuePair,
@@ -128,7 +128,7 @@ fn init(mut commands: Commands, assets: Res<AssetServer>) {
 
 fn query(
     querier: StatEntities<u32>,
-    weapon_query: StatQuery<WeaponQuery>,
+    weapon_query: ChildQuery<WeaponQuery>,
     a: Single<Entity, (With<StatEntity>, With<A>)>,
     b: Single<Entity, (With<StatEntity>, With<B>)>,
 ) {

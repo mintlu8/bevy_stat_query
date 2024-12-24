@@ -3,7 +3,7 @@ use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
     types::{StatInt, StatOnce},
-    QualifierQuery, Querier, Stat, StatCache, StatEntities, StatEntity, StatExtension, StatQuery,
+    ChildQuery, QualifierQuery, Querier, Stat, StatCache, StatEntities, StatEntity, StatExtension,
     StatQueryMut, StatStream, StatVTable, StatValue, StatValuePair,
 };
 use serde::{Deserialize, Serialize};
@@ -219,8 +219,8 @@ pub fn main() {
         move |query: StatEntities<bool>,
               mut allegiance: StatQueryMut<Allegiance>,
               mut position: StatQueryMut<Position>,
-              allegiance_aura: StatQuery<AllegianceAura>,
-              distance_aura: StatQuery<DistanceAura>| {
+              allegiance_aura: ChildQuery<AllegianceAura>,
+              distance_aura: ChildQuery<DistanceAura>| {
             macro_rules! querier {
                 () => {
                     query

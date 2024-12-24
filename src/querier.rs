@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use crate::attribute::Attribute;
 use crate::plugin::GlobalStatRelations;
 use crate::stat::StatExt;
 use crate::{
@@ -25,7 +26,7 @@ pub struct StatEntity;
 
 /// A root [`SystemParam`] that curates all entities marked as [`StatEntity`].
 ///
-/// Add queries via methods like [`StatQuery::with_component`] to start querying for stats.
+/// Join with [`StatStream`]s via [`StatEntities::join`] to start querying.
 #[derive(Debug, SystemParam)]
 pub struct StatEntities<'w, 's, Q: QualifierFlag> {
     cache: Option<Res<'w, StatCache<Q>>>,
@@ -109,8 +110,8 @@ impl<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> JoinedQuerier<'
             .map(|x| x.eval())
     }
 
-    pub fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
-        self.has_attribute_erased(entity, attribute)
+    pub fn has_attribute<'a>(&self, entity: Entity, attribute: impl Into<Attribute<'a>>) -> bool {
+        self.has_attribute_erased(entity, attribute.into())
     }
 
     pub fn clear_cache(&self) {
@@ -127,6 +128,14 @@ impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
         query: &QualifierQuery<Q>,
         stat: StatInst,
     ) -> Option<Buffer> {
+        if let Some(stat) = self
+            .entities
+            .cache
+            .as_ref()
+            .and_then(|x| x.try_get_cached_dyn(entity, query, stat))
+        {
+            return Some(stat);
+        }
         let value = if let Some(defaults) = &self.entities.defaults {
             defaults.get_dyn(stat)
         } else {
@@ -135,6 +144,9 @@ impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
         let mut pair = StatValuePair { stat, value };
         self.stream
             .stream_stat(entity, query, &mut pair, Querier(self));
+        if let Some(cache) = &self.entities.cache {
+            cache.cache_pair(entity, query, &pair);
+        }
         Some(pair.value)
     }
 
@@ -156,7 +168,7 @@ impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
         Some(pair.value)
     }
 
-    fn has_attribute_erased(&self, entity: Entity, attribute: &str) -> bool {
+    fn has_attribute_erased(&self, entity: Entity, attribute: Attribute) -> bool {
         self.stream.has_attribute(entity, attribute)
     }
 }
@@ -183,7 +195,7 @@ trait ErasedQuerier<Q: QualifierFlag> {
     ) -> Option<Buffer>;
 
     /// Query for the existence of a string attribute.
-    fn has_attribute_erased(&self, entity: Entity, attribute: &str) -> bool;
+    fn has_attribute_erased(&self, entity: Entity, attribute: Attribute) -> bool;
 }
 
 /// An erased type that can query for stats on entities in the world.
@@ -261,9 +273,9 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
             .map(|x| StatValue::eval(&x))
     }
 
-    /// Query for the existence of a string attribute.
-    pub fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
-        self.0.has_attribute_erased(entity, attribute)
+    /// Query for the existence of an attribute.
+    pub fn has_attribute<'a>(&self, entity: Entity, attribute: impl Into<Attribute<'a>>) -> bool {
+        self.0.has_attribute_erased(entity, attribute.into())
     }
 }
 
@@ -285,7 +297,7 @@ impl<Q: QualifierFlag> ErasedQuerier<Q> for NoopQuerier {
         None
     }
 
-    fn has_attribute_erased(&self, _: Entity, _: &str) -> bool {
+    fn has_attribute_erased(&self, _: Entity, _: Attribute) -> bool {
         false
     }
 }

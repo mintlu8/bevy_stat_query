@@ -53,11 +53,11 @@ impl<Q: QualifierFlag> StatCache<Q> {
         }
     }
 
-    pub fn cache_pair(&self, entity: Entity, query: QualifierQuery<Q>, pair: &StatValuePair) {
+    pub fn cache_pair(&self, entity: Entity, query: &QualifierQuery<Q>, pair: &StatValuePair) {
         self.cache.write().unwrap().insert(
             CachedEntry {
                 entity,
-                query,
+                query: query.clone(),
                 stat: pair.stat,
             },
             pair.clone_buffer(),

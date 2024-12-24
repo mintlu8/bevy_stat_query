@@ -14,7 +14,7 @@ repository = "https://github.com/mintlu8/bevy_stat_query"
 description = """
 Blazing fast and versatile RPG stat system for the bevy engine.
 """
-keywords = ["bevy", "stat"]
+keywords = ["bevy", "rpg", "stat"]
 
 [features]
 default = ["derive"]

@@ -177,3 +177,81 @@ pub fn stat(tokens: TokenStream1) -> TokenStream1 {
         }
     }
 }
+
+/// Allow the type to convert to `Attribute`.
+///
+/// # Supported types
+/// * Unit struct
+/// * Fieldless enum with `#[repr(u64)]`
+/// * Newtype of u64
+///
+/// This is usable with `bitflags!` in impl mode.
+#[proc_macro_error]
+#[proc_macro_derive(Attribute)]
+pub fn attribute(tokens: TokenStream1) -> TokenStream1 {
+    let input = parse_macro_input!(tokens as DeriveInput);
+    let crate0 = quote! {::bevy_stat_query};
+    let name = input.ident;
+    let uniq = quote! {
+        {
+            #[used]
+            static THING: ::std::sync::atomic::AtomicU8 = ::std::sync::atomic::AtomicU8::new(0);
+            &THING as *const ::std::sync::atomic::AtomicU8 as usize
+        }
+    };
+    match input.data {
+        syn::Data::Struct(s) => match s.fields {
+            Fields::Named(_) => abort!(
+                s.struct_token.span,
+                "Only supports unit structs, bitflags and enums."
+            ),
+            Fields::Unnamed(fields) => {
+                if fields.unnamed.len() != 1 {
+                    abort!(
+                        s.struct_token.span,
+                        "Only supports unit structs, bitflags and enums."
+                    );
+                }
+                quote! {
+                    impl From<#name> for #crate0::Attribute<'static> {
+                        fn from(value: #name) -> #crate0::Attribute<'static> {
+                            #crate0::Attribute::Enum{
+                                tag: #uniq,
+                                index: value.0 as u64,
+                            }
+                        }
+                    }
+                }
+                .into()
+            }
+            Fields::Unit => quote! {
+                impl From<#name> for #crate0::Attribute<'static> {
+                    fn from(_: #name) -> #crate0::Attribute<'static> {
+                        #crate0::Attribute::Enum{
+                            tag: #uniq,
+                            index: 0,
+                        }
+                    }
+                }
+            }
+            .into(),
+        },
+        syn::Data::Enum(_) => quote! {
+            impl From<#name> for #crate0::Attribute<'static> {
+                fn from(value: #name) -> #crate0::Attribute<'static> {
+                    #crate0::Attribute::Enum{
+                        tag: #uniq,
+                        index: value as u64,
+                    }
+                }
+            }
+        }
+        .into(),
+        syn::Data::Union(u) => {
+            abort!(
+                u.union_token.span,
+                "Only supports unit structs, bitflags and enums."
+            );
+        }
+    }
+}

@@ -1,4 +1,4 @@
-use crate::{stat::StatValuePair, QualifierFlag, QualifierQuery, Querier};
+use crate::{attribute::Attribute, stat::StatValuePair, QualifierFlag, QualifierQuery, Querier};
 #[allow(unused)]
 use bevy_ecs::component::Component;
 use bevy_ecs::{
@@ -6,8 +6,9 @@ use bevy_ecs::{
     query::{QueryData, WorldQuery},
     system::{Query, StaticSystemParam, SystemParam},
 };
+use bevy_hierarchy::Children;
 
-/// A stream that writes to a given stat query.
+/// An isolated item that provides stat modifiers to a stat query.
 #[allow(unused_variables)]
 pub trait StatStream {
     type Qualifier: QualifierFlag;
@@ -32,7 +33,7 @@ pub trait StatStream {
     ) {
     }
 
-    fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+    fn has_attribute(&self, entity: Entity, attribute: Attribute) -> bool {
         false
     }
 }
@@ -65,7 +66,7 @@ where
         T::stream_relation(self, other, entity, target, qualifier, stat_value, querier);
     }
 
-    fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+    fn has_attribute(&self, entity: Entity, attribute: Attribute) -> bool {
         T::has_attribute(self, entity, attribute)
     }
 }
@@ -103,11 +104,13 @@ where
             .stream_relation(&other.1, entity, target, qualifier, stat_value, querier);
     }
 
-    fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+    fn has_attribute(&self, entity: Entity, attribute: Attribute) -> bool {
         self.0.has_attribute(entity, attribute) || self.1.has_attribute(entity, attribute)
     }
 }
 
+/// A set of [`Component`]s and external [`SystemParam`]s that provide
+/// stat modifiers for an [`Entity`].
 #[allow(unused_variables)]
 pub trait QueryStream: 'static {
     type Qualifier: QualifierFlag;
@@ -140,7 +143,7 @@ pub trait QueryStream: 'static {
         query: <<Self::Query as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
         context: &<Self::Context as SystemParam>::Item<'_, '_>,
         entity: Entity,
-        attribute: &str,
+        attribute: Attribute,
     ) -> bool {
         false
     }
@@ -178,7 +181,7 @@ where
         this.stream_relation(other, entity, target, qualifier, stat_value, querier);
     }
 
-    fn has_attribute(query: &T, _: &(), entity: Entity, attribute: &str) -> bool {
+    fn has_attribute(query: &T, _: &(), entity: Entity, attribute: Attribute) -> bool {
         query.has_attribute(entity, attribute)
     }
 }
@@ -238,7 +241,7 @@ impl<T: QueryStream> StatStream for StatQuery<'_, '_, T> {
         }
     }
 
-    fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+    fn has_attribute(&self, entity: Entity, attribute: Attribute) -> bool {
         if let Ok(item) = self.query.get(entity) {
             T::has_attribute(item, &self.context, entity, attribute)
         } else {
@@ -285,11 +288,100 @@ impl<T: QueryStream> StatStream for StatQueryMut<'_, '_, T> {
         }
     }
 
-    fn has_attribute(&self, entity: Entity, attribute: &str) -> bool {
+    fn has_attribute(&self, entity: Entity, attribute: Attribute) -> bool {
         if let Ok(item) = self.query.get(entity) {
             T::has_attribute(item, &self.context, entity, attribute)
         } else {
             false
         }
+    }
+}
+
+/// A component that references other entities, like [`Children`].
+pub trait EntityReference: Component + 'static {
+    fn iter_entities(&self) -> impl Iterator<Item = Entity>;
+}
+
+impl EntityReference for Children {
+    fn iter_entities(&self) -> impl Iterator<Item = Entity> {
+        self.iter().copied()
+    }
+}
+
+/// [`SystemParam`] for querying [`QueryStream`]s on entities referenced by a component like [`Children`].
+///
+/// `query_relation` implementation is disabled since the behavior is undefined.
+#[derive(SystemParam)]
+pub struct ChildQuery<'w, 's, T: QueryStream, C: EntityReference = Children> {
+    pub query: Query<'w, 's, <<T as QueryStream>::Query as QueryData>::ReadOnly>,
+    pub context: StaticSystemParam<'w, 's, <T as QueryStream>::Context>,
+    pub children: Query<'w, 's, &'static C>,
+}
+
+/// [`SystemParam`] for querying [`QueryStream`]s on entities referenced by a component like [`Children`].
+///
+/// `query_relation` implementation is disabled since the behavior is undefined.
+#[derive(SystemParam)]
+pub struct ChildQueryMut<'w, 's, T: QueryStream, C: EntityReference = Children> {
+    pub query: Query<'w, 's, <T as QueryStream>::Query>,
+    pub context: StaticSystemParam<'w, 's, <T as QueryStream>::Context>,
+    pub children: Query<'w, 's, &'static C>,
+}
+
+impl<T: QueryStream, C: EntityReference> StatStream for ChildQuery<'_, '_, T, C> {
+    type Qualifier = T::Qualifier;
+
+    fn stream_stat(
+        &self,
+        entity: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<Self::Qualifier>,
+    ) {
+        if let Ok(children) = self.children.get(entity) {
+            for item in self.query.iter_many(children.iter_entities()) {
+                T::stream_stat(item, &self.context, entity, qualifier, stat_value, querier);
+            }
+        }
+    }
+
+    fn has_attribute(&self, entity: Entity, attribute: Attribute) -> bool {
+        if let Ok(children) = self.children.get(entity) {
+            for item in self.query.iter_many(children.iter_entities()) {
+                if T::has_attribute(item, &self.context, entity, attribute) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+impl<T: QueryStream, C: EntityReference> StatStream for ChildQueryMut<'_, '_, T, C> {
+    type Qualifier = T::Qualifier;
+
+    fn stream_stat(
+        &self,
+        entity: Entity,
+        qualifier: &QualifierQuery<Self::Qualifier>,
+        stat_value: &mut StatValuePair,
+        querier: Querier<Self::Qualifier>,
+    ) {
+        if let Ok(children) = self.children.get(entity) {
+            for item in self.query.iter_many(children.iter_entities()) {
+                T::stream_stat(item, &self.context, entity, qualifier, stat_value, querier);
+            }
+        }
+    }
+
+    fn has_attribute(&self, entity: Entity, attribute: Attribute) -> bool {
+        if let Ok(children) = self.children.get(entity) {
+            for item in self.query.iter_many(children.iter_entities()) {
+                if T::has_attribute(item, &self.context, entity, attribute) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }

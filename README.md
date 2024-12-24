@@ -21,12 +21,12 @@ the "insert component and have effect" usage pattern of the ECS.
 ## Qualified Stats
 
 We describe each stat as a `Qualifier` and a `Stat`.
-`Stat` is a noun like "Strength" or "Magic" and
+`Stat` is a noun like *strength* or *damage* and
 `Qualifier` are adjectives that describes
 what this `Stat` can be applied to.
 
-For example in "FireMagicDamage", "Fire|Magic" is the qualifier,
-"Damage" is the `Stat`.
+For example in *fire magic damage*, *(fire, magic)* is the `Qualifier`,
+*damage* is the `Stat`.
 
 ## Modifier and Query
 
@@ -44,18 +44,19 @@ While a query is
 This attack does (fire, magic) damage.
 ```
 
-When querying for `(fire, magic) damage`, all modifiers that boosts
-`damage`, `fire damage` or `magic damage` can apply to this query,
-while modifier that boosts a different qualifier `ice damage` or a
-different stat `fire defense` does not apply to this query.
+When querying for *(fire, magic) damage*, all modifiers that boosts
+*damage*, *fire damage*, *magic damage* or *(fire, magic) damage*
+can apply to this query.
+While modifier that boosts a different qualifier *ice damage* or a
+different stat *fire defense* does not apply to this query.
 
 In `bevy_stat_query`,
-modifier is represented as `(Qualifier, Stat, Value)` and a
+a modifier is represented as `(Qualifier, Stat, Value)` while a
 query is represented as `(QualifierQuery, Stat)`.
 
 * Conditional Modifiers
 
-A common trope in fantasy games is `elemental damage`, which applies to
+A common trope in fantasy games is the modifier `elemental damage`, which applies to
 any of fire, ice, etc. In `Qualifier` this is the `any_of` field.
 
 * Exact Query
@@ -73,25 +74,51 @@ both, we can use `QualifierQuery::exact`.
 
 Qualifier is usually a bitflags implementing `QualifierFlag`, Stat is usually an enum deriving `Stat`.
 
-An app usually has a single `QualifierFlag` but multiple `Stat` implementors. Since each `Stat` can associate to a different type.
+An app usually has a single `QualifierFlag` but multiple `Stat` implementors,
+since each `Stat` can associate to a different type.
 For example `strength` and `magic` can be a `i32`,
 `hp` can be a `f32`, `is_dragon` can be a `bool` etc.
 
-## Unordered Operations
+Different types of stats can still query each other via `Querier`
+to model effects like.
 
-`bevy_stat_query` uses unordered operations to build up stats. This includes
-`add`, `multiply`, `min`, `max` and `or`. This ensures no explicit ordering is
-ever needed when querying for stats.
+```text
+If user is a dragon, increase damage by 50%.
+```
 
-Each stat has its components form `StatValue`, e.g. `(12 * 4).min(99).max(0)`,
-and its evaluated form, e.g. `48`.
+## `StatStream` and `QueryStream`
 
-## Queries
+In order for components to contribute to stats, you must implement `QueryStream`. `StatStream` can be used
+if no additional querying is needed. A `Component` that implements `StatStream` is automatically a `QueryStream`.
 
-`StatQuery` is the `SystemParam` to query stats. `StatQuery` only collects `StatEntity`s, which are
-marker components for queryable entities. To actually query for stats, you need to join it with
-`ComponentStream`s and `RelationStream`s. They can query stats from components and children of
-the `Entity`.
+In order to use `QueryStream`, mark queryable entities as `StatEntity`.
+Then add `StatEntities` to you system and join it with various `QueryStream`s.
+
+```rust
+fn stat_query(
+    entities: StatEntities,
+    stat_maps: StatQuery<StatMap>,
+    weapons: StatQuery<Weapon>,
+    buffs: ChildQuery<Buff>,
+) {
+    let querier = entities.join(&stat_maps).join(&weapons).join(&buffs);
+    let damage = querier.eval_stat(&MyQualifier::Magic, &MyStat::Damage).unwrap();
+}
+```
+
+Using `bevy_stat_query` is significantly easier if you have access to `&mut World`.
+One-shot systems are recommended to perform queries.
+
+## Relations
+
+`StatStream` and `QueryStream` provides the `stream_relation` function that makes it easier to implement
+relation based effects like
+
+```text
+Increase damage of all allies within 3 yards by 5.
+```
+
+Checkout one of our examples on how to implement this.
 
 ## Versions
 

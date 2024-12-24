@@ -1,4 +1,5 @@
 use bevy_stat_query::types::StatIntFraction;
+use bevy_stat_query::Attribute;
 use bevy_stat_query::Stat;
 
 #[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
@@ -25,6 +26,25 @@ pub struct X;
 
 use NumStats::*;
 use Stats::*;
+
+#[derive(Debug, Attribute)]
+pub struct IsDragon;
+
+#[derive(Debug, Attribute)]
+#[repr(u64)]
+pub enum CreatureType {
+    Beast,
+    Dragon,
+}
+#[derive(Attribute)]
+pub struct CreatureAbility(u64);
+
+bitflags::bitflags! {
+    impl CreatureAbility: u64 {
+        const Fire = 1;
+        const Ice = 2;
+    }
+}
 
 #[test]
 pub fn test_derive() {
