@@ -57,9 +57,9 @@ impl_stat!(
     SUInt: StatInt<u32>,
     SFloat32: StatFloat<f32>,
     SFlags: StatFlags<MyFlags>,
-    SString: StatOnce<Box<str>>,
+    SString: Prioritized<Box<str>>,
     SIntPct: StatIntPercent<i32>,
-    SIntFrac: StatIntFraction<i8>,
+    SIntFrac: StatIntRounded<i8, Fraction<i8>>,
     SMul: StatMult<f32>,
     SFracMul: StatMult<Fraction<i32>>
 );
@@ -141,7 +141,11 @@ pub fn serde_test() {
         map.modify(q_false, SUInt, Max(7));
         map.modify(q_false, SFloat32, Min(3.5));
         map.modify(q_false, SFlags, Or(MyFlags::F));
-        map.modify(q_false, SString, Or("Ferris the Rustacean".into()));
+        map.modify(
+            q_false,
+            SString,
+            Or(Prioritized::new("Ferris the Rustacean".into(), 0)),
+        );
         map.modify(q_false, SIntFrac, Mul(Fraction::new(43, -47)));
         map.modify(q_false, SIntPct, Mul(32));
         map.modify(q_false, SMul, Mul(102.125));

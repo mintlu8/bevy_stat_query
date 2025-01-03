@@ -8,21 +8,19 @@ use crate::{operations::Unsupported, StatValue};
 /// A flags based on a type that supports bitwise operations,
 /// like integer, `bitflgs` or `enumset`.
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, TypePath)]
-#[repr(C, align(8))]
-pub struct StatFlags<T: Flags> {
-    or: T,
-}
+#[repr(transparent)]
+pub struct StatFlags<T: Flags>(T);
 
 impl<T: Flags> StatValue for StatFlags<T> {
     type Out = T;
     type Base = T;
 
     fn join(&mut self, other: Self) {
-        self.or |= other.or;
+        self.0 |= other.0;
     }
 
     fn eval(&self) -> Self::Out {
-        self.or.clone()
+        self.0.clone()
     }
 
     type Add = Unsupported;
@@ -32,10 +30,10 @@ impl<T: Flags> StatValue for StatFlags<T> {
     type Bit = T;
 
     fn or(&mut self, other: Self::Bit) {
-        self.or |= other
+        self.0 |= other
     }
 
     fn from_base(base: Self::Base) -> Self {
-        Self { or: base }
+        Self(base)
     }
 }

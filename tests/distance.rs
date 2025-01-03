@@ -2,18 +2,18 @@ use bevy_ecs::{component::Component, entity::Entity, system::RunSystemOnce, worl
 use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    types::{StatInt, StatOnce},
-    ChildQuery, QualifierQuery, Querier, Stat, StatCache, StatEntities, StatEntity, StatExtension,
+    types::{Prioritized, StatInt},
+    ChildQuery, QualifierQuery, Querier, Stat, StatEntities, StatEntity, StatExtension,
     StatQueryMut, StatStream, StatVTable, StatValue, StatValuePair,
 };
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Stat)]
-#[stat(value = "StatOnce<i32>")]
+#[stat(value = "Prioritized<i32>")]
 pub struct StatDistance;
 
 #[derive(Debug, Clone, Copy, Stat)]
-#[stat(value = "StatOnce<Relation>")]
+#[stat(value = "Prioritized<Relation>")]
 pub struct StatAllegiance;
 
 #[derive(
@@ -80,7 +80,9 @@ impl StatStream for Position {
         _: Querier<Self::Qualifier>,
     ) {
         if let Some(v) = stat_value.is_then_cast(&StatDistance) {
-            v.set((self.0[0] - other.0[0]).abs() + (self.0[1] - other.0[1]).abs())
+            v.join(Prioritized::from(
+                (self.0[0] - other.0[0]).abs() + (self.0[1] - other.0[1]).abs(),
+            ))
         }
     }
 }
@@ -99,9 +101,9 @@ impl StatStream for Allegiance {
     ) {
         if let Some(v) = stat_value.is_then_cast(&StatAllegiance) {
             if self == other {
-                v.set(Relation::Ally)
+                v.join(Relation::Ally.into())
             } else {
-                v.set(Relation::Enemy)
+                v.join(Relation::Enemy.into())
             }
         }
     }
@@ -168,7 +170,7 @@ impl StatStream for DistanceAura {
             let distance = querier
                 .query_relation(self.0, entity, qualifier, &StatDistance)
                 .unwrap()
-                .unwrap();
+                .into_inner();
             v.add(distance);
         }
     }
@@ -188,7 +190,7 @@ impl StatStream for AllegianceAura {
             let distance = querier
                 .query_relation(self.1, entity, qualifier, &StatAllegiance)
                 .unwrap()
-                .unwrap();
+                .into_inner();
             v.add(match distance {
                 Relation::Ally => self.0,
                 Relation::Enemy => 0,
@@ -200,7 +202,6 @@ impl StatStream for AllegianceAura {
 #[test]
 pub fn main() {
     let mut world = World::new();
-    world.init_resource::<StatCache<bool>>();
     world.register_stat::<StatAllegiance>();
     world.register_stat::<StatDistance>();
     let a = world
@@ -241,15 +242,6 @@ pub fn main() {
             position.query.get_mut(a).unwrap().0[1] = -7;
             assert_eq!(
                 querier!().eval_stat(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
-                Some(7)
-            );
-            assert_eq!(
-                querier!().eval_stat(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
-                Some(7)
-            );
-            query.clear_cache();
-            assert_eq!(
-                querier!().eval_stat(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
                 Some(17)
             );
             assert_eq!(
@@ -273,24 +265,6 @@ pub fn main() {
                 Some(0)
             );
             *allegiance.query.get_mut(b).unwrap() = Allegiance::Player;
-
-            assert_eq!(
-                querier!().eval_stat(
-                    a,
-                    &QualifierQuery::Aggregate(false),
-                    &StatEffects::Allegiance
-                ),
-                Some(0)
-            );
-            assert_eq!(
-                querier!().eval_stat(
-                    b,
-                    &QualifierQuery::Aggregate(false),
-                    &StatEffects::Allegiance
-                ),
-                Some(0)
-            );
-            query.clear_cache();
 
             assert_eq!(
                 querier!().eval_stat(

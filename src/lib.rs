@@ -27,8 +27,6 @@ pub(crate) use stat::StatInst;
 pub use stat::{Stat, StatVTable, StatValuePair};
 pub mod operations;
 pub use operations::StatValue;
-mod cache;
-pub use cache::StatCache;
 mod plugin;
 pub use plugin::{GlobalStatDefaults, GlobalStatRelations, StatDeserializers, StatExtension};
 mod stat_map;

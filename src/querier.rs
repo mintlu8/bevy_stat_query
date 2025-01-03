@@ -4,8 +4,7 @@ use crate::attribute::Attribute;
 use crate::plugin::GlobalStatRelations;
 use crate::stat::StatExt;
 use crate::{
-    plugin::GlobalStatDefaults, Buffer, QualifierFlag, QualifierQuery, Stat, StatCache, StatInst,
-    StatStream,
+    plugin::GlobalStatDefaults, Buffer, QualifierFlag, QualifierQuery, Stat, StatInst, StatStream,
 };
 use crate::{validate, StatValue, StatValuePair};
 use bevy_ecs::reflect::ReflectComponent;
@@ -29,7 +28,6 @@ pub struct StatEntity;
 /// Join with [`StatStream`]s via [`StatEntities::join`] to start querying.
 #[derive(Debug, SystemParam)]
 pub struct StatEntities<'w, 's, Q: QualifierFlag> {
-    cache: Option<Res<'w, StatCache<Q>>>,
     defaults: Option<Res<'w, GlobalStatDefaults>>,
     relations: Option<Res<'w, GlobalStatRelations<Q>>>,
     entities: Query<'w, 's, Option<&'static Children>, With<StatEntity>>,
@@ -41,12 +39,6 @@ impl<'w, 's, Q: QualifierFlag> StatEntities<'w, 's, Q> {
         stream: S,
     ) -> JoinedQuerier<'w, 's, 't, Q, S> {
         JoinedQuerier { base: self, stream }
-    }
-
-    pub fn clear_cache(&self) {
-        if let Some(cache) = &self.cache {
-            cache.clear();
-        }
     }
 }
 
@@ -110,10 +102,6 @@ impl<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> JoinedQuerier<'
     pub fn has_attribute<'a>(&self, entity: Entity, attribute: impl Into<Attribute<'a>>) -> bool {
         self.has_attribute_erased(entity, attribute.into())
     }
-
-    pub fn clear_cache(&self) {
-        self.base.clear_cache()
-    }
 }
 
 impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
@@ -125,14 +113,6 @@ impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
         query: &QualifierQuery<Q>,
         stat: StatInst,
     ) -> Option<Buffer> {
-        if let Some(stat) = self
-            .base
-            .cache
-            .as_ref()
-            .and_then(|x| x.try_get_cached_dyn(entity, query, stat))
-        {
-            return Some(stat);
-        }
         let value = if let Some(defaults) = &self.base.defaults {
             defaults.get_dyn(stat)
         } else {
@@ -144,9 +124,6 @@ impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
         }
         self.stream
             .stream_stat(entity, query, &mut pair, Querier(self));
-        if let Some(cache) = &self.base.cache {
-            cache.cache_pair(entity, query, &pair);
-        }
         Some(pair.value)
     }
 

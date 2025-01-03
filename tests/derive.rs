@@ -1,9 +1,9 @@
-use bevy_stat_query::types::StatIntFraction;
+use bevy_stat_query::types::StatIntRounded;
 use bevy_stat_query::Attribute;
 use bevy_stat_query::Stat;
 
 #[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
-#[stat(value = "StatIntFraction<i32>")]
+#[stat(value = "StatIntRounded<i32, f32>")]
 pub enum Stats {
     A,
     B,
@@ -12,7 +12,7 @@ pub enum Stats {
 }
 
 #[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
-#[stat(value = "StatIntFraction<i32>")]
+#[stat(value = "StatIntRounded<i32, f32>")]
 pub enum NumStats {
     E = 2,
     F = 0,
@@ -21,7 +21,7 @@ pub enum NumStats {
 }
 
 #[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
-#[stat(value = "StatIntFraction<i32>")]
+#[stat(value = "StatIntRounded<i32, f32>")]
 pub struct X;
 
 use NumStats::*;

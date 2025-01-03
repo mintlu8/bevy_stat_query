@@ -1,6 +1,7 @@
 use crate::Shareable;
 use bevy_reflect::TypePath;
 use num_rational::Ratio;
+use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
@@ -317,6 +318,26 @@ impl<I: Int + NumInteger> Fraction<I> {
         self.0
     }
 }
+
+macro_rules! impl_as {
+    ($($ty:ident,)*) => {
+        $(
+            impl AsPrimitive<Fraction<$ty>> for $ty  {
+                fn as_(self) -> Fraction<$ty> {
+                    Fraction::new(self, $ty::ONE)
+                }
+            }
+
+            impl AsPrimitive<$ty> for Fraction<$ty> {
+                fn as_(self) -> $ty {
+                    self.to_integer()
+                }
+            }
+        )*
+    };
+}
+
+impl_as!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize,);
 
 macro_rules! impl_ops {
     ($a: tt, $b: tt, $c: tt, $d:tt, $e: tt, $f:tt) => {

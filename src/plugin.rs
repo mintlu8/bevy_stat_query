@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 
 use crate::operations::StatOperation;
+use crate::StatInst;
 use crate::{
     Buffer, QualifierFlag, QualifierQuery, Querier, Stat, StatExt, StatStream, StatValue,
     StatValuePair,
 };
-use crate::{StatCache, StatInst};
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::system::Resource;
@@ -35,9 +35,6 @@ pub trait StatExtension {
 
     /// Register the maximum value of a stat.
     fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self;
-
-    /// Clear all cached stats.
-    fn clear_stat_cache<Q: QualifierFlag>(&mut self);
 
     /// Register a global stat relation
     /// that will be run on every stat query.
@@ -75,10 +72,6 @@ impl StatExtension for World {
         self
     }
 
-    fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
-        self.resource_mut::<StatCache<Q>>().clear();
-    }
-
     fn register_stat_relation<Q: QualifierFlag>(
         &mut self,
         relation: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
@@ -111,10 +104,6 @@ impl StatExtension for App {
     fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
         self.world_mut().register_stat_max(stat, value);
         self
-    }
-
-    fn clear_stat_cache<Q: QualifierFlag>(&mut self) {
-        self.world_mut().clear_stat_cache::<Q>()
     }
 
     fn register_stat_relation<Q: QualifierFlag>(

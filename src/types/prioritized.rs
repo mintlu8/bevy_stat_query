@@ -7,11 +7,43 @@ use crate::{operations::Unsupported, Shareable, StatValue};
 
 /// A prioritized attribute that evaluates to the first or
 /// last occurrence with the highest priority.
-#[derive(Debug, Clone, Copy, Default, TypePath, Serialize, Deserialize)]
+///
+/// The [`Default`] priority is `i32::MIN`, if created via `From` or `from_base`,
+/// priority is 0.
+#[derive(Debug, Clone, Copy, TypePath, Serialize, Deserialize)]
 #[repr(C)]
-pub struct Prioritized<T, const LAST: bool = false> {
-    pub value: T,
-    pub priority: i32,
+pub struct Prioritized<T, const LAST: bool = true> {
+    value: T,
+    priority: i32,
+}
+
+impl<T: Default, const L: bool> Default for Prioritized<T, L> {
+    fn default() -> Self {
+        Self {
+            value: Default::default(),
+            priority: i32::MIN,
+        }
+    }
+}
+
+impl<T, const L: bool> Prioritized<T, L> {
+    pub const fn new(value: T, priority: i32) -> Self {
+        Prioritized { value, priority }
+    }
+
+    pub const fn get(&self) -> &T {
+        &self.value
+    }
+
+    pub fn into_inner(self) -> T {
+        self.value
+    }
+}
+
+impl<T, const L: bool> From<T> for Prioritized<T, L> {
+    fn from(value: T) -> Self {
+        Prioritized { value, priority: 0 }
+    }
 }
 
 impl<T: Shareable + Default, const R: bool> StatValue for Prioritized<T, R> {
@@ -42,9 +74,12 @@ impl<T: Shareable + Default, const R: bool> StatValue for Prioritized<T, R> {
 
     type Bounds = Unsupported;
 
-    type Base = Self;
+    type Base = T;
 
     fn from_base(base: Self::Base) -> Self {
-        base
+        Self {
+            value: base,
+            priority: 0,
+        }
     }
 }
