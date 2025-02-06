@@ -159,7 +159,7 @@ impl GlobalStatDefaults {
                 self.stats.insert(stat, {
                     let mut stat = S::Value::default();
                     value.write_to(&mut stat);
-                    Buffer::from(value)
+                    Buffer::from(stat)
                 });
             }
         }
