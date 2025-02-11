@@ -3,7 +3,7 @@ members = ["derive"]
 
 [package]
 name = "bevy_stat_query"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
@@ -37,7 +37,7 @@ num-integer = { version = "0.1", default-features = false }
 num-rational = { version = "0.4.1", default-features = false, features = ["serde"] }
 num-traits = { version = "0.2.18", default-features = false }
 rustc-hash = "2.0.0"
-bevy_stat_query_derive = { version = "0.1", path = "./derive", optional = true }
+bevy_stat_query_derive = { version = "0.1.1", path = "./derive", optional = true }
 
 [dev-dependencies]
 bevy = "0.15.0"

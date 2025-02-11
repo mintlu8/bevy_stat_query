@@ -221,6 +221,15 @@ pub fn attribute(tokens: TokenStream1) -> TokenStream1 {
                             }
                         }
                     }
+
+                    impl From<&#name> for #crate0::Attribute<'static> {
+                        fn from(value: &#name) -> #crate0::Attribute<'static> {
+                            #crate0::Attribute::Enum{
+                                tag: #uniq,
+                                index: value.0 as u64,
+                            }
+                        }
+                    }
                 }
                 .into()
             }
@@ -233,15 +242,40 @@ pub fn attribute(tokens: TokenStream1) -> TokenStream1 {
                         }
                     }
                 }
+
+                impl From<&#name> for #crate0::Attribute<'static> {
+                    fn from(_: &#name) -> #crate0::Attribute<'static> {
+                        #crate0::Attribute::Enum{
+                            tag: #uniq,
+                            index: 0,
+                        }
+                    }
+                }
             }
             .into(),
         },
-        syn::Data::Enum(_) => quote! {
-            impl From<#name> for #crate0::Attribute<'static> {
-                fn from(value: #name) -> #crate0::Attribute<'static> {
-                    #crate0::Attribute::Enum{
-                        tag: #uniq,
-                        index: value as u64,
+        syn::Data::Enum(fields) => {
+            let f1 = fields.variants.iter().map(|x| &x.ident);
+            let f2 = fields.variants.iter().map(|x| &x.ident);
+            quote! {
+                impl From<#name> for #crate0::Attribute<'static> {
+                    fn from(value: #name) -> #crate0::Attribute<'static> {
+                        #crate0::Attribute::Enum{
+                            tag: #uniq,
+                            index: value as u64,
+                        }
+                    }
+                }
+
+                impl From<&#name> for #crate0::Attribute<'static> {
+                    fn from(value: &#name) -> #crate0::Attribute<'static> {
+                        let variant = match value {
+                            #(#name::#f1 => #name::#f2),*
+                        };
+                        #crate0::Attribute::Enum{
+                            tag: #uniq,
+                            index: variant as u64,
+                        }
                     }
                 }
             }

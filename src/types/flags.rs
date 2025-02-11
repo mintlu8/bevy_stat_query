@@ -1,7 +1,7 @@
 use crate::num_traits::Flags;
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{fmt::Debug, mem, ops::BitAnd};
 
 use crate::{operations::Unsupported, StatValue};
 
@@ -10,6 +10,24 @@ use crate::{operations::Unsupported, StatValue};
 #[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, TypePath)]
 #[repr(transparent)]
 pub struct StatFlags<T: Flags>(T);
+
+impl<T: Flags> StatFlags<T> {
+    pub const fn new(item: T) -> Self {
+        StatFlags(item)
+    }
+
+    pub fn exclude(&mut self, item: T) {
+        let this = mem::take(self);
+        self.0 = this.0.exclude(item);
+    }
+
+    pub fn contains(&self, item: T) -> bool
+    where
+        T: BitAnd<Output = T> + PartialEq,
+    {
+        self.0.clone() & item == self.0
+    }
+}
 
 impl<T: Flags> StatValue for StatFlags<T> {
     type Out = T;
