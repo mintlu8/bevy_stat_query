@@ -36,6 +36,7 @@ pub mod rounding;
 use std::fmt::Debug;
 mod attribute;
 pub use attribute::Attribute;
+mod cowstr;
 
 mod sealed {
     pub trait Sealed {}

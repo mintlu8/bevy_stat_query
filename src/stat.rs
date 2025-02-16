@@ -1,6 +1,5 @@
 use std::{
     any::{Any, TypeId},
-    borrow::Cow,
     cmp::{Eq, Ord, Ordering},
     fmt::Debug,
     hash::Hash,
@@ -11,7 +10,9 @@ use std::{
 use bevy_serde_lens_core::with_world_mut;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::{plugin::StatDeserializers, validate, Buffer, Shareable, StatValue};
+use crate::{
+    cowstr::deserialize_cow_str, plugin::StatDeserializers, validate, Buffer, Shareable, StatValue,
+};
 
 /// A `vtable` of dynamic functions on [`Stat::Value`].
 #[repr(transparent)]
@@ -259,7 +260,7 @@ impl<'de> Deserialize<'de> for StatInst {
     where
         D: serde::Deserializer<'de>,
     {
-        let s = <Cow<str>>::deserialize(deserializer)?;
+        let s = deserialize_cow_str(deserializer)?;
         with_world_mut::<_>(|world| {
             let ctx = world.resource::<StatDeserializers>();
             if let Some(result) = ctx.concrete.get(s.as_ref()) {
