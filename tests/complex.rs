@@ -8,7 +8,6 @@ use bevy_ecs::{
     entity::Entity,
     system::{Commands, RunSystemOnce},
 };
-use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_stat_query::{
     match_stat, types::StatFloat, ChildQuery, Qualifier, QualifierFlag, QualifierQuery, Querier,
     Stat, StatEntities, StatEntity, StatExtension, StatMap, StatQuery, StatStream, StatValue,

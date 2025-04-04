@@ -3,8 +3,8 @@ use crate::{
     rounding::{Rounding, Truncate},
     Float, Int,
 };
+use crate::{Fraction, NumCast};
 use bevy_reflect::TypePath;
-use num_traits::AsPrimitive;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
@@ -87,6 +87,17 @@ pub struct StatIntRounded<T: Int, F: Float, R: Rounding = Truncate> {
     rounding: PhantomData<R>,
 }
 
+impl<T: Int, R: Rounding> StatIntRounded<T, Fraction<T>, R> {
+    pub fn reduce(&mut self) {
+        self.mult = self.mult.reduce();
+    }
+
+    pub fn reduced(mut self) -> Self {
+        self.mult = self.mult.reduce();
+        self
+    }
+}
+
 impl<T: Int, F: Float, R: Rounding> Default for StatIntRounded<T, F, R> {
     fn default() -> Self {
         Self {
@@ -101,8 +112,8 @@ impl<T: Int, F: Float, R: Rounding> Default for StatIntRounded<T, F, R> {
 
 impl<T: Int, F: Float, R: Rounding> StatValue for StatIntRounded<T, F, R>
 where
-    T: AsPrimitive<F>,
-    F: AsPrimitive<T>,
+    T: NumCast<F>,
+    F: NumCast<T>,
 {
     type Out = T;
     type Base = T;
@@ -115,8 +126,8 @@ where
     }
 
     fn eval(&self) -> Self::Out {
-        let val = self.addend.as_() * self.mult;
-        let int_val: T = R::round(val).as_();
+        let val = self.addend.cast() * self.mult;
+        let int_val: T = R::round(val).cast();
         int_val.min(self.max).max(self.min)
     }
 

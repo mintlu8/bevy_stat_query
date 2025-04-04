@@ -2,11 +2,8 @@ use crate::{attribute::Attribute, stat::StatValuePair, QualifierFlag, QualifierQ
 #[allow(unused)]
 use bevy_ecs::component::Component;
 use bevy_ecs::{
-    entity::Entity,
-    query::{QueryData, WorldQuery},
-    system::{Query, StaticSystemParam, SystemParam},
+    component::Mutable, entity::Entity, hierarchy::Children, query::QueryData, relationship::RelationshipTarget, system::{Query, StaticSystemParam, SystemParam}
 };
-use bevy_hierarchy::Children;
 
 /// An isolated item that provides stat modifiers to a stat query.
 #[allow(unused_variables)]
@@ -118,7 +115,7 @@ pub trait QueryStream: 'static {
     type Context: SystemParam + 'static;
 
     fn stream_stat(
-        query: <<Self::Query as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
+        query: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_>,
         context: &<Self::Context as SystemParam>::Item<'_, '_>,
         entity: Entity,
         qualifier: &QualifierQuery<Self::Qualifier>,
@@ -128,8 +125,8 @@ pub trait QueryStream: 'static {
     }
 
     fn stream_relation(
-        this: <<Self::Query as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
-        other: <<Self::Query as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
+        this: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_>,
+        other: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_>,
         context: &<Self::Context as SystemParam>::Item<'_, '_>,
         entity: Entity,
         target: Entity,
@@ -140,7 +137,7 @@ pub trait QueryStream: 'static {
     }
 
     fn has_attribute(
-        query: <<Self::Query as QueryData>::ReadOnly as WorldQuery>::Item<'_>,
+        query: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_>,
         context: &<Self::Context as SystemParam>::Item<'_, '_>,
         entity: Entity,
         attribute: Attribute,
@@ -151,7 +148,7 @@ pub trait QueryStream: 'static {
 
 impl<T> QueryStream for T
 where
-    T: Component + StatStream,
+    T: Component<Mutability = Mutable> + StatStream,
 {
     type Qualifier = T::Qualifier;
     type Query = &'static mut T;
@@ -302,9 +299,12 @@ pub trait EntityReference: Component + 'static {
     fn iter_entities(&self) -> impl Iterator<Item = Entity>;
 }
 
-impl EntityReference for Children {
+impl<T> EntityReference for T
+where
+    T: RelationshipTarget,
+{
     fn iter_entities(&self) -> impl Iterator<Item = Entity> {
-        self.iter().copied()
+        self.iter()
     }
 }
 

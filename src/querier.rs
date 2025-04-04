@@ -14,7 +14,6 @@ use bevy_ecs::{
     query::With,
     system::{Query, Res, SystemParam},
 };
-use bevy_hierarchy::Children;
 use bevy_reflect::Reflect;
 use serde::{Deserialize, Serialize};
 
@@ -30,7 +29,7 @@ pub struct StatEntity;
 pub struct StatEntities<'w, 's, Q: QualifierFlag> {
     defaults: Option<Res<'w, GlobalStatDefaults>>,
     relations: Option<Res<'w, GlobalStatRelations<Q>>>,
-    entities: Query<'w, 's, Option<&'static Children>, With<StatEntity>>,
+    entities: Query<'w, 's, Entity, With<StatEntity>>,
 }
 
 impl<'w, 's, Q: QualifierFlag> StatEntities<'w, 's, Q> {

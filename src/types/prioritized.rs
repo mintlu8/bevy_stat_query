@@ -31,6 +31,13 @@ impl<T, const L: bool> Prioritized<T, L> {
         Prioritized { value, priority }
     }
 
+    pub const fn new_min(value: T) -> Self {
+        Prioritized {
+            value,
+            priority: i32::MIN,
+        }
+    }
+
     pub const fn get(&self) -> &T {
         &self.value
     }

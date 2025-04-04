@@ -8,7 +8,7 @@ use crate::{
 };
 use bevy_app::App;
 use bevy_ecs::entity::Entity;
-use bevy_ecs::system::Resource;
+use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use bevy_reflect::TypePath;
 use rustc_hash::FxHashMap;

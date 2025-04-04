@@ -9,7 +9,6 @@ use bevy_ecs::{
     query::{QueryData, With},
     system::{Commands, Res, RunSystemOnce},
 };
-use bevy_hierarchy::{BuildChildren, ChildBuild};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
     types::StatFloat, ChildQuery, QualifierQuery, Querier, QueryStream, Stat, StatEntities,

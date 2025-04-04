@@ -1,16 +1,12 @@
-use crate::Shareable;
-use bevy_reflect::TypePath;
-use num_rational::Ratio;
-use num_traits::AsPrimitive;
-use serde::{Deserialize, Serialize};
+use crate::{
+    fraction::{gcd, Fraction},
+    Shareable,
+};
 use std::{
     fmt::Debug,
     num::{Saturating, Wrapping},
     ops::*,
 };
-
-pub trait NumInteger: num_integer::Integer + num_traits::NumAssign {}
-impl<T> NumInteger for T where T: num_integer::Integer + num_traits::NumAssign {}
 
 pub trait NumOps:
     Sized
@@ -74,7 +70,7 @@ where
 }
 
 /// Trait for an integer.
-pub trait Int: NumOps + PartialOrd + Default + Copy + Shareable {
+pub trait Int: NumOps + Div<Self, Output = Self> + Ord + Default + Copy + Shareable {
     const ZERO: Self;
     const ONE: Self;
 
@@ -83,10 +79,15 @@ pub trait Int: NumOps + PartialOrd + Default + Copy + Shareable {
 
     fn from_i64(value: i64) -> Self;
 
-    fn min(self, other: Self) -> Self;
-    fn max(self, other: Self) -> Self;
+    fn as_f32(self) -> f32;
+    fn as_f64(self) -> f64;
 
-    type PrimInt: Int + NumInteger + Clone + Shareable;
+    fn from_f32(value: f32) -> Self;
+    fn from_f64(value: f64) -> Self;
+
+    fn gcd(self, other: Self) -> Self;
+
+    type PrimInt: Int + Clone + Shareable;
 
     fn into_fraction(self) -> Fraction<Self::PrimInt>;
     fn build_fraction(self, denom: Self) -> Fraction<Self::PrimInt>;
@@ -106,12 +107,24 @@ macro_rules! impl_int {
                 value.clamp(Self::MIN as i64, Self::MAX as i64) as Self
             }
 
-            fn min(self, other: Self) -> Self {
-                Ord::min(self, other)
+            fn as_f32(self) -> f32 {
+                self as f32
             }
 
-            fn max(self, other: Self) -> Self {
-                Ord::max(self, other)
+            fn as_f64(self) -> f64 {
+                self as f64
+            }
+
+            fn from_f32(value: f32) -> Self{
+                value as Self
+            }
+
+            fn from_f64(value: f64) -> Self{
+                value as Self
+            }
+
+            fn gcd(self, other: Self) -> Self {
+                gcd!(self, other)
             }
 
             type PrimInt = $ty;
@@ -125,7 +138,7 @@ macro_rules! impl_int {
             }
 
             fn from_fraction(frac: Fraction<Self::PrimInt>) -> Self{
-                frac.to_integer()
+                frac.trunc()
             }
         })*
     };
@@ -146,12 +159,24 @@ macro_rules! impl_int_newtype {
                 Self(value.clamp(<$ty>::MIN as i64, <$ty>::MAX as i64) as $ty)
             }
 
-            fn min(self, other: Self) -> Self {
-                Ord::min(self, other)
+            fn as_f32(self) -> f32 {
+                self.0 as f32
             }
 
-            fn max(self, other: Self) -> Self {
-                Ord::max(self, other)
+            fn as_f64(self) -> f64 {
+                self.0 as f64
+            }
+
+            fn from_f32(value: f32) -> Self{
+                Self(value as $ty)
+            }
+
+            fn from_f64(value: f64) -> Self{
+                Self(value as $ty)
+            }
+
+            fn gcd(self, other: Self) -> Self {
+                Self(gcd!(self.0, other.0))
             }
 
             type PrimInt = $ty;
@@ -165,7 +190,7 @@ macro_rules! impl_int_newtype {
             }
 
             fn from_fraction(frac: Fraction<Self::PrimInt>) -> Self{
-                Self(frac.to_integer())
+                Self(frac.trunc())
             }
         })*)*
     };
@@ -281,129 +306,30 @@ impl Float for f64 {
     }
 }
 
-/// Represents a fractional number.
-///
-/// Newtype of [`num_rational::Ratio`].
-#[derive(
-    Debug, Clone, Copy, Default, TypePath, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
-#[repr(transparent)]
-#[serde(transparent)]
-pub struct Fraction<I: Int + NumInteger>(num_rational::Ratio<I>);
+pub trait NumCast<T> {
+    fn cast(self) -> T;
+}
 
-impl<I: Int + NumInteger> Deref for Fraction<I> {
-    type Target = num_rational::Ratio<I>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl<I: Int> NumCast<f32> for I {
+    fn cast(self) -> f32 {
+        self.as_f32()
     }
 }
 
-impl<I: Int + NumInteger> DerefMut for Fraction<I> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+impl<I: Int> NumCast<f64> for I {
+    fn cast(self) -> f64 {
+        self.as_f64()
     }
 }
 
-impl<I: Int + NumInteger> Fraction<I> {
-    pub fn new(numer: I, denom: I) -> Self {
-        Self(num_rational::Ratio::new(numer, denom))
-    }
-
-    pub(crate) const fn new_raw(numer: I, denom: I) -> Self {
-        Self(num_rational::Ratio::new_raw(numer, denom))
-    }
-
-    pub fn into_inner(self) -> num_rational::Ratio<I> {
-        self.0
+impl<I: Int> NumCast<I> for f32 {
+    fn cast(self) -> I {
+        I::from_f32(self)
     }
 }
 
-macro_rules! impl_as {
-    ($($ty:ident,)*) => {
-        $(
-            impl AsPrimitive<Fraction<$ty>> for $ty  {
-                fn as_(self) -> Fraction<$ty> {
-                    Fraction::new(self, $ty::ONE)
-                }
-            }
-
-            impl AsPrimitive<$ty> for Fraction<$ty> {
-                fn as_(self) -> $ty {
-                    self.to_integer()
-                }
-            }
-        )*
-    };
-}
-
-impl_as!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize,);
-
-macro_rules! impl_ops {
-    ($a: tt, $b: tt, $c: tt, $d:tt, $e: tt, $f:tt) => {
-        impl<I: Int + NumInteger> $a for Fraction<I> {
-            type Output = Self;
-
-            fn $b(self, rhs: Self) -> Self::Output {
-                Self(self.0 $c rhs.0)
-            }
-        }
-
-        impl<I: Int + NumInteger> $d for Fraction<I> {
-            fn $e(&mut self, rhs: Self) {
-                self.0 $f rhs.0
-            }
-        }
-
-        impl<I: Int + NumInteger> $a<I> for Fraction<I> {
-            type Output = Self;
-
-            fn $b(self, rhs: I) -> Self::Output {
-                Self(self.0 $c Ratio::new(rhs, I::ONE))
-            }
-        }
-
-        impl<I: Int + NumInteger> $d<I> for Fraction<I> {
-            fn $e(&mut self, rhs: I) {
-                self.0 $f Ratio::new(rhs, I::ONE)
-            }
-        }
-    };
-}
-
-impl_ops!(Add, add, +, AddAssign, add_assign, +=);
-impl_ops!(Sub, sub, -, SubAssign, sub_assign, -=);
-impl_ops!(Mul, mul, *, MulAssign, mul_assign, *=);
-impl_ops!(Div, div, /, DivAssign, div_assign, /=);
-impl_ops!(Rem, rem, %, RemAssign, rem_assign, %=);
-
-impl<I: Int + NumInteger + Clone> Float for Fraction<I> {
-    const ZERO: Self = Fraction::new_raw(I::ZERO, I::ONE);
-    const ONE: Self = Fraction::new_raw(I::ONE, I::ONE);
-    const MIN_VALUE: Self = Fraction::new_raw(I::MIN_VALUE, I::ONE);
-    const MAX_VALUE: Self = Fraction::new_raw(I::MAX_VALUE, I::ONE);
-
-    fn min(self, other: Self) -> Self {
-        Ord::min(self, other)
-    }
-
-    fn max(self, other: Self) -> Self {
-        Ord::max(self, other)
-    }
-
-    fn floor(self) -> Self {
-        Self(num_rational::Ratio::floor(&self.0))
-    }
-
-    fn ceil(self) -> Self {
-        Self(num_rational::Ratio::ceil(&self.0))
-    }
-
-    fn trunc(self) -> Self {
-        Self(num_rational::Ratio::trunc(&self.0))
-    }
-
-    fn round(self) -> Self {
-        Self(num_rational::Ratio::round(&self.0))
+impl<I: Int> NumCast<I> for f64 {
+    fn cast(self) -> I {
+        I::from_f64(self)
     }
 }
