@@ -30,7 +30,7 @@ pub use stat::{Stat, StatVTable, StatValuePair};
 pub mod operations;
 pub use operations::StatValue;
 mod plugin;
-pub use plugin::{GlobalStatDefaults, GlobalStatRelations, StatDeserializers, StatExtension};
+pub use plugin::{GlobalStatDefaults, GlobalStatRelations, StatDeserializers, StatExtension, STAT_DESERIALIZERS};
 mod stat_map;
 pub use stat_map::StatMap;
 mod buffer;

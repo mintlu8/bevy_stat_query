@@ -2,7 +2,12 @@ use crate::{attribute::Attribute, stat::StatValuePair, QualifierFlag, QualifierQ
 #[allow(unused)]
 use bevy_ecs::component::Component;
 use bevy_ecs::{
-    component::Mutable, entity::Entity, hierarchy::Children, query::QueryData, relationship::RelationshipTarget, system::{Query, StaticSystemParam, SystemParam}
+    component::Mutable,
+    entity::Entity,
+    hierarchy::Children,
+    query::QueryData,
+    relationship::RelationshipTarget,
+    system::{Query, StaticSystemParam, SystemParam},
 };
 
 /// An isolated item that provides stat modifiers to a stat query.

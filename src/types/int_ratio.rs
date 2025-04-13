@@ -89,11 +89,11 @@ pub struct StatIntRounded<T: Int, F: Float, R: Rounding = Truncate> {
 
 impl<T: Int, R: Rounding> StatIntRounded<T, Fraction<T>, R> {
     pub fn reduce(&mut self) {
-        self.mult = self.mult.reduce();
+        self.mult = self.mult.reduced();
     }
 
     pub fn reduced(mut self) -> Self {
-        self.mult = self.mult.reduce();
+        self.mult = self.mult.reduced();
         self
     }
 }

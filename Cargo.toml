@@ -27,13 +27,13 @@ doctest = false
 bevy_ecs = { version = "0.16.0-rc.3" }
 bevy_app = { version = "0.16.0-rc.3" }
 bevy_reflect = { version = "0.16.0-rc.3" }
-bevy_serde_lens_core = { version = "0.16.0-rc.3" }
 serde = { version = "1", features = ["derive"] }
 erased-serde = "0.4.3"
 ref-cast = "1"
 thiserror = "1"
 rustc-hash = "2.0.0"
 bevy_stat_query_derive = { version = "0.1.1", path = "./derive", optional = true }
+scoped-tls-hkt = "0.1.5"
 
 [dev-dependencies]
 bevy = "0.16.0-rc.3"
@@ -42,7 +42,7 @@ num_enum = "0.7.2"
 postcard = { version = "1.0.8", features = ["alloc"], default-features = false }
 serde_json = "1.0.114"
 strum = { version = "0.26.2", features = ["derive"] }
-bevy_serde_lens = { version = "0.6.0-rc.3" }
+bevy_serde_lens = { version = "0.6.0-rc.3", path = "../bevy_serde_lens" }
 criterion = "0.5.1"
 
 [[bench]]

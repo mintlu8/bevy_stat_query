@@ -56,15 +56,17 @@ pub(crate) use gcd;
 
 /// Represents a fractional number.
 ///
-/// # Note
+/// # Type Contract
 ///
-/// Unlike other implementations, operators like `add` or `mul` does not
-/// perform reductions, this makes aggregation faster, but be careful
-/// not use overuse complicated fractions like `33/100` that can cause
-/// integer overflows if aggregated.
+/// All combinations of numbers and signs are allowed, as long as denominator is not 0.
+/// Some operations like `new` will perform reduction on the value while others won't for performance.
 ///
-/// All overflows are unspecified behavior.
-#[derive(Debug, Clone, Copy, Default, TypePath, PartialEq, Eq, Serialize, Deserialize)]
+/// # Reductions
+///
+/// Only `new` does full reduction, operators only do partial reduction for powers of 2.
+/// In the context of `bevy_stat_query`, use simple numbers like `1/3` over complicated
+/// ones like `33/100` to avoid integer overflows.
+#[derive(Debug, Clone, Copy, Default, TypePath, Serialize, Deserialize)]
 #[repr(C)]
 pub struct Fraction<I: Int> {
     numer: I,
@@ -76,6 +78,14 @@ impl<T: Int> From<T> for Fraction<T> {
         Self::from_int(value)
     }
 }
+
+impl<I: Int> PartialEq for Fraction<I> {
+    fn eq(&self, other: &Self) -> bool {
+        self.numer * other.denom == self.denom * other.numer
+    }
+}
+
+impl<I: Int> Eq for Fraction<I> {}
 
 impl<I: Int> PartialOrd for Fraction<I> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -89,23 +99,30 @@ impl<I: Int> Ord for Fraction<I> {
     }
 }
 
-impl Fraction<u32> {
-    pub const fn const_new(numer: u32, denom: u32) -> Self {
-        let gcd = gcd!(numer, denom);
-        Fraction {
-            numer: numer / gcd,
-            denom: denom / gcd,
-        }
-    }
+macro_rules! impl_const_v {
+    ($($ty: ident),* $(,)*) => {
+        $(impl Fraction<$ty> {
+            pub const fn const_new(numer: $ty, denom: $ty) -> Self {
+                let gcd = gcd!(numer, denom);
+                Fraction {
+                    numer: numer / gcd,
+                    denom: denom / gcd,
+                }
+            }
 
-    pub const fn const_pct(percent: u32) -> Self {
-        Self::const_new(percent, 100)
-    }
+            pub const fn const_pct(percent: $ty) -> Self {
+                Self::const_new(percent, 100)
+            }
 
-    pub const fn const_reduce(self) -> Self {
-        Self::const_new(self.denom, self.numer)
-    }
+            pub const fn const_reduce(self) -> Self {
+                Self::const_new(self.denom, self.numer)
+            }
+        })*
+    };
 }
+
+impl_const_v!(u8, u16, u32, u64, u128, usize);
+impl_const_v!(i8, i16, i32, i64, i128, isize);
 
 impl<I: Int> Fraction<I> {
     pub fn new(numer: I, denom: I) -> Self {
@@ -128,25 +145,47 @@ impl<I: Int> Fraction<I> {
         Self::new(percent, I::from_i64(100))
     }
 
-    pub fn reduce(self) -> Self {
-        Self::new(self.denom, self.numer)
+    pub fn reduced_pow2(mut self) -> Self {
+        self.numer.fast_reduction(&mut self.denom);
+        self
     }
 
+    pub fn reduce(&mut self) {
+        *self = Self::new(self.numer, self.denom)
+    }
+
+    pub fn reduced(self) -> Self {
+        Self::new(self.numer, self.denom)
+    }
+
+    /// Create a unreduced fraction, does not breach the type contract as long as `denom` is not 0.
     pub const fn new_raw(numer: I, denom: I) -> Self {
         Self { numer, denom }
     }
 
+    /// Create the fraction `value / 1`.
     pub const fn from_int(value: I) -> Self {
         Self::new_raw(value, I::ONE)
     }
 
+    /// Returns true if number is less than zero.
+    pub fn is_positive(&self) -> bool {
+        !((self.numer < I::ZERO) ^ (self.denom < I::ZERO)) && self.numer != I::ZERO
+    }
+
+    /// Returns true if number is zero.
+    pub fn is_zero(&self) -> bool {
+        self.numer == I::ZERO
+    }
+
+    /// Returns true if number is less than zero.
     pub fn is_negative(&self) -> bool {
-        self.numer < I::ZERO || self.denom < I::ZERO
+        (self.numer < I::ZERO) ^ (self.denom < I::ZERO) && self.numer != I::ZERO
     }
 
     pub fn floor(self) -> I {
         if self.is_negative() {
-            (self.numer - self.denom + I::ONE) / self.denom
+            (self.numer - self.denom + self.denom.signum()) / self.denom
         } else {
             self.numer / self.denom
         }
@@ -154,9 +193,9 @@ impl<I: Int> Fraction<I> {
 
     pub fn ceil(self) -> I {
         if self.is_negative() {
-            (self.numer - self.denom) / self.denom
+            self.numer / self.denom
         } else {
-            (self.numer + self.denom - I::ONE) / self.denom
+            (self.numer + self.denom - self.denom.signum()) / self.denom
         }
     }
 
@@ -185,101 +224,102 @@ impl<I: Int> NumCast<Fraction<I>> for I {
     }
 }
 
-impl<T: Int> Add<Self> for Fraction<T> {
-    type Output = Self;
+macro_rules! impl_ops {
+    ($t1: ident, $f1: ident, $t2: ident, $f2: ident, $a: ident, $b: ident, $e1: expr, $e2: expr) => {
+        impl<T: Int> $t1<Self> for Fraction<T> {
+            type Output = Self;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        Fraction {
-            numer: self.numer * rhs.denom + rhs.numer * self.denom,
-            denom: self.denom * rhs.denom,
+            fn $f1(self, rhs: Self) -> Self::Output {
+                let $a = self;
+                let $b = rhs;
+                Fraction {
+                    numer: $e1,
+                    denom: $e2,
+                }
+                .reduced_pow2()
+            }
         }
-    }
-}
 
-impl<T: Int> AddAssign<Self> for Fraction<T> {
-    fn add_assign(&mut self, rhs: Self) {
-        self.numer = self.numer * rhs.denom + rhs.numer * self.denom;
-        self.denom *= rhs.denom;
-    }
-}
+        impl<T: Int> $t1<T> for Fraction<T> {
+            type Output = Self;
 
-impl<T: Int> Sub<Self> for Fraction<T> {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Fraction {
-            numer: self.numer * rhs.denom - rhs.numer * self.denom,
-            denom: self.denom * rhs.denom,
+            fn $f1(self, rhs: T) -> Self::Output {
+                let $a = self;
+                let $b = Fraction::from_int(rhs);
+                Fraction {
+                    numer: $e1,
+                    denom: $e2,
+                }
+                .reduced_pow2()
+            }
         }
-    }
-}
 
-impl<T: Int> SubAssign<Self> for Fraction<T> {
-    fn sub_assign(&mut self, rhs: Self) {
-        self.numer = self.numer * rhs.denom - rhs.numer * self.denom;
-        self.denom *= rhs.denom;
-    }
-}
-
-impl<T: Int> Mul<T> for Fraction<T> {
-    type Output = Self;
-
-    fn mul(self, rhs: T) -> Self::Output {
-        Fraction {
-            numer: self.numer * rhs,
-            denom: self.denom,
+        impl<T: Int> $t2<Self> for Fraction<T> {
+            fn $f2(&mut self, rhs: Self) {
+                let $a = *self;
+                let $b = rhs;
+                *self = Fraction {
+                    numer: $e1,
+                    denom: $e2,
+                }
+                .reduced_pow2()
+            }
         }
-    }
-}
 
-impl<T: Int> Mul<Self> for Fraction<T> {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        Fraction {
-            numer: self.numer * rhs.numer,
-            denom: self.denom * rhs.denom,
+        impl<T: Int> $t2<T> for Fraction<T> {
+            fn $f2(&mut self, rhs: T) {
+                let $a = *self;
+                let $b = Fraction::from_int(rhs);
+                *self = Fraction {
+                    numer: $e1,
+                    denom: $e2,
+                }
+                .reduced_pow2()
+            }
         }
-    }
+    };
 }
 
-impl<T: Int> MulAssign<T> for Fraction<T> {
-    fn mul_assign(&mut self, rhs: T) {
-        self.numer *= rhs;
-    }
-}
-
-impl<T: Int> MulAssign<Self> for Fraction<T> {
-    fn mul_assign(&mut self, rhs: Self) {
-        self.numer *= rhs.numer;
-        self.denom *= rhs.denom;
-    }
-}
-
-impl<T: Int> Div<Self> for Fraction<T> {
-    type Output = Self;
-
-    fn div(self, rhs: Self) -> Self::Output {
-        Fraction {
-            numer: self.numer * rhs.denom,
-            denom: self.denom * rhs.numer,
-        }
-    }
-}
-
-#[expect(clippy::suspicious_op_assign_impl)]
-impl<T: Int> DivAssign<T> for Fraction<T> {
-    fn div_assign(&mut self, rhs: T) {
-        self.denom *= rhs;
-    }
-}
-
-impl<T: Int> DivAssign<Self> for Fraction<T> {
-    fn div_assign(&mut self, rhs: Self) {
-        self.numer *= rhs.denom;
-        self.denom *= rhs.numer;
-    }
-}
+impl_ops!(
+    Add,
+    add,
+    AddAssign,
+    add_assign,
+    a,
+    b,
+    a.numer * b.denom + a.denom * b.numer,
+    a.denom * b.denom
+);
+impl_ops!(
+    Sub,
+    sub,
+    SubAssign,
+    sub_assign,
+    a,
+    b,
+    a.numer * b.denom - a.denom * b.numer,
+    a.denom * b.denom
+);
+impl_ops!(
+    Mul,
+    mul,
+    MulAssign,
+    mul_assign,
+    a,
+    b,
+    a.numer * b.numer,
+    a.denom * b.denom
+);
+impl_ops!(
+    Div,
+    div,
+    DivAssign,
+    div_assign,
+    a,
+    b,
+    a.numer * b.denom,
+    a.denom * b.numer
+);
 
 impl<I: Int + Clone> Float for Fraction<I> {
     const ZERO: Self = Fraction::new_raw(I::ZERO, I::ONE);

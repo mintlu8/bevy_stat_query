@@ -1,7 +1,7 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{BevyObject, DefaultInit, WorldExtension};
-use bevy_stat_query::StatVTable;
+use bevy_stat_query::{StatDeserializers, StatVTable, STAT_DESERIALIZERS};
 use bevy_stat_query::{
     operations::StatOperation, types::*, Fraction, Qualifier, Stat, StatExtension, StatMap,
 };
@@ -100,6 +100,9 @@ pub struct Full {
 #[test]
 pub fn serde_test() {
     let mut world = World::new();
+    world.register_deserialize_resource_cx::<StatDeserializers>(|res, callback| {
+        STAT_DESERIALIZERS.set(res, callback)
+    });
     world.register_stat::<SInt>();
     world.register_stat::<SUInt>();
     world.register_stat::<SFloat32>();
@@ -155,6 +158,7 @@ pub fn serde_test() {
     let value = world.save::<Op, _>(serde_json::value::Serializer).unwrap();
     world.despawn_bound_objects::<Op>();
     world.load::<Op, _>(&value).unwrap();
+    
     let value2 = world.save::<Op, _>(serde_json::value::Serializer).unwrap();
     assert_eq!(value, value2);
 

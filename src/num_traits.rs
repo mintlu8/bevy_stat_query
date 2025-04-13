@@ -70,7 +70,9 @@ where
 }
 
 /// Trait for an integer.
-pub trait Int: NumOps + Div<Self, Output = Self> + Ord + Default + Copy + Shareable {
+pub trait Int:
+    NumOps + Div<Self, Output = Self> + BitOps + Ord + Default + Copy + Shareable
+{
     const ZERO: Self;
     const ONE: Self;
 
@@ -85,7 +87,12 @@ pub trait Int: NumOps + Div<Self, Output = Self> + Ord + Default + Copy + Sharea
     fn from_f32(value: f32) -> Self;
     fn from_f64(value: f64) -> Self;
 
+    fn abs(self) -> Self;
+    fn signum(self) -> Self;
+
     fn gcd(self, other: Self) -> Self;
+    #[doc(hidden)]
+    fn fast_reduction(&mut self, other: &mut Self);
 
     type PrimInt: Int + Clone + Shareable;
 
@@ -121,6 +128,34 @@ macro_rules! impl_int {
 
             fn from_f64(value: f64) -> Self{
                 value as Self
+            }
+
+            fn abs(self) -> Self {
+                #[allow(unused_comparisons)]
+                if self < 0 {
+                    0 - self
+                } else {
+                    self
+                }
+            }
+
+            fn signum(self) -> Self {
+                #[allow(unused_comparisons, arithmetic_overflow)]
+                if self < 0 {
+                    0 - 1
+                } else if self == 0 {
+                    0
+                } else {
+                    1
+                }
+            }
+
+            fn fast_reduction(&mut self, other: &mut Self) {
+                let u = self.abs();
+                let v = other.abs();
+                let shift = (u | v).trailing_zeros();
+                *self >>= shift;
+                *other >>= shift;
             }
 
             fn gcd(self, other: Self) -> Self {
@@ -173,6 +208,35 @@ macro_rules! impl_int_newtype {
 
             fn from_f64(value: f64) -> Self{
                 Self(value as $ty)
+            }
+
+            fn abs(self) -> Self {
+                #[allow(unused_comparisons)]
+                if self < Self(0) {
+                    Self(0 - self.0)
+                } else {
+                    self
+                }
+            }
+
+            fn signum(self) -> Self {
+                #[allow(unused_comparisons, arithmetic_overflow)]
+                Self(if self.0 < 0 {
+                    0 - 1
+                } else if self.0 == 0 {
+                    0
+                } else {
+                    1
+                })
+            }
+
+
+            fn fast_reduction(&mut self, other: &mut Self) {
+                let u = self.0.abs();
+                let v = other.0.abs();
+                let shift = (u | v).trailing_zeros();
+                self.0 >>= shift;
+                other.0 >>= shift;
             }
 
             fn gcd(self, other: Self) -> Self {

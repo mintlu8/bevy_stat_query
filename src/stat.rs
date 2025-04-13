@@ -7,11 +7,10 @@ use std::{
     ptr,
 };
 
-use bevy_serde_lens_core::with_world_mut;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
-    cowstr::deserialize_cow_str, plugin::StatDeserializers, validate, Buffer, Shareable, StatValue,
+    cowstr::deserialize_cow_str, plugin::STAT_DESERIALIZERS, validate, Buffer, Shareable, StatValue,
 };
 
 /// A `vtable` of dynamic functions on [`Stat::Value`].
@@ -261,9 +260,13 @@ impl<'de> Deserialize<'de> for StatInst {
         D: serde::Deserializer<'de>,
     {
         let s = deserialize_cow_str(deserializer)?;
-        with_world_mut::<_>(|world| {
-            let ctx = world.resource::<StatDeserializers>();
-            if let Some(result) = ctx.concrete.get(s.as_ref()) {
+        if !STAT_DESERIALIZERS.is_set() {
+            return Err(serde::de::Error::custom(
+                "Must add context `STAT_DESERIALIZERS` before deserializing stat.",
+            ));
+        }
+        STAT_DESERIALIZERS.with(|cx| {
+            if let Some(result) = cx.concrete.get(s.as_ref()) {
                 Ok(*result)
             } else {
                 Err(serde::de::Error::custom(format!(
@@ -271,7 +274,6 @@ impl<'de> Deserialize<'de> for StatInst {
                 )))
             }
         })
-        .map_err(serde::de::Error::custom)?
     }
 }
 
