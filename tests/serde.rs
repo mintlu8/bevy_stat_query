@@ -1,10 +1,10 @@
 use bevy_ecs::{component::Component, world::World};
 use bevy_reflect::TypePath;
 use bevy_serde_lens::{BevyObject, DefaultInit, WorldExtension};
-use bevy_stat_query::{StatDeserializers, StatVTable, STAT_DESERIALIZERS};
 use bevy_stat_query::{
     operations::StatOperation, types::*, Fraction, Qualifier, Stat, StatExtension, StatMap,
 };
+use bevy_stat_query::{StatDeserializers, StatVTable, STAT_DESERIALIZERS};
 use serde::{Deserialize, Serialize};
 
 bitflags::bitflags! {
@@ -158,7 +158,7 @@ pub fn serde_test() {
     let value = world.save::<Op, _>(serde_json::value::Serializer).unwrap();
     world.despawn_bound_objects::<Op>();
     world.load::<Op, _>(&value).unwrap();
-    
+
     let value2 = world.save::<Op, _>(serde_json::value::Serializer).unwrap();
     assert_eq!(value, value2);
 

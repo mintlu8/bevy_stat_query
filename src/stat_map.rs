@@ -55,12 +55,13 @@ impl<Q: QualifierFlag> StatMapEntry<Q> {
 ///
 /// # Performance
 ///
-/// The type is intended to hold relatively constant stats and prioritizes querying,
+/// The type is intended to hold relatively constant items and prioritizes querying,
 /// not optimized for rapid insertion or removal.
 ///
 /// # Serialization
 ///
-/// Deserialization must be done inside a [`bevy_serde_lens_core`] deserialize scope.
+/// Deserialization must be done in a [`STAT_DESERIALIZERS`](crate::STAT_DESERIALIZERS) thread local scope.
+/// This can be seamlessly integrated with the `bevy_serde_lens` crate.
 #[derive(Component, Serialize, Deserialize, Reflect, Clone)]
 #[reflect(Component, Serialize, Deserialize)]
 #[reflect(where Q: Serialize + DeserializeOwned)]

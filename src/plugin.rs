@@ -26,7 +26,10 @@ pub trait StatExtension {
     fn register_stat<T: Stat>(&mut self) -> &mut Self;
 
     /// Register associated serialization routine for a stat by parsing a string.
-    fn register_stat_parser<T: Stat>(&mut self, f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static) -> &mut Self;
+    fn register_stat_parser<T: Stat>(
+        &mut self,
+        f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static,
+    ) -> &mut Self;
 
     /// Register associated serialization routine for a stat using its [`FromStr`] implementation.
     fn register_stat_from_str<T: Stat + FromStr>(&mut self) -> &mut Self;
@@ -67,7 +70,10 @@ impl StatExtension for World {
         self
     }
 
-    fn register_stat_parser<T: Stat>(&mut self, f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static) -> &mut Self {
+    fn register_stat_parser<T: Stat>(
+        &mut self,
+        f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static,
+    ) -> &mut Self {
         self.get_resource_or_insert_with::<StatDeserializers>(Default::default)
             .register_parser(f);
         self
@@ -115,11 +121,14 @@ impl StatExtension for App {
         self
     }
 
-    fn register_stat_parser<T: Stat>(&mut self, f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static) -> &mut Self {
+    fn register_stat_parser<T: Stat>(
+        &mut self,
+        f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static,
+    ) -> &mut Self {
         self.world_mut().register_stat_parser::<T>(f);
         self
     }
-    
+
     fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Value) -> &mut Self {
         self.world_mut().register_stat_default::<S>(stat, value);
         self
@@ -321,18 +330,26 @@ impl StatDeserializers {
     }
 
     /// Register a parser to a stat, ones inserted first has priority.
-    pub fn register_parser<T: Stat>(&mut self, mut f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static) {
-        self.parse_fns.push(Box::new(move |x| f(x).map(|x| x.as_entry())));
+    pub fn register_parser<T: Stat>(
+        &mut self,
+        mut f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static,
+    ) {
+        self.parse_fns
+            .push(Box::new(move |x| f(x).map(|x| x.as_entry())));
     }
 
     /// Register a parser to a stat, ones inserted first has priority.
-    pub fn register_parser_ok<T: Stat, E>(&mut self, mut f: impl FnMut(&str) -> Result<T, E> + Send + Sync + 'static) {
-        self.parse_fns.push(Box::new(move |x| f(x).map(|x| x.as_entry()).ok()));
+    pub fn register_parser_ok<T: Stat, E>(
+        &mut self,
+        mut f: impl FnMut(&str) -> Result<T, E> + Send + Sync + 'static,
+    ) {
+        self.parse_fns
+            .push(Box::new(move |x| f(x).map(|x| x.as_entry()).ok()));
     }
 
     pub fn get(&mut self, name: &str) -> Option<StatInst> {
         if let Some(concrete) = self.concrete.get(name) {
-            return Some(*concrete)
+            return Some(*concrete);
         }
         for parser in &mut self.parse_fns {
             if let Some(result) = parser(name) {
