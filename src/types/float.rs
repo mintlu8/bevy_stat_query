@@ -1,3 +1,4 @@
+use crate::num_traits::Number;
 use crate::Float;
 use crate::{operations::Unsupported, StatValue};
 use bevy_reflect::TypePath;
@@ -31,12 +32,12 @@ impl<T: Float> StatValue for StatFloat<T> {
     fn join(&mut self, other: Self) {
         self.addend += other.addend;
         self.mult *= other.mult;
-        self.min = self.min.max(other.min);
-        self.max = self.max.min(other.max);
+        self.min = self.min._max(other.min);
+        self.max = self.max._min(other.max);
     }
 
     fn eval(&self) -> Self::Out {
-        (self.addend * self.mult).min(self.max).max(self.min)
+        (self.addend * self.mult)._min(self.max)._max(self.min)
     }
 
     type Add = T;
@@ -54,11 +55,11 @@ impl<T: Float> StatValue for StatFloat<T> {
     }
 
     fn min(&mut self, other: Self::Bounds) {
-        self.min = self.min.max(other)
+        self.min = self.min._max(other)
     }
 
     fn max(&mut self, other: Self::Bounds) {
-        self.max = self.max.min(other)
+        self.max = self.max._min(other)
     }
 
     fn from_base(base: Self::Base) -> Self {
@@ -99,14 +100,14 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
     fn join(&mut self, other: Self) {
         self.addend += other.addend;
         self.mult += other.mult;
-        self.min = self.min.max(other.min);
-        self.max = self.max.min(other.max);
+        self.min = self.min._max(other.min);
+        self.max = self.max._min(other.max);
     }
 
     fn eval(&self) -> Self::Out {
         (self.addend * (self.mult + T::ONE))
-            .min(self.max)
-            .max(self.min)
+            ._min(self.max)
+            ._max(self.min)
     }
 
     type Add = T;
@@ -124,11 +125,11 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
     }
 
     fn min(&mut self, other: Self::Bounds) {
-        self.min = self.min.max(other)
+        self.min = self.min._max(other)
     }
 
     fn max(&mut self, other: Self::Bounds) {
-        self.max = self.max.min(other)
+        self.max = self.max._min(other)
     }
 
     fn from_base(base: Self::Base) -> Self {
@@ -137,6 +138,68 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
             min: T::MIN_VALUE,
             max: T::MAX_VALUE,
             mult: T::ZERO,
+        }
+    }
+}
+
+/// An floating point or fraction based multiplier aggregation. Does not support addition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
+#[repr(C, align(8))]
+pub struct StatAdditive<T: Number> {
+    addend: T,
+    min: T,
+    max: T,
+}
+
+impl<T: Number> Default for StatAdditive<T> {
+    fn default() -> Self {
+        Self {
+            addend: T::ZERO,
+            min: T::MIN_VALUE,
+            max: T::MAX_VALUE,
+        }
+    }
+}
+
+impl<T: Number> StatValue for StatAdditive<T> {
+    type Out = T;
+    type Base = T;
+
+    fn join(&mut self, other: Self) {
+        self.addend += other.addend;
+        self.min = self.min._max(other.min);
+        self.max = self.max._min(other.max);
+    }
+
+    fn eval(&self) -> Self::Out {
+        self.addend._min(self.max)._max(self.min)
+    }
+
+    type Add = T;
+
+    type Bit = Unsupported;
+
+    type Mul = Unsupported;
+
+    type Bounds = T;
+
+    fn add(&mut self, other: Self::Add) {
+        self.addend += other;
+    }
+
+    fn min(&mut self, other: Self::Bounds) {
+        self.min = self.min._max(other);
+    }
+
+    fn max(&mut self, other: Self::Bounds) {
+        self.max = self.max._min(other);
+    }
+
+    fn from_base(base: Self::Base) -> Self {
+        Self {
+            addend: base,
+            min: T::MIN_VALUE,
+            max: T::MAX_VALUE,
         }
     }
 }
@@ -166,12 +229,12 @@ impl<T: Float> StatValue for StatMult<T> {
 
     fn join(&mut self, other: Self) {
         self.mult *= other.mult;
-        self.min = self.min.max(other.min);
-        self.max = self.max.min(other.max);
+        self.min = self.min._max(other.min);
+        self.max = self.max._min(other.max);
     }
 
     fn eval(&self) -> Self::Out {
-        self.mult.min(self.max).max(self.min)
+        self.mult._min(self.max)._max(self.min)
     }
 
     type Add = Unsupported;
@@ -187,11 +250,11 @@ impl<T: Float> StatValue for StatMult<T> {
     }
 
     fn min(&mut self, other: Self::Bounds) {
-        self.min = self.min.max(other);
+        self.min = self.min._max(other);
     }
 
     fn max(&mut self, other: Self::Bounds) {
-        self.max = self.max.min(other);
+        self.max = self.max._min(other);
     }
 
     fn from_base(base: Self::Base) -> Self {

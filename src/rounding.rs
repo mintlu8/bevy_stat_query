@@ -28,7 +28,7 @@ impl Rounding for Floor {
     }
 }
 
-/// Rounds to the smallest integer larget than the float.
+/// Rounds to the smallest integer larger than the float.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, TypePath)]
 pub struct Ceil;
 
@@ -57,9 +57,9 @@ pub struct TruncateSigned;
 impl Rounding for TruncateSigned {
     fn round<F: Float>(input: F) -> F {
         if input > F::ZERO {
-            input.trunc().max(F::ONE)
+            input.trunc()._max(F::ONE)
         } else if input < F::ZERO {
-            input.trunc().min(F::ZERO - F::ONE)
+            input.trunc()._min(F::ZERO - F::ONE)
         } else {
             input
         }

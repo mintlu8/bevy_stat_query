@@ -158,7 +158,7 @@ where
             addend: base,
             min: T::MIN_VALUE,
             max: T::MAX_VALUE,
-            mult: Float::ONE,
+            mult: F::ONE,
             rounding: Default::default(),
         }
     }

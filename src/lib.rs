@@ -13,7 +13,7 @@ pub use bevy_app::{App, Plugin};
 mod fraction;
 mod num_traits;
 pub use fraction::Fraction;
-pub use num_traits::{Flags, Float, Int, NumCast};
+pub use num_traits::{Flags, Float, Int, NumCast, Number};
 mod stream;
 pub use stream::*;
 mod querier;

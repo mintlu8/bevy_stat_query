@@ -3,7 +3,7 @@ use std::ops::*;
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
 
-use crate::{Float, Int, NumCast};
+use crate::{num_traits::Number, Float, Int, NumCast};
 
 // Copied from the `gcd` crate by frewsxcv, MIT/Apache-2.0
 macro_rules! gcd {
@@ -66,11 +66,20 @@ pub(crate) use gcd;
 /// Only `new` does full reduction, operators only do partial reduction for powers of 2.
 /// In the context of `bevy_stat_query`, use simple numbers like `1/3` over complicated
 /// ones like `33/100` to avoid integer overflows.
-#[derive(Debug, Clone, Copy, Default, TypePath, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, TypePath, Serialize, Deserialize)]
 #[repr(C)]
 pub struct Fraction<I: Int> {
     numer: I,
     denom: I,
+}
+
+impl<I: Int> Default for Fraction<I> {
+    fn default() -> Self {
+        Self {
+            numer: I::ZERO,
+            denom: I::ONE,
+        }
+    }
 }
 
 impl<T: Int> From<T> for Fraction<T> {
@@ -173,6 +182,13 @@ impl<I: Int> Fraction<I> {
         !((self.numer < I::ZERO) ^ (self.denom < I::ZERO)) && self.numer != I::ZERO
     }
 
+    pub fn abs(&self) -> Self {
+        Fraction {
+            numer: self.numer.abs(),
+            denom: self.denom.abs(),
+        }
+    }
+
     /// Returns true if number is zero.
     pub fn is_zero(&self) -> bool {
         self.numer == I::ZERO
@@ -209,6 +225,24 @@ impl<I: Int> Fraction<I> {
         } else {
             (self.numer + self.denom / (I::ONE + I::ONE)) / self.denom
         }
+    }
+
+    /// Returns a truncated fraction part of this value.
+    pub fn fract(self) -> Self {
+        self - self.trunc()
+    }
+
+    /// Returns an integer and fraction part of this value.
+    pub fn into_mixed_number(self) -> (I, Self) {
+        let result = self.trunc();
+        (result, self - result)
+    }
+
+    /// Truncate the integer part and return it.
+    pub fn to_mixed_number(&mut self) -> I {
+        let result = self.trunc();
+        *self -= result;
+        result
     }
 }
 
@@ -321,20 +355,22 @@ impl_ops!(
     a.denom * b.numer
 );
 
-impl<I: Int + Clone> Float for Fraction<I> {
+impl<I: Int + Clone> Number for Fraction<I> {
     const ZERO: Self = Fraction::new_raw(I::ZERO, I::ONE);
     const ONE: Self = Fraction::new_raw(I::ONE, I::ONE);
     const MIN_VALUE: Self = Fraction::new_raw(I::MIN_VALUE, I::ONE);
     const MAX_VALUE: Self = Fraction::new_raw(I::MAX_VALUE, I::ONE);
 
-    fn min(self, other: Self) -> Self {
+    fn _min(self, other: Self) -> Self {
         Ord::min(self, other)
     }
 
-    fn max(self, other: Self) -> Self {
+    fn _max(self, other: Self) -> Self {
         Ord::max(self, other)
     }
+}
 
+impl<I: Int + Clone> Float for Fraction<I> {
     fn floor(self) -> Self {
         Fraction::from_int(Fraction::floor(self))
     }

@@ -69,16 +69,19 @@ where
     }
 }
 
-/// Trait for an integer.
-pub trait Int:
-    NumOps + Div<Self, Output = Self> + BitOps + Ord + Default + Copy + Shareable
-{
+pub trait Number: NumOps + PartialOrd + Default + Copy + Shareable {
     const ZERO: Self;
     const ONE: Self;
 
     const MIN_VALUE: Self;
     const MAX_VALUE: Self;
 
+    fn _min(self, other: Self) -> Self;
+    fn _max(self, other: Self) -> Self;
+}
+
+/// Trait for an integer.
+pub trait Int: Number + Div<Self, Output = Self> + BitOps + Ord {
     fn from_i64(value: i64) -> Self;
 
     fn as_f32(self) -> f32;
@@ -103,13 +106,24 @@ pub trait Int:
 
 macro_rules! impl_int {
     ($($ty: ty),* $(,)?) => {
-        $(impl Int for $ty {
+        $(
+        impl Number for $ty {
             const ZERO: Self = 0;
             const ONE: Self = 1;
 
             const MIN_VALUE: Self = <$ty>::MIN;
             const MAX_VALUE: Self = <$ty>::MAX;
 
+            fn _min(self, other: Self) -> Self {
+                Ord::min(self, other)
+            }
+
+            fn _max(self, other: Self) -> Self {
+                Ord::max(self, other)
+            }
+        }
+
+        impl Int for $ty {
             fn from_i64(value: i64) -> Self{
                 value.clamp(Self::MIN as i64, Self::MAX as i64) as Self
             }
@@ -183,13 +197,24 @@ impl_int!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize,);
 
 macro_rules! impl_int_newtype {
     ($($base: ident {$($ty: ty),* $(,)?}),* $(,)?) => {
-        $($(impl Int for $base<$ty> {
+        $($(
+        impl Number for $base<$ty> {
             const ZERO: Self = Self(0);
             const ONE: Self = Self(1);
 
             const MIN_VALUE: Self = Self(<$ty>::MIN);
             const MAX_VALUE: Self = Self(<$ty>::MAX);
 
+            fn _min(self, other: Self) -> Self {
+                Ord::min(self, other)
+            }
+
+            fn _max(self, other: Self) -> Self {
+                Ord::max(self, other)
+            }
+        }
+
+        impl Int for $base<$ty> {
             fn from_i64(value: i64) -> Self{
                 Self(value.clamp(<$ty>::MIN as i64, <$ty>::MAX as i64) as $ty)
             }
@@ -292,36 +317,29 @@ impl_int_newtype!(
 );
 
 /// Trait for a floating point number or a [`Fraction`].
-pub trait Float: NumOps + PartialOrd + Default + Copy + Shareable {
-    const ZERO: Self;
-    const ONE: Self;
-
-    const MIN_VALUE: Self;
-    const MAX_VALUE: Self;
-
-    fn min(self, other: Self) -> Self;
-    fn max(self, other: Self) -> Self;
-
+pub trait Float: Number {
     fn floor(self) -> Self;
     fn ceil(self) -> Self;
     fn trunc(self) -> Self;
     fn round(self) -> Self;
 }
 
-impl Float for f32 {
+impl Number for f32 {
     const ZERO: Self = 0.0;
     const ONE: Self = 1.0;
     const MIN_VALUE: Self = f32::MIN;
     const MAX_VALUE: Self = f32::MAX;
 
-    fn min(self, other: Self) -> Self {
+    fn _min(self, other: Self) -> Self {
         self.min(other)
     }
 
-    fn max(self, other: Self) -> Self {
+    fn _max(self, other: Self) -> Self {
         self.max(other)
     }
+}
 
+impl Float for f32 {
     fn floor(self) -> Self {
         self.floor()
     }
@@ -339,20 +357,22 @@ impl Float for f32 {
     }
 }
 
-impl Float for f64 {
+impl Number for f64 {
     const ZERO: Self = 0.0;
     const ONE: Self = 1.0;
     const MIN_VALUE: Self = f64::MIN;
     const MAX_VALUE: Self = f64::MAX;
 
-    fn min(self, other: Self) -> Self {
+    fn _min(self, other: Self) -> Self {
         self.min(other)
     }
 
-    fn max(self, other: Self) -> Self {
+    fn _max(self, other: Self) -> Self {
         self.max(other)
     }
+}
 
+impl Float for f64 {
     fn floor(self) -> Self {
         self.floor()
     }

@@ -1,8 +1,9 @@
+use crate::num_traits::Number;
 use crate::Fraction;
 use crate::{operations::Unsupported, StatValue};
 use crate::{
     rounding::{Rounding, Truncate},
-    Float, Int,
+    Int,
 };
 use bevy_reflect::TypePath;
 use serde::{Deserialize, Serialize};
@@ -104,7 +105,7 @@ impl<T: Int, R: Rounding, const S: i64> Default for StatIntPercent<T, R, S> {
             addend: T::ONE,
             min: T::MIN_VALUE,
             max: T::MAX_VALUE,
-            mult: Float::ONE,
+            mult: Fraction::ONE,
             rounding: PhantomData,
         }
     }
@@ -154,7 +155,7 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercent<T, R, S> {
             addend: base,
             min: T::MIN_VALUE,
             max: T::MAX_VALUE,
-            mult: Float::ONE,
+            mult: Fraction::ONE,
             rounding: PhantomData,
         }
     }
