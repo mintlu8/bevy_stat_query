@@ -96,6 +96,14 @@ impl<T: Int, R: Rounding> StatIntRounded<T, Fraction<T>, R> {
         self.mult = self.mult.reduced();
         self
     }
+
+    pub fn get_addend(&self) -> T {
+        self.addend
+    }
+
+    pub fn get_multiplier(&self) -> Fraction<T> {
+        self.mult
+    }
 }
 
 impl<T: Int, F: Float, R: Rounding> Default for StatIntRounded<T, F, R> {

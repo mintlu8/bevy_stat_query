@@ -120,7 +120,7 @@ pub trait QueryStream: 'static {
     type Context: SystemParam + 'static;
 
     fn stream_stat(
-        query: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_>,
+        query: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_, '_>,
         context: &<Self::Context as SystemParam>::Item<'_, '_>,
         entity: Entity,
         qualifier: &QualifierQuery<Self::Qualifier>,
@@ -130,8 +130,8 @@ pub trait QueryStream: 'static {
     }
 
     fn stream_relation(
-        this: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_>,
-        other: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_>,
+        this: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_, '_>,
+        other: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_, '_>,
         context: &<Self::Context as SystemParam>::Item<'_, '_>,
         entity: Entity,
         target: Entity,
@@ -142,7 +142,7 @@ pub trait QueryStream: 'static {
     }
 
     fn has_attribute(
-        query: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_>,
+        query: <<Self::Query as QueryData>::ReadOnly as QueryData>::Item<'_, '_>,
         context: &<Self::Context as SystemParam>::Item<'_, '_>,
         entity: Entity,
         attribute: Attribute,
