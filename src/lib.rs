@@ -20,27 +20,26 @@ mod querier;
 pub use querier::*;
 mod qualifier;
 pub mod types;
-pub use qualifier::{Qualifier, QualifierFlag, QualifierQuery};
+pub use qualifier::{Qualifier, QualifierConstraint, QualifierItem, QualifierKey, QualifierQuery};
 mod stat;
 #[cfg(feature = "derive")]
 pub use bevy_stat_query_derive::{Attribute, Stat};
-pub(crate) use stat::StatExt;
-pub(crate) use stat::StatInst;
-pub use stat::{Stat, StatVTable, StatValuePair};
+pub use stat::{Stat, StatUid, StatValuePair};
 pub mod operations;
 pub use operations::StatValue;
 mod plugin;
-pub use plugin::{
-    GlobalStatDefaults, GlobalStatRelations, StatDeserializers, StatExtension, STAT_DESERIALIZERS,
-};
+pub use plugin::{GlobalStatDefaults, GlobalStatRelations, StatExtension};
 mod stat_map;
-pub use stat_map::StatMap;
-mod buffer;
+pub use stat_map::{StatDispatch, StatDispatchTo, StatMapBase};
+/// Standard [`StatMapBase`] with [`QualifierItem`] as its [`QualifierKey`]
+pub type StatMap<Q, S> = StatMapBase<QualifierItem<Q>, S>;
 pub mod rounding;
-use std::fmt::Debug;
+use std::{
+    any::{Any, TypeId},
+    fmt::Debug,
+};
 mod attribute;
 pub use attribute::Attribute;
-mod cowstr;
 
 mod sealed {
     pub trait Sealed {}
@@ -50,26 +49,59 @@ mod sealed {
 
 /// Alias for `Clone + Debug + Send + Sync + 'static`.
 pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
+
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 
-/// Construct a reference to a static [`StatVTable`] with serialization support.
-/// ```
-/// vtable!(Type);
-/// ```
-/// Equivalent to
-/// ```
-/// {
-///     static VTABLE: StatVTable<Type> = StatVTable::of::<Type>();
-///     &VTABLE
-/// }
-/// ```
-#[macro_export]
-macro_rules! vtable {
-    ($ty: ty) => {{
-        #[used]
-        static _VTABLE: $crate::StatVTable<$ty> = $crate::StatVTable::of::<$ty>();
-        &_VTABLE
-    }};
+pub trait ShareableAny: Debug + Send + Sync + 'static {
+    fn type_id(&self) -> TypeId;
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn as_any_boxed(self: Box<Self>) -> Box<dyn Any>;
+    #[doc(hidden)]
+    fn clone_boxed(&self) -> Box<dyn ShareableAny>;
+}
+
+impl<T> ShareableAny for T
+where
+    T: Clone + Debug + Send + Sync + 'static,
+{
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<Self>()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn as_any_boxed(self: Box<Self>) -> Box<dyn Any> {
+        self
+    }
+
+    fn clone_boxed(&self) -> Box<dyn ShareableAny> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn ShareableAny> {
+    fn clone(&self) -> Self {
+        self.clone_boxed()
+    }
+}
+
+impl dyn ShareableAny {
+    pub fn downcast_ref<T: Shareable>(&self) -> Option<&T> {
+        self.as_any().downcast_ref()
+    }
+    pub fn downcast_mut<T: Shareable>(&mut self) -> Option<&mut T> {
+        self.as_any_mut().downcast_mut()
+    }
+    pub fn unbox<T: Shareable>(self: Box<Self>) -> Option<T> {
+        self.as_any_boxed().downcast().map(|x| *x).ok()
+    }
 }
 
 /// Downcast [`StatValuePair`] to a concrete pair of stat and value.
@@ -117,8 +149,6 @@ macro_rules! match_stat {
     ($stat_value: expr => {}) => {()};
 }
 
-use buffer::{validate, Buffer};
-
 #[cfg(test)]
 mod test {
     use bevy_ecs::component::Component;
@@ -151,10 +181,6 @@ mod test {
             self.into()
         }
 
-        fn vtable() -> &'static crate::StatVTable<Self> {
-            vtable!(IntStat)
-        }
-
         fn as_index(&self) -> u64 {
             (*self).into()
         }
@@ -183,10 +209,6 @@ mod test {
 
         fn name(&self) -> &'static str {
             self.into()
-        }
-
-        fn vtable() -> &'static crate::StatVTable<Self> {
-            vtable!(FlagsStat)
         }
 
         fn as_index(&self) -> u64 {
@@ -221,13 +243,13 @@ mod test {
                         value.add(2);
                     },
                     (v @ IntStat, value) => {
-                        value.add(v as i32);
+                        value.add((*v) as i32);
                     },
                     (FlagsStat::E, value) => {
                         value.or(1);
                     },
                     (v @ FlagsStat, value) => {
-                        value.or(v as i32);
+                        value.or((*v) as i32);
                     },
                 }
             }

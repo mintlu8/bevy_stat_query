@@ -78,10 +78,6 @@ pub fn stat(tokens: TokenStream1) -> TokenStream1 {
                         stringify!(#name)
                     }
 
-                    fn vtable() -> &'static #crate0::StatVTable<Self> {
-                        #crate0::vtable!(#name)
-                    }
-
                     fn as_index(&self) -> u64 {
                         0
                     }
@@ -146,10 +142,6 @@ pub fn stat(tokens: TokenStream1) -> TokenStream1 {
                         match self {
                             #(#name::#names => stringify!(#names),)*
                         }
-                    }
-
-                    fn vtable() -> &'static #crate0::StatVTable<Self> {
-                        #crate0::vtable!(#name)
                     }
 
                     fn as_index(&self) -> u64 {

@@ -2,8 +2,8 @@ use bevy_ecs::{component::Component, entity::Entity, system::RunSystemOnce, worl
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
     types::{Prioritized, StatInt},
-    ChildQuery, QualifierQuery, Querier, Stat, StatEntities, StatEntity, StatExtension,
-    StatQueryMut, StatStream, StatVTable, StatValue, StatValuePair,
+    ChildQuery, QualifierQuery, Querier, Stat, StatEntities, StatEntity, StatQueryMut, StatStream,
+    StatValue, StatValuePair,
 };
 use serde::{Deserialize, Serialize};
 
@@ -134,11 +134,6 @@ impl Stat for StatEffects {
         [Self::Distance, Self::Allegiance]
     }
 
-    fn vtable() -> &'static bevy_stat_query::StatVTable<Self> {
-        static VTABLE: StatVTable<StatEffects> = StatVTable::of::<StatEffects>();
-        &VTABLE
-    }
-
     fn as_index(&self) -> u64 {
         match self {
             StatEffects::Distance => 0,
@@ -201,8 +196,6 @@ impl StatStream for AllegianceAura {
 #[test]
 pub fn main() {
     let mut world = World::new();
-    world.register_stat::<StatAllegiance>();
-    world.register_stat::<StatDistance>();
     let a = world
         .spawn((StatEntity, Position([-1, 7]), Allegiance::Player, A))
         .id();

@@ -1,8 +1,7 @@
-use std::{any::Any, collections::BTreeMap};
+use std::collections::BTreeMap;
 
 use bevy_stat_query::{
-    operations::StatOperation::Add, types::StatIntPercentAdditive, Qualifier, QualifierQuery, Stat,
-    StatMap, StatValue,
+    types::StatIntPercentAdditive, QualifierItem, QualifierQuery, Stat, StatMapBase, StatValue,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 
@@ -11,28 +10,30 @@ use criterion::{criterion_group, criterion_main, Criterion};
 pub struct S;
 
 pub fn query_many(c: &mut Criterion) {
-    let mut m = StatMap::<u32>::new();
+    let mut m = StatMapBase::<QualifierItem<u32>, S>::new();
     let mut bt_dyn = BTreeMap::new();
 
     for i in 0..1024 {
-        m.insert_base(Qualifier::all_of(i), S, 1);
-        bt_dyn.insert(Qualifier::all_of(i), Box::new(1) as Box<dyn Any>);
+        m.insert_base(QualifierItem::all_of(i), S, 1);
+        bt_dyn.insert(QualifierItem::all_of(i), StatIntPercentAdditive::default().with_add(1));
     }
 
-    c.bench_function("naive_btree_aggregate_many", |b| {
+    c.bench_function("btree_aggregate_many", |b| {
         b.iter(|| {
             let mut result = StatIntPercentAdditive::<i32>::default();
             bt_dyn
                 .iter()
                 .filter(|(q, _)| q.qualifies_as(&QualifierQuery::Aggregate(255)))
-                .map(|(_, v)| v.downcast_ref::<i32>().copied().unwrap())
-                .for_each(|v| result.join(Add(v).into_stat()));
+                .for_each(|(_, v)| result.join_by_ref(v));
             result
         })
     });
 
     c.bench_function("stat_map_aggregate_many", |b| {
-        b.iter(|| m.eval_stat(&QualifierQuery::Aggregate(255), &S))
+        b.iter(|| {
+            let result = m.eval_stat(&QualifierQuery::Aggregate(255), &S);
+            result
+        })
     });
 }
 

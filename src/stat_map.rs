@@ -1,138 +1,114 @@
 use crate::operations::StatOperation;
+use crate::qualifier::QualifierKey;
 use crate::stat::StatValuePair;
 use crate::{
-    Buffer, Qualifier, QualifierFlag, QualifierQuery, Querier, Stat, StatExt, StatInst, StatStream,
-    StatValue,
+    QualifierQuery, Querier, Shareable, ShareableAny, Stat, StatStream, StatUid, StatValue,
 };
 use bevy_ecs::component::Component;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::reflect::ReflectComponent;
-use bevy_reflect::{Reflect, ReflectDeserialize, ReflectSerialize};
-use serde::de::{DeserializeOwned, DeserializeSeed, Visitor};
-use serde::ser::SerializeSeq;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::cmp::Ordering;
+use bevy_reflect::Reflect;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use std::marker::PhantomData;
-use std::mem;
 
-pub(crate) struct StatMapEntry<Q: QualifierFlag> {
-    stat: StatInst,
-    qualifier: Qualifier<Q>,
-    buffer: Buffer,
+/// Either a stat of a enum type of multiple stats.
+pub trait StatDispatch: Shareable {
+    type Value: Shareable;
+
+    fn get_uid(&self) -> StatUid;
+    fn join_to(&self, value: &Self::Value, into: &mut dyn ShareableAny);
 }
 
-impl<Q: QualifierFlag> Clone for StatMapEntry<Q> {
-    fn clone(&self) -> Self {
-        Self {
-            stat: self.stat,
-            qualifier: self.qualifier.clone(),
-            buffer: unsafe { self.stat.clone_buffer(&self.buffer) },
+impl<S: Stat> StatDispatch for S {
+    type Value = S::Value;
+
+    fn get_uid(&self) -> StatUid {
+        S::as_uid(self)
+    }
+
+    fn join_to(&self, value: &Self::Value, into: &mut dyn ShareableAny) {
+        if let Some(item) = into.downcast_mut::<Self::Value>() {
+            item.join_by_ref(value);
         }
     }
 }
 
-impl<Q: QualifierFlag> Drop for StatMapEntry<Q> {
-    fn drop(&mut self) {
-        unsafe { (self.stat.vtable.drop)(&mut self.buffer) };
+/// Either a stat of a enum type of multiple stats.
+pub trait StatDispatchTo<T: Stat>: StatDispatch {
+    fn from_stat(stat: T) -> Self;
+    fn from_value(value: T::Value) -> Self::Value;
+    fn get_value(value: &Self::Value) -> Option<&T::Value>;
+    fn get_value_mut(value: &mut Self::Value) -> Option<&mut T::Value>;
+    fn get_value_owned(value: Self::Value) -> Option<T::Value>;
+    fn try_join_to(&self, value: &Self::Value, into: &mut T::Value);
+}
+
+impl<S: Stat> StatDispatchTo<S> for S {
+    fn from_stat(stat: S) -> Self {
+        stat
+    }
+
+    fn from_value(value: <S as Stat>::Value) -> Self::Value {
+        value
+    }
+
+    fn get_value(value: &Self::Value) -> Option<&<S as Stat>::Value> {
+        Some(value)
+    }
+
+    fn get_value_mut(value: &mut Self::Value) -> Option<&mut <S as Stat>::Value> {
+        Some(value)
+    }
+
+    fn get_value_owned(value: Self::Value) -> Option<<S as Stat>::Value> {
+        Some(value)
+    }
+
+    fn try_join_to(&self, value: &Self::Value, into: &mut <S as Stat>::Value) {
+        into.join_by_ref(value);
     }
 }
 
-impl<Q: QualifierFlag> StatMapEntry<Q> {
-    /// # Safety
-    ///
-    /// `T` must be the stored type.
-    unsafe fn take<T: Send + Sync>(mut self) -> T {
-        let result = self.buffer.read_move();
-        mem::forget(self);
-        result
-    }
+#[derive(Debug, Clone, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub(crate) struct StatMapEntry<Q: QualifierKey, S: StatDispatch> {
+    stat: S,
+    qualifier: Q,
+    value: S::Value,
 }
 
-/// A type erased storage component of qualified stats.
-///
-/// This type can hold any qualifier stat combination as long as the qualifier type is the same.
+/// A storage component of qualified stats.
 ///
 /// # Performance
 ///
-/// The type is intended to hold relatively constant items and prioritizes querying,
+/// The type is implemented as a sorted VecMap and prioritizes querying,
 /// not optimized for rapid insertion or removal.
-///
-/// # Serialization
-///
-/// Deserialization must be done in a [`STAT_DESERIALIZERS`](crate::STAT_DESERIALIZERS) thread local scope.
-/// This can be seamlessly integrated with the `bevy_serde_lens` crate.
-#[derive(Component, Serialize, Deserialize, Reflect, Clone)]
-#[reflect(Component, Serialize, Deserialize)]
-#[reflect(where Q: Serialize + DeserializeOwned)]
-pub struct StatMap<Q: QualifierFlag> {
+#[derive(Debug, Clone, Component, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(serialize = "Q: Serialize, S: Serialize, S::Value: Serialize"))
+)]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(
+        deserialize = "Q: Deserialize<'de>, S: Deserialize<'de>, S::Value: Deserialize<'de>"
+    ))
+)]
+#[reflect(Component)]
+pub struct StatMapBase<Q: QualifierKey, S: StatDispatch> {
     #[reflect(ignore)]
-    inner: Vec<StatMapEntry<Q>>,
+    inner: Vec<StatMapEntry<Q, S>>,
 }
 
-impl<Q: QualifierFlag> Debug for StatMap<Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        #[derive(Debug)]
-        struct Stat(&'static str);
-        let mut map = f.debug_map();
-        for StatMapEntry {
-            stat,
-            qualifier,
-            buffer,
-        } in &self.inner
-        {
-            map.entry(&(qualifier, Stat(stat.name())), unsafe {
-                (stat.vtable.as_debug)(buffer)
-            });
-        }
-        map.finish()
-    }
-}
-
-impl<Q: QualifierFlag> Default for StatMap<Q> {
+impl<Q: QualifierKey, S: StatDispatch> Default for StatMapBase<Q, S> {
     fn default() -> Self {
-        StatMap { inner: Vec::new() }
+        StatMapBase { inner: Vec::new() }
     }
 }
 
-fn sort<Q: QualifierFlag>(a: &StatMapEntry<Q>, b: &StatMapEntry<Q>) -> Ordering {
-    a.stat.cmp(&b.stat).then(a.qualifier.cmp(&b.qualifier))
-}
-
-impl<Q: QualifierFlag, S: Stat> FromIterator<(Qualifier<Q>, S, S::Value)> for StatMap<Q> {
-    fn from_iter<T: IntoIterator<Item = (Qualifier<Q>, S, S::Value)>>(iter: T) -> Self {
-        let mut inner: Vec<_> = iter
-            .into_iter()
-            .map(|(qualifier, stat, value)| {
-                let stat = stat.as_entry();
-                StatMapEntry {
-                    stat,
-                    qualifier,
-                    buffer: Buffer::from(value),
-                }
-            })
-            .collect();
-        inner.sort_by(sort);
-        StatMap { inner }
-    }
-}
-
-impl<Q: QualifierFlag, S: Stat> Extend<(Qualifier<Q>, S, S::Value)> for StatMap<Q> {
-    fn extend<T: IntoIterator<Item = (Qualifier<Q>, S, S::Value)>>(&mut self, iter: T) {
-        self.inner
-            .extend(iter.into_iter().map(|(qualifier, stat, value)| {
-                let stat = stat.as_entry();
-                StatMapEntry {
-                    stat,
-                    qualifier,
-                    buffer: Buffer::from(value),
-                }
-            }));
-        self.inner.sort_by(sort);
-    }
-}
-
-impl<Q: QualifierFlag> StatMap<Q> {
+impl<Q: QualifierKey, T: StatDispatch> StatMapBase<Q, T> {
     pub const fn new() -> Self {
         Self { inner: Vec::new() }
     }
@@ -153,28 +129,36 @@ impl<Q: QualifierFlag> StatMap<Q> {
     }
 
     /// Performs a binary search for a value.
-    fn binary_search(&self, qualifier: &Qualifier<Q>, stat: &StatInst) -> Result<usize, usize> {
+    fn binary_search(&self, qualifier: &Q, stat: StatUid) -> Result<usize, usize> {
         self.inner.binary_search_by(
             |StatMapEntry {
                  stat: s,
                  qualifier: q,
-                 buffer: _,
-             }| { (s, q).cmp(&(stat, qualifier)) },
+                 ..
+             }| { (s.get_uid(), q).cmp(&(stat, qualifier)) },
         )
     }
 
+    /// Performs a binary search for a value.
+    fn find_slice(&self, stat: StatUid) -> &[StatMapEntry<Q, T>] {
+        let first = self.inner.partition_point(|x| x.stat.get_uid() < stat);
+        let last = self.inner.partition_point(|x| x.stat.get_uid() <= stat);
+        self.inner.get(first..last).unwrap_or(&[])
+    }
+
     /// Inserts a [`Stat::Value`] in its component form.
-    pub fn insert<S: Stat>(&mut self, qualifier: Qualifier<Q>, stat: S, value: S::Value) {
-        let stat = stat.as_entry();
-        let buffer = Buffer::from(value);
-        match self.binary_search(&qualifier, &stat) {
-            Ok(at) => self.inner[at].buffer = buffer,
+    pub fn insert<S: Stat>(&mut self, qualifier: Q, stat: S, value: S::Value)
+    where
+        T: StatDispatchTo<S>,
+    {
+        match self.binary_search(&qualifier, stat.get_uid()) {
+            Ok(at) => self.inner[at].value = T::from_value(value),
             Err(at) => self.inner.insert(
                 at,
                 StatMapEntry {
-                    stat,
+                    stat: T::from_stat(stat),
                     qualifier,
-                    buffer,
+                    value: T::from_value(value),
                 },
             ),
         };
@@ -183,52 +167,50 @@ impl<Q: QualifierFlag> StatMap<Q> {
     /// Inserts a [`Stat::Value`] in its evaluated form.
     pub fn insert_base<S: Stat>(
         &mut self,
-        qualifier: Qualifier<Q>,
+        qualifier: Q,
         stat: S,
         base: <S::Value as StatValue>::Base,
-    ) {
-        let stat = stat.as_entry();
-        let buffer = Buffer::from(S::Value::from_base(base));
-        match self.binary_search(&qualifier, &stat) {
-            Ok(at) => self.inner[at].buffer = buffer,
-            Err(at) => self.inner.insert(
-                at,
-                StatMapEntry {
-                    stat,
-                    qualifier,
-                    buffer,
-                },
-            ),
-        };
+    ) where
+        T: StatDispatchTo<S>,
+    {
+        self.insert(qualifier, stat, S::Value::from_base(base));
     }
 
     /// Obtains a [`Stat::Value`].
-    pub fn get<S: Stat>(&self, qualifier: &Qualifier<Q>, stat: &S) -> Option<&S::Value> {
-        let stat = stat.as_entry();
-        match self.binary_search(qualifier, &stat) {
-            Ok(at) => Some(unsafe { self.inner[at].buffer.as_ref() }),
+    pub fn get<S: Stat>(&self, qualifier: &Q, stat: &S) -> Option<&S::Value>
+    where
+        T: StatDispatchTo<S>,
+    {
+        match self.binary_search(qualifier, stat.as_uid()) {
+            Ok(at) => self
+                .inner
+                .get(at)
+                .and_then(|entry| T::get_value(&entry.value)),
             Err(_) => None,
         }
     }
 
     /// Obtains a mutable [`Stat::Value`].
-    pub fn get_mut<S: Stat>(
-        &mut self,
-        qualifier: &Qualifier<Q>,
-        stat: &S,
-    ) -> Option<&mut S::Value> {
-        let stat = stat.as_entry();
-        match self.binary_search(qualifier, &stat) {
-            Ok(at) => Some(unsafe { self.inner[at].buffer.as_mut() }),
+    pub fn get_mut<S: Stat>(&mut self, qualifier: &Q, stat: &S) -> Option<&mut S::Value>
+    where
+        T: StatDispatchTo<S>,
+    {
+        match self.binary_search(qualifier, stat.as_uid()) {
+            Ok(at) => self
+                .inner
+                .get_mut(at)
+                .and_then(|entry| T::get_value_mut(&mut entry.value)),
             Err(_) => None,
         }
     }
 
     /// Removes and obtains a [`Stat::Value`].
-    pub fn remove<S: Stat>(&mut self, qualifier: &Qualifier<Q>, stat: &S) -> Option<S::Value> {
-        let stat = stat.as_entry();
-        match self.binary_search(qualifier, &stat) {
-            Ok(at) => Some(unsafe { self.inner.remove(at).take() }),
+    pub fn remove<S: Stat>(&mut self, qualifier: &Q, stat: &S) -> Option<S::Value>
+    where
+        T: StatDispatchTo<S>,
+    {
+        match self.binary_search(qualifier, stat.as_uid()) {
+            Ok(at) => T::get_value_owned(self.inner.remove(at).value),
             Err(_) => None,
         }
     }
@@ -236,77 +218,39 @@ impl<Q: QualifierFlag> StatMap<Q> {
     /// Obtains a [`Stat::Value`] in its evaluated form.
     pub fn get_evaled<S: Stat>(
         &self,
-        qualifier: &Qualifier<Q>,
+        qualifier: &Q,
         stat: &S,
-    ) -> Option<<S::Value as StatValue>::Out> {
-        let stat = stat.as_entry();
-        match self.binary_search(qualifier, &stat) {
-            Ok(at) => Some(unsafe { self.inner[at].buffer.as_ref::<S::Value>().eval() }),
-            Err(_) => None,
-        }
-    }
-
-    /// Iterate over a particular stat.
-    pub(crate) fn slice(&self, stat: StatInst) -> &[StatMapEntry<Q>] {
-        let fst = self.inner.partition_point(|x| x.stat < stat);
-        let snd = self.inner.partition_point(|x| x.stat <= stat);
-        &self.inner[fst..snd]
-    }
-
-    /// Iterate over a particular stat.
-    pub(crate) fn slice_mut(&mut self, stat: StatInst) -> &mut [StatMapEntry<Q>] {
-        let fst = self.inner.partition_point(|x| x.stat < stat);
-        let snd = self.inner.partition_point(|x| x.stat <= stat);
-        &mut self.inner[fst..snd]
-    }
-
-    /// Iterate over a particular stat.
-    pub fn iter<S: Stat>(&self, stat: &S) -> impl Iterator<Item = (&Qualifier<Q>, &S::Value)> {
-        let stat = stat.as_entry();
-        self.slice(stat)
-            .iter()
-            .map(|x| (&x.qualifier, unsafe { x.buffer.as_ref() }))
-    }
-
-    /// Iterate over a particular stat.
-    pub fn iter_mut<S: Stat>(
-        &mut self,
-        stat: &S,
-    ) -> impl Iterator<Item = (&Qualifier<Q>, &mut S::Value)> {
-        let stat = stat.as_entry();
-        self.slice_mut(stat)
-            .iter_mut()
-            .map(|x| (&x.qualifier, unsafe { x.buffer.as_mut() }))
-    }
-
-    /// Remove all instances of a given stat.
-    pub fn remove_all<S: Stat>(&mut self, stat: &S) {
-        let stat = stat.as_entry();
-        let fst = self.inner.partition_point(|x| x.stat < stat);
-        let snd = self.inner.partition_point(|x| x.stat <= stat);
-        self.inner.drain(fst..snd);
+    ) -> Option<<S::Value as StatValue>::Out>
+    where
+        T: StatDispatchTo<S>,
+    {
+        self.get(qualifier, stat).map(|x| x.eval())
     }
 
     /// Create or modify a stat via a [`StatOperation`].
     ///
     /// Create a [`Default`] stat if non-existent.
-    pub fn modify<S: Stat>(
-        &mut self,
-        qualifier: Qualifier<Q>,
-        stat: S,
-        value: StatOperation<S::Value>,
-    ) {
-        let stat = stat.as_entry();
-        match self.binary_search(&qualifier, &stat) {
-            Ok(at) => value.write_to(unsafe { self.inner[at].buffer.as_mut() }),
+    pub fn modify<S: Stat>(&mut self, qualifier: Q, stat: S, op: StatOperation<S::Value>)
+    where
+        T: StatDispatchTo<S>,
+    {
+        match self.binary_search(&qualifier, stat.get_uid()) {
+            Ok(at) => {
+                if let Some(value) = self
+                    .inner
+                    .get_mut(at)
+                    .and_then(|entry| T::get_value_mut(&mut entry.value))
+                {
+                    op.write_to(value);
+                }
+            }
             Err(at) => {
-                let buffer = Buffer::from(value.into_stat());
                 self.inner.insert(
                     at,
                     StatMapEntry {
-                        stat,
+                        stat: T::from_stat(stat),
                         qualifier,
-                        buffer,
+                        value: T::from_value(op.into_value()),
                     },
                 );
             }
@@ -316,138 +260,78 @@ impl<Q: QualifierFlag> StatMap<Q> {
     /// Create or modify a stat via a closure.
     ///
     /// Create a [`Default`] stat if non-existent.
-    pub fn modify_with<S: Stat>(
-        &mut self,
-        qualifier: Qualifier<Q>,
-        stat: &S,
-        f: impl FnOnce(&mut S::Value),
-    ) {
-        let stat = stat.as_entry();
-        match self.binary_search(&qualifier, &stat) {
-            Ok(at) => f(unsafe { self.inner[at].buffer.as_mut() }),
+    pub fn modify_with<S: Stat>(&mut self, qualifier: Q, stat: S, f: impl FnOnce(&mut S::Value))
+    where
+        T: StatDispatchTo<S>,
+    {
+        match self.binary_search(&qualifier, stat.get_uid()) {
+            Ok(at) => {
+                if let Some(value) = self
+                    .inner
+                    .get_mut(at)
+                    .and_then(|entry| T::get_value_mut(&mut entry.value))
+                {
+                    f(value)
+                }
+            }
             Err(at) => {
-                let mut value = Default::default();
+                let mut value = S::Value::default();
                 f(&mut value);
-                let buffer = Buffer::from(value);
                 self.inner.insert(
                     at,
                     StatMapEntry {
-                        stat,
+                        stat: T::from_stat(stat),
                         qualifier,
-                        buffer,
+                        value: T::from_value(value),
                     },
                 );
             }
         }
     }
 
-    pub fn query_stat<S: Stat>(&self, qualifier: &QualifierQuery<Q>, stat: &S) -> S::Value {
-        let mut stat = StatValuePair::new_default(stat);
-        self.stream_stat(Entity::PLACEHOLDER, qualifier, &mut stat, Querier::noop());
-        unsafe { stat.value.into::<S::Value>() }
+    pub fn query_stat<S: Stat>(
+        &self,
+        qualifier: &QualifierQuery<Q::Qualifier>,
+        stat: &S,
+    ) -> S::Value
+    where
+        T: StatDispatchTo<S>,
+    {
+        let mut result = S::Value::default();
+        for entry in self.find_slice(stat.as_uid()) {
+            if entry.qualifier.qualify_query(qualifier) {
+                entry.stat.try_join_to(&entry.value, &mut result);
+            }
+        }
+        result
     }
 
     pub fn eval_stat<S: Stat>(
         &self,
-        qualifier: &QualifierQuery<Q>,
+        qualifier: &QualifierQuery<Q::Qualifier>,
         stat: &S,
-    ) -> <S::Value as StatValue>::Out {
+    ) -> <S::Value as StatValue>::Out
+    where
+        T: StatDispatchTo<S>,
+    {
         self.query_stat(qualifier, stat).eval()
     }
 }
 
-impl<Q: QualifierFlag> StatStream for StatMap<Q> {
-    type Qualifier = Q;
+impl<Q: QualifierKey, T: StatDispatch> StatStream for StatMapBase<Q, T> {
+    type Qualifier = Q::Qualifier;
 
     fn stream_stat(
         &self,
         _: Entity,
-        qualifier: &crate::QualifierQuery<Q>,
+        qualifier: &crate::QualifierQuery<Q::Qualifier>,
         stat_value: &mut StatValuePair,
-        _: Querier<Q>,
+        _: Querier<Q::Qualifier>,
     ) {
-        let f = stat_value.stat.vtable.join;
-        for entry in self.slice(stat_value.stat) {
-            if entry.qualifier.qualifies_as(qualifier) {
-                unsafe { f(&mut stat_value.value, &entry.buffer) };
+        for entry in self.find_slice(stat_value.uid()) {
+            if entry.qualifier.qualify_query(qualifier) {
+                entry.stat.join_to(&entry.value, stat_value.value);
             }
         }
-    }
-}
-
-impl<Q: QualifierFlag + Serialize> Serialize for StatMapEntry<Q> {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut seq = serializer.serialize_seq(Some(3))?;
-        seq.serialize_element(&self.qualifier)?;
-        seq.serialize_element(&self.stat.name())?;
-        seq.serialize_element(unsafe { &(self.stat.vtable.as_serialize)(&self.buffer) })?;
-        seq.end()
-    }
-}
-
-impl<'de, Q: QualifierFlag + Deserialize<'de>> Deserialize<'de> for StatMapEntry<Q> {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let (qualifier, stat, buffer) =
-            deserializer.deserialize_seq(TupleSeed::<Q>(PhantomData))?;
-        Ok(StatMapEntry {
-            stat,
-            qualifier,
-            buffer,
-        })
-    }
-}
-
-pub struct TupleSeed<Q: QualifierFlag>(PhantomData<Q>);
-
-pub struct DynSeed<Q: QualifierFlag> {
-    f: fn(&mut dyn erased_serde::Deserializer) -> erased_serde::Result<Buffer>,
-    q: PhantomData<Q>,
-}
-
-impl<'de, Q: QualifierFlag + Deserialize<'de>> DeserializeSeed<'de> for TupleSeed<Q> {
-    type Value = (Qualifier<Q>, StatInst, Buffer);
-
-    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        deserializer.deserialize_seq(TupleSeed::<Q>(PhantomData))
-    }
-}
-
-impl<'de, Q: QualifierFlag + Deserialize<'de>> Visitor<'de> for TupleSeed<Q> {
-    type Value = (Qualifier<Q>, StatInst, Buffer);
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("(qualifier, stat, value)")
-    }
-
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: serde::de::SeqAccess<'de>,
-    {
-        let Some(qualifier) = seq.next_element()? else {
-            return Err(serde::de::Error::custom("Expected qualifier."));
-        };
-        let Some(stat) = seq.next_element::<StatInst>()? else {
-            return Err(serde::de::Error::custom("Expected stat name."));
-        };
-        let Some(buffer) = seq.next_element_seed(DynSeed {
-            f: stat.vtable.deserialize,
-            q: PhantomData::<Q>,
-        })?
-        else {
-            return Err(serde::de::Error::custom("Expected stat value."));
-        };
-        Ok((qualifier, stat, buffer))
-    }
-}
-
-impl<'de, Q: QualifierFlag> DeserializeSeed<'de> for DynSeed<Q> {
-    type Value = Buffer;
-
-    fn deserialize<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
-        let deserializer = &mut <dyn erased_serde::Deserializer>::erase(deserializer);
-        (self.f)(deserializer).map_err(serde::de::Error::custom)
     }
 }

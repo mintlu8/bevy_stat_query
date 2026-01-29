@@ -1,7 +1,7 @@
 use bevy_stat_query::{
     operations::StatOperation::{Add, Max, Mul},
     types::StatIntPercentAdditive,
-    Qualifier, QualifierFlag, QualifierQuery, Stat, StatMap,
+    QualifierItem, QualifierQuery, Stat, StatMap,
 };
 
 bitflags::bitflags! {
@@ -23,7 +23,8 @@ pub struct S;
 
 #[test]
 pub fn qualifier_test() {
-    let none = Qualifier::<Q>::none();
+    use bevy_stat_query::QualifierConstraint as QC;
+    let none = QualifierItem::<Q>::none();
 
     assert!(none.qualifies_as(&QualifierQuery::none()));
     assert!(none.qualifies_as(&QualifierQuery::Aggregate(Q::Fire)));
@@ -32,14 +33,14 @@ pub fn qualifier_test() {
     assert!(none.qualifies_as(&QualifierQuery::Aggregate(Q::Water | Q::Magic)));
     assert!(none.qualifies_as(&QualifierQuery::Aggregate(Q::Water | Q::Magic)));
 
-    let fire = Qualifier::all_of(Q::Fire);
+    let fire = QualifierItem::all_of(Q::Fire);
     assert!(!fire.qualifies_as(&QualifierQuery::none()));
     assert!(fire.qualifies_as(&QualifierQuery::Aggregate(Q::Fire)));
     assert!(fire.qualifies_as(&QualifierQuery::Aggregate(Q::Fire | Q::Water)));
     assert!(fire.qualifies_as(&QualifierQuery::Aggregate(Q::Fire | Q::Magic)));
     assert!(!fire.qualifies_as(&QualifierQuery::Aggregate(Q::Water | Q::Magic)));
 
-    let fire_magic = Qualifier::all_of(Q::Fire | Q::Magic);
+    let fire_magic = QualifierItem::all_of(Q::Fire | Q::Magic);
 
     assert!(!fire_magic.qualifies_as(&QualifierQuery::none()));
     assert!(!fire_magic.qualifies_as(&QualifierQuery::Aggregate(Q::Fire)));
@@ -48,7 +49,7 @@ pub fn qualifier_test() {
     assert!(fire_magic.qualifies_as(&QualifierQuery::Aggregate(Q::Fire | Q::Water | Q::Magic)));
     assert!(!fire_magic.qualifies_as(&QualifierQuery::Aggregate(Q::Water | Q::Magic)));
 
-    let elemental = Qualifier::any_of(Q::Fire | Q::Water | Q::Earth | Q::Air);
+    let elemental = QualifierItem::any_of(Q::Fire | Q::Water | Q::Earth | Q::Air);
 
     assert!(!elemental.qualifies_as(&QualifierQuery::none()));
     assert!(elemental.qualifies_as(&QualifierQuery::Aggregate(Q::Fire)));
@@ -86,26 +87,13 @@ pub fn qualifier_test() {
     assert!(elemental_magic.qualifies_as(&QualifierQuery::Aggregate(Q::Fire | Q::Magic)));
     assert!(elemental_magic.qualifies_as(&QualifierQuery::Aggregate(Q::Fire | Q::Air | Q::Magic)));
 
-    assert!(!none.qualifies_as(&QualifierQuery::Exact {
-        any_of: Q::none(),
-        all_of: Q::Fire,
-    }));
+    assert!(!none.qualifies_as(&QualifierQuery::Custom(&[QC::Exact(Q::Fire)])));
+    assert!(!elemental.qualifies_as(&QualifierQuery::Custom(&[QC::Exact(Q::Fire)])));
+    assert!(fire.qualifies_as(&QualifierQuery::Custom(&[QC::Exact(Q::Fire)])));
 
-    assert!(!elemental.qualifies_as(&QualifierQuery::Exact {
-        any_of: Q::none(),
-        all_of: Q::Fire,
-    }));
-
-    assert!(fire.qualifies_as(&QualifierQuery::Exact {
-        any_of: Q::none(),
-        all_of: Q::Fire,
-    }));
-
-    let query_elemental = QualifierQuery::Exact {
-        any_of: Q::Fire | Q::Water | Q::Earth | Q::Air,
-        all_of: Q::none(),
-    };
-    let all_elements = Qualifier::all_of(Q::Fire | Q::Water | Q::Earth | Q::Air);
+    let query_elemental =
+        QualifierQuery::Custom(&[QC::ExactAnyOf(Q::Fire | Q::Water | Q::Earth | Q::Air)]);
+    let all_elements = QualifierItem::all_of(Q::Fire | Q::Water | Q::Earth | Q::Air);
 
     assert!(elemental.qualifies_as(&query_elemental));
     assert!(!none.qualifies_as(&query_elemental));
@@ -114,7 +102,7 @@ pub fn qualifier_test() {
     assert!(!fire.qualifies_as(&query_elemental));
     assert!(!fire_magic.qualifies_as(&query_elemental));
 
-    let mut map = StatMap::<Q>::new();
+    let mut map = StatMap::<Q, S>::new();
     map.insert_base(none, S, 1);
     map.insert_base(fire, S, 2);
     map.insert_base(fire_magic, S, 4);
@@ -125,7 +113,7 @@ pub fn qualifier_test() {
         7
     );
 
-    let mut map = StatMap::<Q>::new();
+    let mut map = StatMap::<Q, S>::new();
     map.modify(none, S, Add(2));
     // + 100%
     map.modify(fire, S, Mul(100));

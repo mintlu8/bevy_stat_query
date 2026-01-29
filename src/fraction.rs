@@ -1,7 +1,6 @@
 use std::ops::*;
 
 use bevy_reflect::TypePath;
-use serde::{Deserialize, Serialize};
 
 use crate::{num_traits::Number, Float, Int, NumCast};
 
@@ -59,14 +58,16 @@ pub(crate) use gcd;
 /// # Type Contract
 ///
 /// All combinations of numbers and signs are allowed, as long as denominator is not 0.
-/// Some operations like `new` will perform reduction on the value while others won't for performance.
+/// Some operations like `new` will perform reduction on the value while
+/// most math operations won't for performance.
 ///
 /// # Reductions
 ///
 /// Only `new` does full reduction, operators only do partial reduction for powers of 2.
 /// In the context of `bevy_stat_query`, use simple numbers like `1/3` over complicated
 /// ones like `33/100` to avoid integer overflows.
-#[derive(Debug, Clone, Copy, TypePath, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C)]
 pub struct Fraction<I: Int> {
     numer: I,

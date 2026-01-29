@@ -2,10 +2,10 @@ use crate::num_traits::Number;
 use crate::Float;
 use crate::{operations::Unsupported, StatValue};
 use bevy_reflect::TypePath;
-use serde::{Deserialize, Serialize};
 
 /// A stat represented by a floating point number or a fraction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
 pub struct StatFloat<T: Float> {
     addend: T,
@@ -73,7 +73,8 @@ impl<T: Float> StatValue for StatFloat<T> {
 }
 
 /// A stat represented by a floating point number or a fraction, multiplier is additive.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
 pub struct StatFloatAdditive<T: Float> {
     addend: T,
@@ -143,7 +144,8 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
 }
 
 /// An floating point or fraction based multiplier aggregation. Does not support addition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
 pub struct StatAdditive<T: Number> {
     addend: T,
@@ -205,7 +207,8 @@ impl<T: Number> StatValue for StatAdditive<T> {
 }
 
 /// An floating point or fraction based multiplier aggregation. Does not support addition.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, Copy, PartialEq, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
 pub struct StatMult<T: Float> {
     min: T,

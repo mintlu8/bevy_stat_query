@@ -1,8 +1,8 @@
 use bevy_reflect::TypePath;
-use serde::{Deserialize, Serialize};
 
 /// An single step unordered operation on a [`StatValue`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum StatOperation<S: StatValue> {
     Add(S::Add),
     Mul(S::Mul),
@@ -28,7 +28,7 @@ impl<S: StatValue> StatOperation<S> {
         }
     }
 
-    pub fn into_stat(self) -> S {
+    pub fn into_value(self) -> S {
         let mut v = S::default();
         self.write_to(&mut v);
         v
@@ -36,7 +36,8 @@ impl<S: StatValue> StatOperation<S> {
 }
 
 /// A never type indicating an operation is not supported.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Unsupported {}
 
 /// Defines unordered operations on a stat's value.

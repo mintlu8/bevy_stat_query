@@ -1,4 +1,4 @@
-use crate::{attribute::Attribute, stat::StatValuePair, QualifierFlag, QualifierQuery, Querier};
+use crate::{attribute::Attribute, stat::StatValuePair, Qualifier, QualifierQuery, Querier};
 #[allow(unused)]
 use bevy_ecs::component::Component;
 use bevy_ecs::{
@@ -13,7 +13,7 @@ use bevy_ecs::{
 /// An isolated item that provides stat modifiers to a stat query.
 #[allow(unused_variables)]
 pub trait StatStream {
-    type Qualifier: QualifierFlag;
+    type Qualifier: Qualifier;
 
     fn stream_stat(
         &self,
@@ -115,7 +115,7 @@ where
 /// stat modifiers for an [`Entity`].
 #[allow(unused_variables)]
 pub trait QueryStream: 'static {
-    type Qualifier: QualifierFlag;
+    type Qualifier: Qualifier;
     type Query: QueryData + 'static;
     type Context: SystemParam + 'static;
 

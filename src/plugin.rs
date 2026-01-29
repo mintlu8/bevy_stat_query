@@ -1,10 +1,6 @@
-use std::fmt::Debug;
-use std::str::FromStr;
-
 use crate::operations::StatOperation;
-use crate::StatInst;
 use crate::{
-    Buffer, QualifierFlag, QualifierQuery, Querier, Stat, StatExt, StatStream, StatValue,
+    Qualifier, QualifierQuery, Querier, ShareableAny, Stat, StatStream, StatUid, StatValue,
     StatValuePair,
 };
 use bevy_app::App;
@@ -13,27 +9,12 @@ use bevy_ecs::resource::Resource;
 use bevy_ecs::world::World;
 use bevy_reflect::TypePath;
 use rustc_hash::FxHashMap;
+use std::fmt::Debug;
 
 type Bounds<T> = <<T as Stat>::Value as StatValue>::Bounds;
 
 /// Extension on [`World`] and [`App`]
 pub trait StatExtension {
-    /// Register associated serialization routine for a stat.
-    ///
-    /// # Panics
-    ///
-    /// If trying to replace a previous stat entry with a different value.
-    fn register_stat<T: Stat>(&mut self) -> &mut Self;
-
-    /// Register associated serialization routine for a stat by parsing a string.
-    fn register_stat_parser<T: Stat>(
-        &mut self,
-        f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static,
-    ) -> &mut Self;
-
-    /// Register associated serialization routine for a stat using its [`FromStr`] implementation.
-    fn register_stat_from_str<T: Stat + FromStr>(&mut self) -> &mut Self;
-
     /// Register a default stat value.
     ///
     /// This is the standard way
@@ -48,7 +29,7 @@ pub trait StatExtension {
 
     /// Register a global stat relation
     /// that will be run on every stat query.
-    fn register_stat_relation<Q: QualifierFlag>(
+    fn register_stat_relation<Q: Qualifier>(
         &mut self,
         relation: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
             + Send
@@ -58,27 +39,6 @@ pub trait StatExtension {
 }
 
 impl StatExtension for World {
-    fn register_stat<T: Stat>(&mut self) -> &mut Self {
-        self.get_resource_or_insert_with::<StatDeserializers>(Default::default)
-            .register::<T>();
-        self
-    }
-
-    fn register_stat_from_str<T: Stat + FromStr>(&mut self) -> &mut Self {
-        self.get_resource_or_insert_with::<StatDeserializers>(Default::default)
-            .register_parser_ok(T::from_str);
-        self
-    }
-
-    fn register_stat_parser<T: Stat>(
-        &mut self,
-        f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static,
-    ) -> &mut Self {
-        self.get_resource_or_insert_with::<StatDeserializers>(Default::default)
-            .register_parser(f);
-        self
-    }
-
     fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Value) -> &mut Self {
         self.get_resource_or_insert_with::<GlobalStatDefaults>(Default::default)
             .insert(stat, value);
@@ -97,7 +57,7 @@ impl StatExtension for World {
         self
     }
 
-    fn register_stat_relation<Q: QualifierFlag>(
+    fn register_stat_relation<Q: Qualifier>(
         &mut self,
         relation: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
             + Send
@@ -111,24 +71,6 @@ impl StatExtension for World {
 }
 
 impl StatExtension for App {
-    fn register_stat<T: Stat>(&mut self) -> &mut Self {
-        self.world_mut().register_stat::<T>();
-        self
-    }
-
-    fn register_stat_from_str<T: Stat + FromStr>(&mut self) -> &mut Self {
-        self.world_mut().register_stat_from_str::<T>();
-        self
-    }
-
-    fn register_stat_parser<T: Stat>(
-        &mut self,
-        f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static,
-    ) -> &mut Self {
-        self.world_mut().register_stat_parser::<T>(f);
-        self
-    }
-
     fn register_stat_default<S: Stat>(&mut self, stat: S, value: S::Value) -> &mut Self {
         self.world_mut().register_stat_default::<S>(stat, value);
         self
@@ -144,7 +86,7 @@ impl StatExtension for App {
         self
     }
 
-    fn register_stat_relation<Q: QualifierFlag>(
+    fn register_stat_relation<Q: Qualifier>(
         &mut self,
         relation: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
             + Send
@@ -159,21 +101,9 @@ impl StatExtension for App {
 /// [`Resource`] that stores default [`StatValue`]s per [`Stat`].
 ///
 /// Stats that are not registered are still returned with [`Default::default()`] instead.
-#[derive(Resource, Default, TypePath)]
+#[derive(Debug, Resource, Default, TypePath)]
 pub struct GlobalStatDefaults {
-    stats: FxHashMap<StatInst, Buffer>,
-}
-
-impl std::fmt::Debug for GlobalStatDefaults {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        #[derive(Debug)]
-        struct Stat(&'static str);
-        let mut map = f.debug_map();
-        for (s, b) in &self.stats {
-            map.entry(&Stat(s.name()), unsafe { (s.vtable.as_debug)(b) });
-        }
-        map.finish()
-    }
+    stats: FxHashMap<StatUid, Box<dyn ShareableAny>>,
 }
 
 impl GlobalStatDefaults {
@@ -185,71 +115,56 @@ impl GlobalStatDefaults {
 
     /// Insert a [`Stat`] and its associated default value.
     pub fn insert<S: Stat>(&mut self, stat: S, value: S::Value) {
-        self.stats.insert(stat.as_entry(), Buffer::from(value));
+        self.stats.insert(stat.as_uid(), Box::new(value));
     }
 
     /// Modify a [`Stat`]'s default value.
     pub fn patch<S: Stat>(&mut self, stat: &S, value: StatOperation<S::Value>) {
-        let stat = stat.as_entry();
-        match self.stats.get_mut(&stat) {
-            Some(v) => value.write_to(unsafe { v.as_mut() }),
-            None => {
-                self.stats.insert(stat, {
-                    let mut stat = S::Value::default();
-                    value.write_to(&mut stat);
-                    Buffer::from(stat)
-                });
+        let uid = stat.as_uid();
+        if let Some(v) = self.stats.get_mut(&uid) {
+            if let Some(v) = v.as_any_mut().downcast_mut() {
+                value.write_to(v);
+                return;
             }
         }
+        self.stats.insert(uid, {
+            let mut stat = S::Value::default();
+            value.write_to(&mut stat);
+            Box::new(stat)
+        });
     }
 
     /// Obtain a [`Stat`]'s default value.
     pub fn get<S: Stat>(&self, stat: &S) -> S::Value {
         self.stats
-            .get(&stat.as_entry())
-            .map(|x| unsafe { x.as_ref() })
+            .get(&stat.as_uid())
+            .and_then(|x| x.as_any().downcast_ref())
             .cloned()
             .unwrap_or(Default::default())
-    }
-
-    /// Obtain a [`Stat`]'s default value.
-    pub(crate) fn get_dyn(&self, stat: StatInst) -> Buffer {
-        self.stats
-            .get(&stat)
-            .map(|x| unsafe { stat.clone_buffer(x) })
-            .unwrap_or((stat.vtable.default)())
-    }
-}
-
-impl Drop for GlobalStatDefaults {
-    fn drop(&mut self) {
-        for (k, v) in self.stats.iter_mut() {
-            unsafe { k.drop_buffer(v) };
-        }
     }
 }
 
 /// [`Resource`] that stores global [`StatStream`]s that runs on every query.
 #[derive(Resource, TypePath)]
-pub struct GlobalStatRelations<Q: QualifierFlag> {
+pub struct GlobalStatRelations<Q: Qualifier> {
     stats:
         Vec<Box<dyn Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>) + Send + Sync>>,
 }
 
-impl<Q: QualifierFlag> Debug for GlobalStatRelations<Q> {
+impl<Q: Qualifier> Debug for GlobalStatRelations<Q> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GlobalStatRelations")
             .finish_non_exhaustive()
     }
 }
 
-impl<Q: QualifierFlag> Default for GlobalStatRelations<Q> {
+impl<Q: Qualifier> Default for GlobalStatRelations<Q> {
     fn default() -> Self {
         Self { stats: Vec::new() }
     }
 }
 
-impl<Q: QualifierFlag> GlobalStatRelations<Q> {
+impl<Q: Qualifier> GlobalStatRelations<Q> {
     pub fn push(
         &mut self,
         stream: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
@@ -273,7 +188,7 @@ impl<Q: QualifierFlag> GlobalStatRelations<Q> {
     }
 }
 
-impl<Q: QualifierFlag> StatStream for GlobalStatRelations<Q> {
+impl<Q: Qualifier> StatStream for GlobalStatRelations<Q> {
     type Qualifier = Q;
 
     fn stream_stat(
@@ -288,78 +203,3 @@ impl<Q: QualifierFlag> StatStream for GlobalStatRelations<Q> {
         }
     }
 }
-
-/// Resource containing a name to instance map of [`Stat`]s.
-#[derive(Resource, Default)]
-pub struct StatDeserializers {
-    pub(crate) concrete: FxHashMap<&'static str, StatInst>,
-    pub(crate) parse_fns: Vec<Box<dyn FnMut(&str) -> Option<StatInst> + Send + Sync>>,
-}
-
-impl Debug for StatDeserializers {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("StatInstances")
-            .field("concrete", &self.concrete)
-            .finish()
-    }
-}
-
-impl StatDeserializers {
-    /// Register all members of a [`Stat`].
-    ///
-    /// # Panics
-    ///
-    /// If a stat registered conflicts with a previous entry.
-    pub fn register<T: Stat>(&mut self) {
-        T::values().into_iter().for_each(|x| {
-            if let Some(prev) = self.concrete.get(x.name()) {
-                assert_eq!(prev, &x.as_entry(), "duplicate key {}", x.name())
-            } else {
-                self.concrete.insert(x.name(), x.as_entry());
-            }
-        })
-    }
-
-    /// Register all members of a [`Stat`].
-    ///
-    /// Always replaces a registered [`Stat`] of the same key.
-    pub fn register_replace<T: Stat>(&mut self) {
-        T::values().into_iter().for_each(|x| {
-            self.concrete.insert(x.name(), x.as_entry());
-        })
-    }
-
-    /// Register a parser to a stat, ones inserted first has priority.
-    pub fn register_parser<T: Stat>(
-        &mut self,
-        mut f: impl FnMut(&str) -> Option<T> + Send + Sync + 'static,
-    ) {
-        self.parse_fns
-            .push(Box::new(move |x| f(x).map(|x| x.as_entry())));
-    }
-
-    /// Register a parser to a stat, ones inserted first has priority.
-    pub fn register_parser_ok<T: Stat, E>(
-        &mut self,
-        mut f: impl FnMut(&str) -> Result<T, E> + Send + Sync + 'static,
-    ) {
-        self.parse_fns
-            .push(Box::new(move |x| f(x).map(|x| x.as_entry()).ok()));
-    }
-
-    pub fn get(&mut self, name: &str) -> Option<StatInst> {
-        if let Some(concrete) = self.concrete.get(name) {
-            return Some(*concrete);
-        }
-        for parser in &mut self.parse_fns {
-            if let Some(result) = parser(name) {
-                return Some(result);
-            }
-        }
-        None
-    }
-}
-
-scoped_tls_hkt::scoped_thread_local!(
-    pub static mut STAT_DESERIALIZERS: StatDeserializers
-);

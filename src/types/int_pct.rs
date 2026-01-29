@@ -6,12 +6,12 @@ use crate::{
     Int,
 };
 use bevy_reflect::TypePath;
-use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// An integer stat that sums up multipliers additively,
 /// then divided by `SCALE`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
 pub struct StatIntPercentAdditive<T: Int, R: Rounding = Truncate, const SCALE: i64 = 100> {
     addend: T,
@@ -87,9 +87,18 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, 
 /// An integer stat with integer multipliers divided by `SCALE`.
 ///
 /// Calculated as a fraction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
-#[serde(bound(serialize = "T: Int<PrimInt: Serialize> + Serialize, R: Rounding"))]
-#[serde(bound(deserialize = "T: Int<PrimInt: Deserialize<'de>> + Deserialize<'de>, R: Rounding"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(serialize = "T: Int<PrimInt: serde::Serialize> + serde::Serialize, R: Rounding"))
+)]
+#[cfg_attr(
+    feature = "serde",
+    serde(bound(
+        deserialize = "T: Int<PrimInt: serde::Deserialize<'de>> + serde::Deserialize<'de>, R: Rounding"
+    ))
+)]
 #[repr(C, align(8))]
 pub struct StatIntPercent<T: Int, R: Rounding = Truncate, const SCALE: i64 = 100> {
     addend: T,

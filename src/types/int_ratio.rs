@@ -5,11 +5,11 @@ use crate::{
 };
 use crate::{Fraction, NumCast};
 use bevy_reflect::TypePath;
-use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
 /// A stat represented by an integer, does not support floating point multipliers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
 pub struct StatInt<T: Int> {
     addend: T,
@@ -77,7 +77,8 @@ impl<T: Int> StatValue for StatInt<T> {
 }
 
 /// An integer stat that multiplies with floating point numbers and rounds back to an integer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
 pub struct StatIntRounded<T: Int, F: Float, R: Rounding = Truncate> {
     addend: T,

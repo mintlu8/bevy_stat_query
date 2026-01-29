@@ -2,11 +2,9 @@ use std::fmt::Debug;
 
 use crate::attribute::Attribute;
 use crate::plugin::GlobalStatRelations;
-use crate::stat::StatExt;
-use crate::{
-    plugin::GlobalStatDefaults, Buffer, QualifierFlag, QualifierQuery, Stat, StatInst, StatStream,
-};
-use crate::{validate, StatValue, StatValuePair};
+use crate::stat::ErasedStat;
+use crate::{plugin::GlobalStatDefaults, Qualifier, QualifierQuery, Stat, StatStream};
+use crate::{ShareableAny, StatValue, StatValuePair};
 use bevy_ecs::reflect::ReflectComponent;
 use bevy_ecs::{
     component::Component,
@@ -15,10 +13,10 @@ use bevy_ecs::{
     system::{Query, Res, SystemParam},
 };
 use bevy_reflect::Reflect;
-use serde::{Deserialize, Serialize};
 
 /// The core marker component. Stat querying is only allowed on entities marked as [`StatEntity`].
-#[derive(Debug, Component, Clone, PartialEq, Eq, Default, Serialize, Deserialize, Reflect)]
+#[derive(Debug, Component, Clone, PartialEq, Eq, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[reflect(Component)]
 pub struct StatEntity;
 
@@ -26,13 +24,13 @@ pub struct StatEntity;
 ///
 /// Join with [`StatStream`]s via [`StatEntities::join`] to start querying.
 #[derive(Debug, SystemParam)]
-pub struct StatEntities<'w, 's, Q: QualifierFlag> {
+pub struct StatEntities<'w, 's, Q: Qualifier> {
     defaults: Option<Res<'w, GlobalStatDefaults>>,
     relations: Option<Res<'w, GlobalStatRelations<Q>>>,
     entities: Query<'w, 's, Entity, With<StatEntity>>,
 }
 
-impl<'w, 's, Q: QualifierFlag> StatEntities<'w, 's, Q> {
+impl<'w, 's, Q: Qualifier> StatEntities<'w, 's, Q> {
     pub fn join<'t, S: StatStream<Qualifier = Q>>(
         &'t self,
         stream: S,
@@ -41,12 +39,12 @@ impl<'w, 's, Q: QualifierFlag> StatEntities<'w, 's, Q> {
     }
 }
 
-pub struct JoinedQuerier<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> {
+pub struct JoinedQuerier<'w, 's, 't, Q: Qualifier, S: StatStream<Qualifier = Q>> {
     base: &'t StatEntities<'w, 's, Q>,
     stream: S,
 }
 
-impl<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> JoinedQuerier<'w, 's, 't, Q, S> {
+impl<'w, 's, 't, Q: Qualifier, S: StatStream<Qualifier = Q>> JoinedQuerier<'w, 's, 't, Q, S> {
     pub fn join<T: StatStream<Qualifier = Q>>(
         self,
         stream: T,
@@ -63,8 +61,8 @@ impl<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> JoinedQuerier<'
         qualifier: &QualifierQuery<Q>,
         stat: &T,
     ) -> Option<T::Value> {
-        self.query_stat_erased(entity, qualifier, stat.as_entry())
-            .map(|x| unsafe { x.into() })
+        self.query_stat_erased(entity, qualifier, stat)
+            .and_then(|x| x.unbox())
     }
 
     pub fn query_relation<T: Stat>(
@@ -74,8 +72,8 @@ impl<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> JoinedQuerier<'
         qualifier: &QualifierQuery<Q>,
         stat: &T,
     ) -> Option<T::Value> {
-        self.query_relation_erased(from, to, qualifier, stat.as_entry())
-            .map(|x| unsafe { x.into() })
+        self.query_relation_erased(from, to, qualifier, stat)
+            .and_then(|x| x.unbox())
     }
 
     pub fn eval_stat<T: Stat>(
@@ -103,27 +101,23 @@ impl<'w, 's, 't, Q: QualifierFlag, S: StatStream<Qualifier = Q>> JoinedQuerier<'
     }
 }
 
-impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
+impl<Q: Qualifier, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
     for JoinedQuerier<'_, '_, '_, Q, S>
 {
     fn query_stat_erased(
         &self,
         entity: Entity,
         query: &QualifierQuery<Q>,
-        stat: StatInst,
-    ) -> Option<Buffer> {
-        let value = if let Some(defaults) = &self.base.defaults {
-            defaults.get_dyn(stat)
-        } else {
-            (stat.vtable.default)()
-        };
-        let mut pair = StatValuePair { stat, value };
+        stat: &dyn ErasedStat,
+    ) -> Option<Box<dyn ShareableAny>> {
+        let mut value = stat.create_default_value(self.base.defaults.as_deref());
+        let mut pair = StatValuePair::new_dyn(stat, &mut *value);
         if let Some(relations) = &self.base.relations {
             relations.stream_stat(entity, query, &mut pair, Querier(self));
         }
         self.stream
             .stream_stat(entity, query, &mut pair, Querier(self));
-        Some(pair.value)
+        Some(value)
     }
 
     fn query_relation_erased(
@@ -131,17 +125,13 @@ impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
         from: Entity,
         to: Entity,
         query: &QualifierQuery<Q>,
-        stat: StatInst,
-    ) -> Option<Buffer> {
-        let value = if let Some(defaults) = &self.base.defaults {
-            defaults.get_dyn(stat)
-        } else {
-            (stat.vtable.default)()
-        };
-        let mut pair = StatValuePair { stat, value };
+        stat: &dyn ErasedStat,
+    ) -> Option<Box<dyn ShareableAny>> {
+        let mut value = stat.create_default_value(self.base.defaults.as_deref());
+        let mut pair = StatValuePair::new_dyn(stat, &mut *value);
         self.stream
             .stream_relation(&self.stream, from, to, query, &mut pair, Querier(self));
-        Some(pair.value)
+        Some(value)
     }
 
     fn has_attribute_erased(&self, entity: Entity, attribute: Attribute) -> bool {
@@ -152,14 +142,14 @@ impl<Q: QualifierFlag, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
 /// An erased type that can query for stats on entities in the world.
 ///
 /// Notable implementors are [`NoopQuerier`] and [`JoinedQuerier`].
-trait ErasedQuerier<Q: QualifierFlag> {
+trait ErasedQuerier<Q: Qualifier> {
     /// Query for a stat in its component form.
     fn query_stat_erased(
         &self,
         entity: Entity,
         query: &QualifierQuery<Q>,
-        stat: StatInst,
-    ) -> Option<Buffer>;
+        stat: &dyn ErasedStat,
+    ) -> Option<Box<dyn ShareableAny>>;
 
     /// Query for a relation stat in its component form.
     fn query_relation_erased(
@@ -167,31 +157,31 @@ trait ErasedQuerier<Q: QualifierFlag> {
         from: Entity,
         to: Entity,
         query: &QualifierQuery<Q>,
-        stat: StatInst,
-    ) -> Option<Buffer>;
+        stat: &dyn ErasedStat,
+    ) -> Option<Box<dyn ShareableAny>>;
 
     /// Query for the existence of a string attribute.
     fn has_attribute_erased(&self, entity: Entity, attribute: Attribute) -> bool;
 }
 
 /// An erased type that can query for stats on entities in the world.
-pub struct Querier<'t, Q: QualifierFlag>(&'t dyn ErasedQuerier<Q>);
+pub struct Querier<'t, Q: Qualifier>(&'t dyn ErasedQuerier<Q>);
 
-impl<Q: QualifierFlag> Clone for Querier<'_, Q> {
+impl<Q: Qualifier> Clone for Querier<'_, Q> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<Q: QualifierFlag> Copy for Querier<'_, Q> {}
+impl<Q: Qualifier> Copy for Querier<'_, Q> {}
 
-impl<Q: QualifierFlag> Debug for Querier<'_, Q> {
+impl<Q: Qualifier> Debug for Querier<'_, Q> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Querier").finish_non_exhaustive()
     }
 }
 
-impl<Q: QualifierFlag> Querier<'_, Q> {
+impl<Q: Qualifier> Querier<'_, Q> {
     /// Create a noop querier.
     pub fn noop() -> Querier<'static, Q> {
         static _Q: NoopQuerier = NoopQuerier;
@@ -205,10 +195,9 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<S::Value> {
-        validate::<S::Value>();
         self.0
-            .query_stat_erased(entity, qualifier, stat.as_entry())
-            .map(|x| unsafe { x.into() })
+            .query_stat_erased(entity, qualifier, stat)
+            .and_then(|x| x.unbox())
     }
 
     /// Query for a relation stat in its component form.
@@ -219,10 +208,9 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<S::Value> {
-        validate::<S::Value>();
         self.0
-            .query_relation_erased(from, to, qualifier, stat.as_entry())
-            .map(|x| unsafe { x.into() })
+            .query_relation_erased(from, to, qualifier, stat)
+            .and_then(|x| x.unbox())
     }
 
     /// Query for a stat in its evaluated form.
@@ -232,7 +220,6 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<<S::Value as StatValue>::Out> {
-        validate::<S::Value>();
         self.query_stat(entity, qualifier, stat)
             .map(|x| StatValue::eval(&x))
     }
@@ -245,7 +232,6 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
         qualifier: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<<S::Value as StatValue>::Out> {
-        validate::<S::Value>();
         self.query_relation(from, to, qualifier, stat)
             .map(|x| StatValue::eval(&x))
     }
@@ -259,18 +245,23 @@ impl<Q: QualifierFlag> Querier<'_, Q> {
 /// A [`Querier`] that does not provide the ability to query other entities.
 pub struct NoopQuerier;
 
-impl<Q: QualifierFlag> ErasedQuerier<Q> for NoopQuerier {
+impl<Q: Qualifier> ErasedQuerier<Q> for NoopQuerier {
     fn query_relation_erased(
         &self,
         _: Entity,
         _: Entity,
         _: &QualifierQuery<Q>,
-        _: StatInst,
-    ) -> Option<Buffer> {
+        _: &dyn ErasedStat,
+    ) -> Option<Box<dyn ShareableAny>> {
         None
     }
 
-    fn query_stat_erased(&self, _: Entity, _: &QualifierQuery<Q>, _: StatInst) -> Option<Buffer> {
+    fn query_stat_erased(
+        &self,
+        _: Entity,
+        _: &QualifierQuery<Q>,
+        _: &dyn ErasedStat,
+    ) -> Option<Box<dyn ShareableAny>> {
         None
     }
 

@@ -1,13 +1,13 @@
 use crate::num_traits::Flags;
 use bevy_reflect::TypePath;
-use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, mem, ops::BitAnd};
 
 use crate::{operations::Unsupported, StatValue};
 
 /// A flags based on a type that supports bitwise operations,
 /// like integer, `bitflgs` or `enumset`.
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, TypePath)]
+#[derive(Debug, Default, Clone, Copy, TypePath)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct StatFlags<T: Flags>(T);
 

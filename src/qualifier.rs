@@ -1,5 +1,4 @@
 use bevy_reflect::Reflect;
-use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
     hash::Hash,
@@ -13,7 +12,7 @@ use crate::{Shareable, Stat};
 ///
 /// An application should ideally implement one [`QualifierFlag`] and multiple [`Stat`]s,
 /// since different types of stats can still interop if they use the same [`QualifierFlag`].
-pub trait QualifierFlag: BitOr<Self, Output = Self> + Ord + Hash + Shareable {
+pub trait Qualifier: BitOr<Self, Output = Self> + Ord + Hash + Shareable {
     fn contains(&self, other: &Self) -> bool;
     fn intersects(&self, other: &Self) -> bool;
     fn is_none_or_intersects(&self, other: &Self) -> bool {
@@ -24,7 +23,7 @@ pub trait QualifierFlag: BitOr<Self, Output = Self> + Ord + Hash + Shareable {
     fn is_none(&self) -> bool;
 }
 
-impl<T> QualifierFlag for T
+impl<T> Qualifier for T
 where
     T: BitOr<Self, Output = Self>
         + Ord
@@ -55,35 +54,39 @@ where
     }
 }
 
-/// Data side qualifier for a stat.
+/// The standard [`QualifierModifier`] on a stat modifier, typically used in [`StatMap`](crate::StatMap).
 ///
-/// # When stored
+/// This provides a `all_of` field and a singular `any_of` field.
 ///
-/// * `any_of` requires one or more conditions present.
 /// * `all_of` requires all conditions present.
+/// * `any_of` requires one or more conditions present (if not none).
+///
+/// `all_of` represents most common descriptors like `sword, slashing, physical`,
+/// while `any_of` represents descriptors like `elemental`, which can represent `fire | water | earth | air`.
 ///
 /// # Example
 ///
 /// ```
 /// // Requires 'fire' to receive buff from 'fire damage'.
-/// let fire = QualifierFlags::all_of(Fire);
+/// let fire = QualifierItem::all_of(Fire);
 /// // Requires both 'ice' and 'piercing' to receive buff from 'ice piercing damage'
-/// let ice_piercing = QualifierFlags::all_of(Ice | Piercing);
+/// let ice_piercing = QualifierItem::all_of(Ice | Piercing);
 /// // Requires at least one of the elements to receive buff from 'elemental damage'.
-/// let elemental = QualifierFlags::any_of(Fire | Water | Earth | Air);
-/// // Requires one of the elements and 'piercing'.
-/// let elemental_piercing = QualifierFlags::any_of(Fire | Water | Earth | Air)
-///     .and_all_of(Piercing);
+/// let elemental = QualifierItem::any_of(Fire | Water | Earth | Air);
+/// // Requires one of the elements, Sword, Slashing and Physical.
+/// let elemental_slash = QualifierItem {
+///     any_of: Fire | Water | Earth | Air,
+///     all_of: Sword | Slashing | Physical
+/// };
 /// ```
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect, Serialize, Deserialize,
-)]
-pub struct Qualifier<Q: QualifierFlag> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct QualifierItem<Q: Qualifier> {
     pub all_of: Q,
     pub any_of: Q,
 }
 
-impl<Q: QualifierFlag> Default for Qualifier<Q> {
+impl<Q: Qualifier> Default for QualifierItem<Q> {
     fn default() -> Self {
         Self {
             any_of: Q::none(),
@@ -92,16 +95,16 @@ impl<Q: QualifierFlag> Default for Qualifier<Q> {
     }
 }
 
-impl<Q: QualifierFlag> From<Q> for Qualifier<Q> {
+impl<Q: Qualifier> From<Q> for QualifierItem<Q> {
     fn from(value: Q) -> Self {
-        Qualifier {
+        QualifierItem {
             all_of: value,
             any_of: Q::none(),
         }
     }
 }
 
-impl<Q: QualifierFlag> Qualifier<Q> {
+impl<Q: Qualifier> QualifierItem<Q> {
     pub fn none() -> Self {
         Self {
             any_of: Q::none(),
@@ -147,57 +150,100 @@ impl<Q: QualifierFlag> Qualifier<Q> {
     /// * `fire_damage` does not qualify as `elemental_damage`.
     /// * `fire_water_earth_air_damage` does not qualify as `elemental_damage`,
     pub fn qualifies_as(&self, queried: &QualifierQuery<Q>) -> bool {
-        match queried {
-            QualifierQuery::Aggregate(some_of) => {
-                some_of.contains(&self.all_of) && self.any_of.is_none_or_intersects(some_of)
-            }
-            QualifierQuery::Exact { any_of, all_of } => {
-                self.any_of.contains(any_of) && &self.all_of == all_of
-            }
-        }
+        self.qualify_query(queried)
     }
 }
 
 /// Query version of [`Qualifier`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
-pub enum QualifierQuery<Q: QualifierFlag> {
+pub enum QualifierQuery<'t, Q: Qualifier> {
     /// Look for qualifier that qualifies as this.
     ///
     /// Queried `any_of` intersects this (or is none) and this contains Queried `all_of`.
     Aggregate(Q),
-    /// Look for qualifiers that are this and deny more generalized qualifiers.
-    Exact {
-        /// Queried `any_of` contains this.
-        any_of: Q,
-        /// Queried `all_of` equals this.
-        all_of: Q,
-    },
+    /// Look for qualifiers that satisfies all conditions.
+    Custom(&'t [QualifierConstraint<Q>]),
 }
 
-impl<Q: QualifierFlag> QualifierQuery<Q> {
+impl<Q: Qualifier> QualifierQuery<'_, Q> {
     pub fn qualifies_none(&self) -> bool {
-        Qualifier::none().qualifies_as(self)
+        QualifierItem::none().qualifies_as(self)
     }
 
-    pub fn qualify(&self, qualifier: &Qualifier<Q>) -> bool {
-        qualifier.qualifies_as(self)
+    pub fn qualify(&self, qualifier: &impl QualifierKey<Qualifier = Q>) -> bool {
+        qualifier.qualify_query(self)
     }
 }
 
-impl<Q: QualifierFlag> Default for QualifierQuery<Q> {
+impl<Q: Qualifier> Default for QualifierQuery<'_, Q> {
     fn default() -> Self {
         Self::Aggregate(Q::none())
     }
 }
 
-impl<Q: QualifierFlag> QualifierQuery<Q> {
+impl<Q: Qualifier> QualifierQuery<'_, Q> {
     pub fn none() -> Self {
         Self::Aggregate(Q::none())
     }
 }
 
-impl<Q: QualifierFlag> From<Q> for QualifierQuery<Q> {
+impl<Q: Qualifier> From<Q> for QualifierQuery<'_, Q> {
     fn from(value: Q) -> Self {
         QualifierQuery::Aggregate(value)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+pub enum QualifierConstraint<Q: Qualifier> {
+    /// The default query, contains `all_of` and intersects `any_of`.
+    Aggregate(Q),
+    /// Requires an exact match of the item's `all_of`.
+    Exact(Q),
+    /// Requires the item's `all_of` to contain this qualifier.
+    Contains(Q),
+    /// Requires an exact match of the item's `any_of`.
+    ExactAnyOf(Q),
+    /// Requires the item's `any_of` to contain this qualifier.
+    ContainsAnyOf(Q),
+}
+
+/// Qualifier on a modifier of a stat.
+pub trait QualifierKey: Ord {
+    type Qualifier: Qualifier;
+    fn qualify(&self, query: &Self::Qualifier) -> bool;
+    fn qualify_item(&self, query: &QualifierConstraint<Self::Qualifier>) -> bool;
+    fn qualify_query(&self, query: &QualifierQuery<Self::Qualifier>) -> bool {
+        match query {
+            QualifierQuery::Aggregate(q) => self.qualify(q),
+            QualifierQuery::Custom(items) => {
+                for item in items.iter() {
+                    if !self.qualify_item(item) {
+                        return false;
+                    }
+                }
+                true
+            }
+        }
+    }
+}
+
+impl<Q: Qualifier> QualifierKey for QualifierItem<Q> {
+    type Qualifier = Q;
+    fn qualify(&self, query: &Self::Qualifier) -> bool {
+        query.contains(&self.all_of) && self.any_of.is_none_or_intersects(query)
+    }
+
+    fn qualify_item(&self, query: &QualifierConstraint<Self::Qualifier>) -> bool {
+        match query {
+            QualifierConstraint::Aggregate(v) => {
+                v.contains(&self.all_of) && self.any_of.is_none_or_intersects(v)
+            }
+            QualifierConstraint::Exact(v) => &self.all_of == v,
+            QualifierConstraint::Contains(v) => self.all_of.contains(v),
+            QualifierConstraint::ExactAnyOf(v) => &self.any_of == v,
+            QualifierConstraint::ContainsAnyOf(v) => {
+                !self.any_of.is_none() && v.contains(&self.any_of)
+            }
+        }
     }
 }

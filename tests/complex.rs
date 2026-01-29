@@ -9,7 +9,7 @@ use bevy_ecs::{
     system::{Commands, RunSystemOnce},
 };
 use bevy_stat_query::{
-    match_stat, types::StatFloat, ChildQuery, Qualifier, QualifierFlag, QualifierQuery, Querier,
+    match_stat, types::StatFloat, ChildQuery, Qualifier, QualifierItem, QualifierQuery, Querier,
     Stat, StatEntities, StatEntity, StatExtension, StatMap, StatQuery, StatStream, StatValue,
     StatValuePair,
 };
@@ -60,7 +60,7 @@ impl StatStream for Weapon {
 
 #[derive(Component)]
 pub struct StrengthBuff {
-    qualifier: Qualifier<Adjective>,
+    qualifier: QualifierItem<Adjective>,
     multiplier: f32,
 }
 
@@ -84,7 +84,7 @@ impl StatStream for StrengthBuff {
 
 #[derive(Component)]
 pub struct DamageBuff {
-    qualifier: Qualifier<Adjective>,
+    qualifier: QualifierItem<Adjective>,
     multiplier: f32,
 }
 
@@ -133,7 +133,7 @@ fn init(mut commands: Commands) {
         .spawn((
             StatEntity,
             {
-                let mut map = StatMap::<Adjective>::new();
+                let mut map = StatMap::<Adjective, Stats>::new();
                 map.insert_base(Default::default(), Stats::Strength, 4.0);
                 map.insert_base(Default::default(), Stats::WeaponProficiency, 0.5);
                 map
@@ -156,7 +156,7 @@ fn init(mut commands: Commands) {
             });
             // elemental damage
             c.spawn(DamageBuff {
-                qualifier: Qualifier {
+                qualifier: QualifierItem {
                     all_of: Adjective::none(),
                     any_of: Adjective::all(),
                 },
@@ -172,7 +172,7 @@ fn init(mut commands: Commands) {
 fn query(
     entities: Single<Entity, With<Main>>,
     querier: StatEntities<Adjective>,
-    base_stat_query: StatQuery<StatMap<Adjective>>,
+    base_stat_query: StatQuery<StatMap<Adjective, Stats>>,
     weapon_query: StatQuery<Weapon>,
     strength_buffs: ChildQuery<StrengthBuff>,
     damage_buffs: ChildQuery<DamageBuff>,

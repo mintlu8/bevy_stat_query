@@ -1,16 +1,14 @@
-use std::fmt::Debug;
+use std::{any::type_name, fmt::Debug, marker::PhantomData};
 
-use bevy_reflect::TypePath;
-use serde::{Deserialize, Serialize};
-
-use crate::{operations::Unsupported, Shareable, StatValue};
+use crate::{operations::Unsupported, Shareable, Stat, StatValue};
 
 /// A prioritized attribute that evaluates to the first or
 /// last occurrence with the highest priority.
 ///
 /// The [`Default`] priority is `i32::MIN`, if created via `From` or `from_base`,
 /// priority is 0.
-#[derive(Debug, Clone, Copy, TypePath, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C)]
 pub struct Prioritized<T, const LAST: bool = true> {
     value: T,
@@ -88,5 +86,38 @@ impl<T: Shareable + Default, const R: bool> StatValue for Prioritized<T, R> {
             value: base,
             priority: 0,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Get<T: Shareable + Default>(PhantomData<T>);
+
+impl<T: Shareable + Default> Copy for Get<T> {}
+
+impl<T: Shareable + Default> PartialEq for Get<T> {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl<T: Shareable + Default> Eq for Get<T> {}
+
+impl<T: Shareable + Default> Stat for Get<T> {
+    type Value = Prioritized<T>;
+
+    fn name(&self) -> &'static str {
+        type_name::<T>()
+    }
+
+    fn as_index(&self) -> u64 {
+        0
+    }
+
+    fn from_index(_: u64) -> Self {
+        Self(PhantomData)
+    }
+
+    fn values() -> impl IntoIterator<Item = Self> {
+        [Self(PhantomData)]
     }
 }
