@@ -9,9 +9,9 @@ use bevy_ecs::{
     system::{Commands, RunSystemOnce},
 };
 use bevy_stat_query::{
-    match_stat, types::StatFloat, ChildQuery, Qualifier, QualifierItem, QualifierQuery, Querier,
-    Stat, StatEntities, StatEntity, StatExtension, StatMap, StatQuery, StatStream, StatValue,
-    StatValuePair,
+    match_stat, types::StatMultiplicative, ChildQuery, Qualifier, QualifierItem, QualifierQuery,
+    Querier, Stat, StatEntities, StatEntity, StatExtension, StatMap, StatQuery, StatStream,
+    StatValue, StatValuePair,
 };
 
 bitflags::bitflags! {
@@ -25,7 +25,7 @@ bitflags::bitflags! {
 }
 
 #[derive(Debug, Clone, Copy, Stat)]
-#[stat(value = "StatFloat<f32>")]
+#[stat(value = "StatMultiplicative<f32>")]
 pub enum Stats {
     WeaponDamage,
     Damage,

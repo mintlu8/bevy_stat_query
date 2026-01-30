@@ -1,10 +1,10 @@
 mod flags;
-mod float;
 mod int_pct;
-mod int_ratio;
+mod number;
 mod prioritized;
+mod rounded;
 pub use flags::StatFlags;
-pub use float::{StatAdditive, StatFloat, StatFloatAdditive, StatMult};
-pub use int_pct::{StatIntPercent, StatIntPercentAdditive};
-pub use int_ratio::{StatInt, StatIntRounded};
+pub use int_pct::StatIntPercentAdditive;
+pub use number::{StatAdditive, StatMultiplicative, StatMultiplied};
 pub use prioritized::Prioritized;
+pub use rounded::StatRounded;

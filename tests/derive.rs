@@ -1,9 +1,10 @@
-use bevy_stat_query::types::StatIntRounded;
+use bevy_stat_query::types::StatRounded;
 use bevy_stat_query::Attribute;
 use bevy_stat_query::Stat;
+use bevy_stat_query::StatDispatch;
 
 #[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
-#[stat(value = "StatIntRounded<i32, f32>")]
+#[stat(value = "StatRounded<i32, f32>")]
 pub enum Stats {
     A,
     B,
@@ -12,7 +13,7 @@ pub enum Stats {
 }
 
 #[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
-#[stat(value = "StatIntRounded<i32, f32>")]
+#[stat(value = "StatRounded<i32, f32>")]
 pub enum NumStats {
     E = 2,
     F = 0,
@@ -21,7 +22,7 @@ pub enum NumStats {
 }
 
 #[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
-#[stat(value = "StatIntRounded<i32, f32>")]
+#[stat(value = "StatRounded<i32, f32>")]
 pub struct X;
 
 use NumStats::*;
@@ -69,4 +70,33 @@ pub fn test_derive() {
     assert_eq!(X::from_index(Stat::as_index(&X)), X);
     assert_eq!(X::values().into_iter().count(), 1);
     assert_eq!(X.name(), "X");
+}
+
+#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
+#[stat(value = "StatRounded<i32, f32>")]
+pub struct Xa;
+
+#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
+#[stat(value = "StatRounded<i32, f32>")]
+pub struct Xb;
+
+#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
+#[stat(value = "StatRounded<i32, f32>")]
+pub struct Xc;
+
+#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
+#[stat(value = "StatRounded<i32, f32>")]
+pub enum XMany {
+    A,
+    B,
+    C,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, StatDispatch)]
+pub enum XDispatch {
+    // If name is the same and Xa is a unit struct, can ignore field.
+    Xa,
+    Xb(Xb),
+    Xc(Xc),
+    XMany(XMany),
 }

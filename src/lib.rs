@@ -23,7 +23,7 @@ pub mod types;
 pub use qualifier::{Qualifier, QualifierConstraint, QualifierItem, QualifierKey, QualifierQuery};
 mod stat;
 #[cfg(feature = "derive")]
-pub use bevy_stat_query_derive::{Attribute, Stat};
+pub use bevy_stat_query_derive::{Attribute, Stat, StatDispatch};
 pub use stat::{Stat, StatUid, StatValuePair};
 pub mod operations;
 pub use operations::StatValue;

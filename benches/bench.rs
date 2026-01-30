@@ -15,7 +15,10 @@ pub fn query_many(c: &mut Criterion) {
 
     for i in 0..1024 {
         m.insert_base(QualifierItem::all_of(i), S, 1);
-        bt_dyn.insert(QualifierItem::all_of(i), StatIntPercentAdditive::default().with_add(1));
+        bt_dyn.insert(
+            QualifierItem::all_of(i),
+            StatIntPercentAdditive::default().with_add(1),
+        );
     }
 
     c.bench_function("btree_aggregate_many", |b| {

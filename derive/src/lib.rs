@@ -1,7 +1,9 @@
 use proc_macro::{Span, TokenStream as TokenStream1};
 use proc_macro_error::{abort, proc_macro_error};
-use quote::{quote, ToTokens};
-use syn::{parse_macro_input, spanned::Spanned, DeriveInput, Fields, LitInt, LitStr, Type};
+use quote::{format_ident, quote, ToTokens};
+use syn::{
+    parse_macro_input, spanned::Spanned, Data, DeriveInput, Fields, LitInt, LitStr, Meta, Type,
+};
 
 /// Derive macro for `Stat`.
 ///
@@ -280,4 +282,139 @@ pub fn attribute(tokens: TokenStream1) -> TokenStream1 {
             );
         }
     }
+}
+
+/// Implement `StatDispatch` and `StatDispatchTo` on a enum container of multiple stats.
+#[proc_macro_error]
+#[proc_macro_derive(StatDispatch, attributes(stat_value))]
+pub fn stat_dispatch(tokens: TokenStream1) -> TokenStream1 {
+    let input = parse_macro_input!(tokens as DeriveInput);
+    let data_enum = match input.data {
+        Data::Struct(_) | Data::Union(_) => {
+            abort!(input.ident.span(), "Expected enum.")
+        }
+        syn::Data::Enum(data_enum) => data_enum,
+    };
+    let vis = input.vis;
+    let name = input.ident;
+    let value_name = format_ident!("{}Value", name);
+    let mut get_uid_branches = Vec::new();
+    let mut from_stat_branches = Vec::new();
+    let mut variants = Vec::new();
+    let mut variant_tys = Vec::new();
+    let mut value_attrs = Vec::new();
+    for attr in input.attrs {
+        if let Meta::List(meta_list) = attr.meta {
+            if meta_list.path.is_ident("stat_value") {
+                value_attrs.push(meta_list.tokens);
+            }
+        }
+    }
+    for variant in &data_enum.variants {
+        let variant_ident = &variant.ident;
+        variants.push(variant_ident);
+        match &variant.fields {
+            Fields::Named(_) => {
+                abort!(
+                    variant.ident.span(),
+                    "Expected either a single unnamed field or a unit variant matching a unit struct's name."
+                )
+            }
+            Fields::Unnamed(fields) => {
+                if fields.unnamed.len() != 1 {
+                    abort!(
+                        variant.ident,
+                        "Expected either a single unnamed field or a unit variant matching a unit struct's name."
+                    )
+                }
+                variant_tys.push(fields.unnamed[0].ty.to_token_stream());
+                get_uid_branches.push(quote! {
+                    #name::#variant_ident(stat) => ::bevy_stat_query::Stat::as_uid(stat)
+                });
+                from_stat_branches.push(quote! {
+                    #name::#variant_ident(stat)
+                });
+            }
+            Fields::Unit => {
+                let ty = &variant_ident;
+                variant_tys.push(ty.to_token_stream());
+                get_uid_branches.push(quote! {
+                    #name::#variant_ident => ::bevy_stat_query::Stat::as_uid(&#variant_ident)
+                });
+                from_stat_branches.push(quote! {
+                    #name::#variant_ident
+                });
+            }
+        }
+    }
+
+    quote! {
+        #[derive(Debug, Clone)]
+        #(#[#value_attrs])*
+        #vis enum #value_name {
+            #(#variants(<#variant_tys as ::bevy_stat_query::Stat>::Value)),*
+        }
+
+        impl ::bevy_stat_query::StatDispatch for #name {
+            type Value = #value_name;
+
+            fn get_uid(&self) -> ::bevy_stat_query::StatUid {
+                match self {
+                    #(#get_uid_branches),*
+                }
+            }
+
+            fn join_to(&self, value: &Self::Value, into: &mut dyn ::bevy_stat_query::ShareableAny) {
+                match value {
+                    #(#value_name::#variants(value) => {
+                        if let Some(into) = into.downcast_mut::<<#variant_tys as ::bevy_stat_query::Stat>::Value>() {
+                            ::bevy_stat_query::StatValue::join_by_ref(into, value);
+                        }
+                    })*
+                }
+            }
+        }
+
+        #(
+            impl ::bevy_stat_query::StatDispatchTo<#variant_tys> for #name {
+                fn from_stat(stat: #variant_tys) -> Self {
+                    #from_stat_branches
+                }
+
+                fn from_value(value: <#variant_tys as ::bevy_stat_query::Stat>::Value) -> Self::Value {
+                    #value_name::#variants(value)
+                }
+
+                fn get_value(value: &Self::Value) -> Option<&<#variant_tys as ::bevy_stat_query::Stat>::Value> {
+                    if let #value_name::#variants(item) = value {
+                        Some(item)
+                    } else {
+                        None
+                    }
+                }
+
+                fn get_value_mut(value: &mut Self::Value) -> Option<&mut <#variant_tys as ::bevy_stat_query::Stat>::Value>{
+                    if let #value_name::#variants(item) = value {
+                        Some(item)
+                    } else {
+                        None
+                    }
+                }
+
+                fn get_value_owned(value: Self::Value) -> Option<<#variant_tys as ::bevy_stat_query::Stat>::Value> {
+                    if let #value_name::#variants(item) = value {
+                        Some(item)
+                    } else {
+                        None
+                    }
+                }
+
+                fn try_join_to(&self, value: &Self::Value, into: &mut <#variant_tys as ::bevy_stat_query::Stat>::Value) {
+                    if let #value_name::#variants(item) = value {
+                        ::bevy_stat_query::StatValue::join_by_ref(into, item)
+                    }
+                }
+            }
+        )*
+    }.into()
 }

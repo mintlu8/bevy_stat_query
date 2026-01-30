@@ -7,14 +7,14 @@ use bevy_reflect::TypePath;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
-pub struct StatFloat<T: Float> {
+pub struct StatMultiplicative<T: Number> {
     addend: T,
     min: T,
     max: T,
     mult: T,
 }
 
-impl<T: Float> Default for StatFloat<T> {
+impl<T: Number> Default for StatMultiplicative<T> {
     fn default() -> Self {
         Self {
             addend: T::ZERO,
@@ -25,7 +25,7 @@ impl<T: Float> Default for StatFloat<T> {
     }
 }
 
-impl<T: Float> StatValue for StatFloat<T> {
+impl<T: Number> StatValue for StatMultiplicative<T> {
     type Out = T;
     type Base = T;
 
@@ -76,14 +76,14 @@ impl<T: Float> StatValue for StatFloat<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
-pub struct StatFloatAdditive<T: Float> {
+pub struct StatAdditive<T: Float> {
     addend: T,
     min: T,
     max: T,
     mult: T,
 }
 
-impl<T: Float> Default for StatFloatAdditive<T> {
+impl<T: Float> Default for StatAdditive<T> {
     fn default() -> Self {
         Self {
             addend: T::ZERO,
@@ -94,7 +94,7 @@ impl<T: Float> Default for StatFloatAdditive<T> {
     }
 }
 
-impl<T: Float> StatValue for StatFloatAdditive<T> {
+impl<T: Float> StatValue for StatAdditive<T> {
     type Out = T;
     type Base = T;
 
@@ -143,80 +143,17 @@ impl<T: Float> StatValue for StatFloatAdditive<T> {
     }
 }
 
-/// An floating point or fraction based multiplier aggregation. Does not support addition.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[repr(C, align(8))]
-pub struct StatAdditive<T: Number> {
-    addend: T,
-    min: T,
-    max: T,
-}
-
-impl<T: Number> Default for StatAdditive<T> {
-    fn default() -> Self {
-        Self {
-            addend: T::ZERO,
-            min: T::MIN_VALUE,
-            max: T::MAX_VALUE,
-        }
-    }
-}
-
-impl<T: Number> StatValue for StatAdditive<T> {
-    type Out = T;
-    type Base = T;
-
-    fn join(&mut self, other: Self) {
-        self.addend += other.addend;
-        self.min = self.min._max(other.min);
-        self.max = self.max._min(other.max);
-    }
-
-    fn eval(&self) -> Self::Out {
-        self.addend._min(self.max)._max(self.min)
-    }
-
-    type Add = T;
-
-    type Bit = Unsupported;
-
-    type Mul = Unsupported;
-
-    type Bounds = T;
-
-    fn add(&mut self, other: Self::Add) {
-        self.addend += other;
-    }
-
-    fn min(&mut self, other: Self::Bounds) {
-        self.min = self.min._max(other);
-    }
-
-    fn max(&mut self, other: Self::Bounds) {
-        self.max = self.max._min(other);
-    }
-
-    fn from_base(base: Self::Base) -> Self {
-        Self {
-            addend: base,
-            min: T::MIN_VALUE,
-            max: T::MAX_VALUE,
-        }
-    }
-}
-
-/// An floating point or fraction based multiplier aggregation. Does not support addition.
+/// An floating point or fraction based multiplier aggregation with default value 1. Does not support addition.
 #[derive(Debug, Clone, Copy, PartialEq, TypePath)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
-pub struct StatMult<T: Float> {
+pub struct StatMultiplied<T: Number> {
     min: T,
     max: T,
     mult: T,
 }
 
-impl<T: Float> Default for StatMult<T> {
+impl<T: Number> Default for StatMultiplied<T> {
     fn default() -> Self {
         Self {
             min: T::MIN_VALUE,
@@ -226,7 +163,7 @@ impl<T: Float> Default for StatMult<T> {
     }
 }
 
-impl<T: Float> StatValue for StatMult<T> {
+impl<T: Number> StatValue for StatMultiplied<T> {
     type Out = T;
     type Base = T;
 

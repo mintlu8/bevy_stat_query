@@ -55,11 +55,11 @@
 // impl_stat!(
 //     SInt: StatInt<i32>,
 //     SUInt: StatInt<u32>,
-//     SFloat32: StatFloat<f32>,
+//     SFloat32: StatMultiplicative<f32>,
 //     SFlags: StatFlags<MyFlags>,
 //     SString: Prioritized<Box<str>>,
 //     SIntPct: StatIntPercent<i32>,
-//     SIntFrac: StatIntRounded<i8, Fraction<i8>>,
+//     SIntFrac: StatRounded<i8, Fraction<i8>>,
 //     SMul: StatMult<f32>,
 //     SFracMul: StatMult<Fraction<i32>>
 // );

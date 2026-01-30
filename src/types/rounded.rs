@@ -7,80 +7,11 @@ use crate::{Fraction, NumCast};
 use bevy_reflect::TypePath;
 use std::marker::PhantomData;
 
-/// A stat represented by an integer, does not support floating point multipliers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[repr(C, align(8))]
-pub struct StatInt<T: Int> {
-    addend: T,
-    min: T,
-    max: T,
-    mult: T,
-}
-
-impl<T: Int> Default for StatInt<T> {
-    fn default() -> Self {
-        Self {
-            addend: T::ZERO,
-            min: T::MIN_VALUE,
-            max: T::MAX_VALUE,
-            mult: T::ONE,
-        }
-    }
-}
-
-impl<T: Int> StatValue for StatInt<T> {
-    type Out = T;
-    type Base = T;
-
-    fn join(&mut self, other: Self) {
-        self.addend += other.addend;
-        self.mult *= other.mult;
-        self.min = self.min.max(other.min);
-        self.max = self.max.min(other.max);
-    }
-
-    fn eval(&self) -> Self::Out {
-        (self.addend * self.mult).min(self.max).max(self.min)
-    }
-
-    type Add = T;
-    type Mul = T;
-    type Bounds = T;
-
-    type Bit = Unsupported;
-
-    fn add(&mut self, other: Self::Add) {
-        self.addend += other;
-    }
-
-    fn mul(&mut self, other: Self::Mul) {
-        self.mult *= other;
-    }
-
-    fn min(&mut self, other: Self::Bounds) {
-        self.min = self.min.max(other)
-    }
-
-    fn max(&mut self, other: Self::Bounds) {
-        self.max = self.max.min(other)
-    }
-
-    fn from_base(base: Self::Base) -> Self {
-        Self {
-            addend: base,
-            min: T::MIN_VALUE,
-            max: T::MAX_VALUE,
-            mult: T::ONE,
-        }
-    }
-}
-
 /// An integer stat that multiplies with floating point numbers and rounds back to an integer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
-pub struct StatIntRounded<T: Int, F: Float, R: Rounding = Truncate> {
+pub struct StatRounded<T: Int, F: Float, R: Rounding = Truncate> {
     addend: T,
     min: T,
     max: T,
@@ -88,7 +19,7 @@ pub struct StatIntRounded<T: Int, F: Float, R: Rounding = Truncate> {
     rounding: PhantomData<R>,
 }
 
-impl<T: Int, R: Rounding> StatIntRounded<T, Fraction<T>, R> {
+impl<T: Int, R: Rounding> StatRounded<T, Fraction<T>, R> {
     pub fn reduce(&mut self) {
         self.mult = self.mult.reduced();
     }
@@ -107,7 +38,7 @@ impl<T: Int, R: Rounding> StatIntRounded<T, Fraction<T>, R> {
     }
 }
 
-impl<T: Int, F: Float, R: Rounding> Default for StatIntRounded<T, F, R> {
+impl<T: Int, F: Float, R: Rounding> Default for StatRounded<T, F, R> {
     fn default() -> Self {
         Self {
             addend: T::ZERO,
@@ -119,7 +50,7 @@ impl<T: Int, F: Float, R: Rounding> Default for StatIntRounded<T, F, R> {
     }
 }
 
-impl<T: Int, F: Float, R: Rounding> StatValue for StatIntRounded<T, F, R>
+impl<T: Int, F: Float, R: Rounding> StatValue for StatRounded<T, F, R>
 where
     T: NumCast<F>,
     F: NumCast<T>,

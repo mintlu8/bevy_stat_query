@@ -1,7 +1,7 @@
 use bevy_ecs::{component::Component, entity::Entity, system::RunSystemOnce, world::World};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    types::{Prioritized, StatInt},
+    types::{Prioritized, StatMultiplicative},
     ChildQuery, QualifierQuery, Querier, Stat, StatEntities, StatEntity, StatQueryMut, StatStream,
     StatValue, StatValuePair,
 };
@@ -121,7 +121,7 @@ pub enum StatEffects {
 }
 
 impl Stat for StatEffects {
-    type Value = StatInt<i32>;
+    type Value = StatMultiplicative<i32>;
 
     fn name(&self) -> &'static str {
         match self {

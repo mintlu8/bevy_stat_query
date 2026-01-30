@@ -11,12 +11,12 @@ use bevy_ecs::{
 };
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    types::StatFloat, ChildQuery, QualifierQuery, Querier, QueryStream, Stat, StatEntities,
-    StatEntity, StatValue, StatValuePair,
+    types::StatMultiplicative, ChildQuery, QualifierQuery, Querier, QueryStream, Stat,
+    StatEntities, StatEntity, StatValue, StatValuePair,
 };
 
 #[derive(Debug, Clone, Copy, Stat)]
-#[stat(value = "StatFloat<f32>")]
+#[stat(value = "StatMultiplicative<f32>")]
 pub enum Stats {
     Damage,
     Defense,
