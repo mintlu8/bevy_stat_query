@@ -63,13 +63,13 @@ While modifier that boosts a different qualifier *ice damage* or a
 different stat *fire defense* does not apply to this query.
 
 In `bevy_stat_query`,
-a modifier is represented as `(Qualifier, Stat, Value)` while a
+a modifier is represented as `(QualifierItem, Stat, Value)` while a
 query is represented as `(QualifierQuery, Stat)`.
 
 * Conditional Modifiers
 
 A common trope in fantasy games is the modifier `elemental damage`, which applies to
-any of fire, ice, etc. In `Qualifier` this is the `any_of` field.
+any of fire, ice, etc. In `QualifierItem` this is the `any_of` field.
 
 * Exact Query
 
@@ -84,9 +84,9 @@ both, we can use `QualifierQuery::exact`.
 
 ## Traits
 
-Qualifier is usually a bitflags implementing `QualifierFlag`, Stat is usually an enum deriving `Stat`.
+Qualifier is usually a bitflags implementing `Qualifier`, Stat is usually an enum deriving `Stat`.
 
-An app usually has a single `QualifierFlag` but multiple `Stat` implementors,
+An app usually has a single `Qualifier` but multiple `Stat` implementors,
 since each `Stat` can associate to a different type.
 For example `strength` and `magic` can be a `i32`,
 `hp` can be a `f32`, `is_dragon` can be a `bool` etc.
