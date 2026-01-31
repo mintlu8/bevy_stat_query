@@ -8,6 +8,7 @@ use crate::{StatValue, operations::Unsupported};
 /// like integer, `bitflgs` or `enumset`.
 #[derive(Debug, Default, Clone, Copy, TypePath)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 #[repr(transparent)]
 pub struct StatFlags<T: Flags>(T);
 

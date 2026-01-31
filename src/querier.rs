@@ -145,7 +145,10 @@ impl<Q: Qualifier, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
 
     fn has_attribute_erased(&self, entity: Entity, attribute: Attribute) -> bool {
         if !self.base.entities.contains(entity) {
-            error!("In has_attribute: Entity {} does not have StatEntity.", entity);
+            error!(
+                "In has_attribute: Entity {} does not have StatEntity.",
+                entity
+            );
             return false;
         }
         self.stream.has_attribute(entity, attribute)

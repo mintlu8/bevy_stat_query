@@ -169,7 +169,7 @@ macro_rules! impl_stat {
             $((stringify!($name), &$name)),*
         ];
 
-        $(#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        $(#[derive(Debug, Clone, Copy, Hash)]
         pub struct $name;
 
         impl Serialize for $name {

@@ -82,6 +82,7 @@ where
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 pub struct QualifierItem<Q: Qualifier> {
     pub all_of: Q,
     pub any_of: Q,

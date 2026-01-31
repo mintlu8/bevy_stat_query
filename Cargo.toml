@@ -19,9 +19,6 @@ keywords = ["bevy", "rpg", "stat"]
 [features]
 default = ["derive", "serde"]
 derive = ["bevy_stat_query_derive"]
-## Skip serializing fields on stats with default values, at the cost of making
-## non-self describing formats like postcard to fail.
-pretty_print = ["serde"]
 
 [lib]
 doctest = false

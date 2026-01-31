@@ -106,6 +106,24 @@ impl<Q: QualifierKey, S: StatDispatch> Default for StatMapBase<Q, S> {
     }
 }
 
+impl<Q: QualifierKey + PartialEq, S: StatDispatch<Value: PartialEq>> PartialEq
+    for StatMapEntry<Q, S>
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.stat.get_uid() == other.stat.get_uid()
+            && self.qualifier == other.qualifier
+            && self.value == other.value
+    }
+}
+
+impl<Q: QualifierKey + PartialEq, S: StatDispatch<Value: PartialEq>> PartialEq
+    for StatMapBase<Q, S>
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
 impl<Q: QualifierKey, T: StatDispatch> StatMapBase<Q, T> {
     pub const fn new() -> Self {
         Self { inner: Vec::new() }

@@ -5,6 +5,7 @@ use bevy_reflect::TypePath;
 /// A stat represented by a floating point number or a fraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 #[repr(C, align(8))]
 pub struct StatMultiplicative<T: Number> {
     addend: T,
@@ -74,6 +75,7 @@ impl<T: Number> StatValue for StatMultiplicative<T> {
 /// A stat represented by a floating point number or a fraction, multiplier is additive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 #[repr(C, align(8))]
 pub struct StatAdditive<T: Number> {
     addend: T,
@@ -145,6 +147,7 @@ impl<T: Number> StatValue for StatAdditive<T> {
 /// An floating point or fraction based multiplier aggregation with default value 1. Does not support addition.
 #[derive(Debug, Clone, Copy, PartialEq, TypePath)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 #[repr(C, align(8))]
 pub struct StatMultiplied<T: Number> {
     min: T,

@@ -10,6 +10,7 @@ use std::marker::PhantomData;
 /// An integer stat that multiplies with floating point numbers and rounds back to an integer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(default))]
 #[repr(C, align(8))]
 pub struct StatRounded<T: Int, F: Float, R: Rounding = Truncate> {
     addend: T,

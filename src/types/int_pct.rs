@@ -12,9 +12,13 @@ use std::marker::PhantomData;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
 pub struct StatIntPercentAdditive<T: Int, R: Rounding = Truncate, const SCALE: i64 = 100> {
+    #[cfg_attr(feature = "serde", serde(default = "super::util::num_zero"))]
     addend: T,
+    #[cfg_attr(feature = "serde", serde(default = "super::util::num_zero"))]
     mult: T,
+    #[cfg_attr(feature = "serde", serde(default = "super::util::num_min"))]
     min: T,
+    #[cfg_attr(feature = "serde", serde(default = "super::util::num_max"))]
     max: T,
     #[cfg_attr(feature = "serde", serde(skip))]
     rounding: PhantomData<R>,

@@ -5,13 +5,14 @@ use crate::{Shareable, Stat, StatValue, operations::Unsupported};
 /// A prioritized attribute that evaluates to the first or
 /// last occurrence with the highest priority.
 ///
-/// The [`Default`] priority is `i32::MIN`, if created via `From` or `from_base`,
-/// priority is 0.
+/// The [`Default`] priority is `i32::MIN`, if created via `From`, `from_base`,
+/// or deserialized without a priority, priority is 0.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C)]
 pub struct Prioritized<T, const LAST: bool = true> {
     value: T,
+    #[cfg_attr(feature = "serde", serde(default = "super::util::num_zero"))]
     priority: i32,
 }
 
