@@ -2,7 +2,7 @@ use crate::num_traits::Flags;
 use bevy_reflect::TypePath;
 use std::{fmt::Debug, mem, ops::BitAnd};
 
-use crate::{operations::Unsupported, StatValue};
+use crate::{StatValue, operations::Unsupported};
 
 /// A flags based on a type that supports bitwise operations,
 /// like integer, `bitflgs` or `enumset`.

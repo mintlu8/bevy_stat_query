@@ -1,9 +1,9 @@
-use crate::{operations::Unsupported, StatValue};
 use crate::{
-    rounding::{Rounding, Truncate},
     Float, Int,
+    rounding::{Rounding, Truncate},
 };
 use crate::{Fraction, NumCast};
+use crate::{StatValue, operations::Unsupported};
 use bevy_reflect::TypePath;
 use std::marker::PhantomData;
 
@@ -16,6 +16,7 @@ pub struct StatRounded<T: Int, F: Float, R: Rounding = Truncate> {
     min: T,
     max: T,
     mult: F,
+    #[cfg_attr(feature = "serde", serde(skip))]
     rounding: PhantomData<R>,
 }
 

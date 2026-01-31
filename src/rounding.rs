@@ -48,8 +48,8 @@ impl Rounding for Round {
     }
 }
 
-/// Rounds `x > 0` to at least `1`,
-/// rounds `x < 0` to at most `-1`.
+/// Rounds `x > 0` down to at least `1`,
+/// rounds `x < 0` up to at most `-1`.
 /// rounds `x == 0` to `0`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, TypePath)]
 pub struct TruncateSigned;

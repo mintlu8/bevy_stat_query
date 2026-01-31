@@ -1,5 +1,7 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
+#![allow(clippy::collapsible_if)]
+#![allow(rustdoc::invalid_rust_codeblocks)]
 #![doc = include_str!("../README.md")]
 #[allow(unused)]
 use bevy_ecs::{component::Component, query::QueryData, system::SystemParam};
@@ -19,6 +21,13 @@ pub use stream::*;
 mod querier;
 pub use querier::*;
 mod qualifier;
+#[cfg(feature = "serde")]
+mod serde_map;
+#[doc(hidden)]
+#[cfg(feature = "serde")]
+pub use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as DError};
+#[cfg(feature = "serde")]
+pub use serde_map::{DeserializeEntry, SerializeEntry};
 pub mod types;
 pub use qualifier::{Qualifier, QualifierConstraint, QualifierItem, QualifierKey, QualifierQuery};
 mod stat;
@@ -33,25 +42,23 @@ mod stat_map;
 pub use stat_map::{StatDispatch, StatDispatchTo, StatMapBase};
 /// Standard [`StatMapBase`] with [`QualifierItem`] as its [`QualifierKey`]
 pub type StatMap<Q, S> = StatMapBase<QualifierItem<Q>, S>;
+/// Standard [`StatMapBase`] with [`QualifierItem`] as its [`QualifierKey`]
+pub type SimpleStatMap<Q, S> = StatMapBase<PhantomData<Q>, S>;
 pub mod rounding;
 use std::{
     any::{Any, TypeId},
     fmt::Debug,
+    marker::PhantomData,
 };
 mod attribute;
 pub use attribute::Attribute;
-
-mod sealed {
-    pub trait Sealed {}
-
-    impl<T: ?Sized> Sealed for T {}
-}
 
 /// Alias for `Clone + Debug + Send + Sync + 'static`.
 pub trait Shareable: Clone + Debug + Send + Sync + 'static {}
 
 impl<T> Shareable for T where T: Clone + Debug + Send + Sync + 'static {}
 
+/// Dyn compatible version for `Clone + Debug + Send + Sync + Any`, with support for downcast and dynamic clone.
 pub trait ShareableAny: Debug + Send + Sync + 'static {
     fn type_id(&self) -> TypeId;
     fn as_any(&self) -> &dyn Any;
@@ -109,7 +116,11 @@ impl dyn ShareableAny {
 /// # Syntax
 ///
 /// ```
-/// # /*
+/// # use bevy_stat_query::{StatValuePair, Stat, types::StatRounded, match_stat, StatValue};
+/// # #[derive(Debug, Clone, Stat)]
+/// # #[stat(value = "StatRounded<i32, f32>")]
+/// # pub enum MyStat {A, B};
+/// # fn f(stat_value_pair: &mut StatValuePair) {
 /// match_stat!(stat_value_pair => {
 ///     // if stat is `MyStat::A`, downcast the value to `MyStat::Value` as `value`.
 ///     (MyStat::A, value) => {
@@ -119,8 +130,8 @@ impl dyn ShareableAny {
 ///     (stat @ MyStat, value) => {
 ///         value.add(1);
 ///     },
-/// }
-/// # */
+/// })
+/// # }
 /// ```
 #[macro_export]
 macro_rules! match_stat {
@@ -156,9 +167,9 @@ mod test {
     use strum::{EnumIter, IntoEnumIterator, IntoStaticStr};
 
     use crate::{
+        Querier, Stat, StatStream, StatValue,
         stat::StatValuePair,
         types::{StatFlags, StatIntPercentAdditive},
-        Querier, Stat, StatStream, StatValue,
     };
 
     #[derive(Component)]

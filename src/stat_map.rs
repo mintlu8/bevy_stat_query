@@ -71,11 +71,10 @@ impl<S: Stat> StatDispatchTo<S> for S {
 }
 
 #[derive(Debug, Clone, Reflect)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct StatMapEntry<Q: QualifierKey, S: StatDispatch> {
-    stat: S,
-    qualifier: Q,
-    value: S::Value,
+    pub(crate) stat: S,
+    pub(crate) qualifier: Q,
+    pub(crate) value: S::Value,
 }
 
 /// A storage component of qualified stats.
@@ -86,15 +85,14 @@ pub(crate) struct StatMapEntry<Q: QualifierKey, S: StatDispatch> {
 /// not optimized for rapid insertion or removal.
 #[derive(Debug, Clone, Component, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 #[cfg_attr(
     feature = "serde",
-    serde(bound(serialize = "Q: Serialize, S: Serialize, S::Value: Serialize"))
+    serde(bound(serialize = "Q: Serialize, S: crate::SerializeEntry"))
 )]
 #[cfg_attr(
     feature = "serde",
-    serde(bound(
-        deserialize = "Q: Deserialize<'de>, S: Deserialize<'de>, S::Value: Deserialize<'de>"
-    ))
+    serde(bound(deserialize = "Q: Deserialize<'de>, S: crate::DeserializeEntry"))
 )]
 #[reflect(Component)]
 pub struct StatMapBase<Q: QualifierKey, S: StatDispatch> {

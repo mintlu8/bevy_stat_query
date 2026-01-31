@@ -2,7 +2,7 @@ use std::ops::*;
 
 use bevy_reflect::TypePath;
 
-use crate::{num_traits::Number, Float, Int, NumCast};
+use crate::{Float, Int, NumCast, num_traits::Number};
 
 // Copied from the `gcd` crate by frewsxcv, MIT/Apache-2.0
 macro_rules! gcd {

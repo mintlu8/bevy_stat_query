@@ -4,7 +4,7 @@ members = ["derive"]
 [package]
 name = "bevy_stat_query"
 version = "0.6.0"
-edition = "2021"
+edition = "2024"
 
 authors = ["Mincong Lu <mintlux667@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -19,6 +19,9 @@ keywords = ["bevy", "rpg", "stat"]
 [features]
 default = ["derive", "serde"]
 derive = ["bevy_stat_query_derive"]
+## Skip serializing fields on stats with default values, at the cost of making
+## non-self describing formats like postcard to fail.
+pretty_print = ["serde"]
 
 [lib]
 doctest = false
@@ -41,7 +44,13 @@ postcard = { version = "1.0.8", features = ["alloc"], default-features = false }
 serde_json = "1.0.114"
 strum = { version = "0.26.2", features = ["derive"] }
 criterion = "0.5.1"
+erased-serde = "0.4.9"
 
 [[bench]]
 name = "bench"
 harness = false
+
+[[example]]
+name = "dynamic_serialization"
+path = "examples/dynamic_serialization.rs"
+required-features = ["serde"]

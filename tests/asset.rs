@@ -11,8 +11,8 @@ use bevy_ecs::{
 };
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    types::StatMultiplicative, ChildQuery, QualifierQuery, Querier, QueryStream, Stat,
-    StatEntities, StatEntity, StatValue, StatValuePair,
+    ChildQuery, QualifierQuery, Querier, QueryStream, Stat, StatEntities, StatEntity, StatValue,
+    StatValuePair, types::StatMultiplicative,
 };
 
 #[derive(Debug, Clone, Copy, Stat)]

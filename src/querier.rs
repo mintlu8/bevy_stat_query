@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use crate::attribute::Attribute;
 use crate::plugin::GlobalStatRelations;
 use crate::stat::ErasedStat;
-use crate::{plugin::GlobalStatDefaults, Qualifier, QualifierQuery, Stat, StatStream};
+use crate::{Qualifier, QualifierQuery, Stat, StatStream, plugin::GlobalStatDefaults};
 use crate::{ShareableAny, StatValue, StatValuePair};
 use bevy_ecs::reflect::ReflectComponent;
 use bevy_ecs::{
@@ -39,6 +39,7 @@ impl<'w, 's, Q: Qualifier> StatEntities<'w, 's, Q> {
     }
 }
 
+/// [`StatEntities`] joined with multiple [`StatStream`]s.
 pub struct JoinedQuerier<'w, 's, 't, Q: Qualifier, S: StatStream<Qualifier = Q>> {
     base: &'t StatEntities<'w, 's, Q>,
     stream: S,

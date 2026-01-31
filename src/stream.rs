@@ -1,4 +1,4 @@
-use crate::{attribute::Attribute, stat::StatValuePair, Qualifier, QualifierQuery, Querier};
+use crate::{Qualifier, QualifierQuery, Querier, attribute::Attribute, stat::StatValuePair};
 #[allow(unused)]
 use bevy_ecs::component::Component;
 use bevy_ecs::{

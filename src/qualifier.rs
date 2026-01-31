@@ -2,6 +2,7 @@ use bevy_reflect::Reflect;
 use std::{
     fmt::Debug,
     hash::Hash,
+    marker::PhantomData,
     ops::{BitAnd, BitOr},
 };
 
@@ -10,8 +11,8 @@ use crate::{Shareable, Stat};
 
 /// A flags like [`Qualifier`] for stats, normally bitflags or a set.
 ///
-/// An application should ideally implement one [`QualifierFlag`] and multiple [`Stat`]s,
-/// since different types of stats can still interop if they use the same [`QualifierFlag`].
+/// An application should ideally implement one [`Qualifier`] and multiple [`Stat`]s,
+/// since different types of stats can still interop if they use the same [`Qualifier`].
 pub trait Qualifier: BitOr<Self, Output = Self> + Ord + Hash + Shareable {
     fn contains(&self, other: &Self) -> bool;
     fn intersects(&self, other: &Self) -> bool;
@@ -54,7 +55,7 @@ where
     }
 }
 
-/// The standard [`QualifierModifier`] on a stat modifier, typically used in [`StatMap`](crate::StatMap).
+/// The standard [`QualifierKey`] on a stat modifier, typically used in [`StatMap`](crate::StatMap).
 ///
 /// This provides a `all_of` field and a singular `any_of` field.
 ///
@@ -193,6 +194,7 @@ impl<Q: Qualifier> From<Q> for QualifierQuery<'_, Q> {
     }
 }
 
+/// Constraint for [`QualifierQuery::Custom`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
 pub enum QualifierConstraint<Q: Qualifier> {
     /// The default query, contains `all_of` and intersects `any_of`.
@@ -244,6 +246,23 @@ impl<Q: Qualifier> QualifierKey for QualifierItem<Q> {
             QualifierConstraint::ContainsAnyOf(v) => {
                 !self.any_of.is_none() && v.contains(&self.any_of)
             }
+        }
+    }
+}
+
+impl<Q: Qualifier> QualifierKey for PhantomData<Q> {
+    type Qualifier = Q;
+    fn qualify(&self, _: &Self::Qualifier) -> bool {
+        true
+    }
+
+    fn qualify_item(&self, query: &QualifierConstraint<Self::Qualifier>) -> bool {
+        match query {
+            QualifierConstraint::Aggregate(_) => true,
+            QualifierConstraint::Exact(v) => v.is_none(),
+            QualifierConstraint::Contains(v) => v.is_none(),
+            QualifierConstraint::ExactAnyOf(v) => v.is_none(),
+            QualifierConstraint::ContainsAnyOf(v) => v.is_none(),
         }
     }
 }

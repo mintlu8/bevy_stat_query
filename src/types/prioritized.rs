@@ -1,6 +1,6 @@
 use std::{any::type_name, fmt::Debug, marker::PhantomData};
 
-use crate::{operations::Unsupported, Shareable, Stat, StatValue};
+use crate::{Shareable, Stat, StatValue, operations::Unsupported};
 
 /// A prioritized attribute that evaluates to the first or
 /// last occurrence with the highest priority.
@@ -89,21 +89,41 @@ impl<T: Shareable + Default, const R: bool> StatValue for Prioritized<T, R> {
     }
 }
 
+/// A standard [`Stat`] for [`Prioritized`].
 #[derive(Debug, Clone)]
-pub struct Get<T: Shareable + Default>(PhantomData<T>);
+pub struct GetPrioritized<T: Shareable + Default, const LAST: bool = true>(PhantomData<T>);
 
-impl<T: Shareable + Default> Copy for Get<T> {}
+impl<T: Shareable + Default, const LAST: bool> Default for GetPrioritized<T, LAST> {
+    fn default() -> Self {
+        GetPrioritized(PhantomData)
+    }
+}
 
-impl<T: Shareable + Default> PartialEq for Get<T> {
+impl<T: Shareable + Default> GetPrioritized<T, true> {
+    const fn new() -> Self {
+        GetPrioritized(PhantomData)
+    }
+}
+
+impl<T: Shareable + Default> GetPrioritized<T, false> {
+    /// Use non-standard `Prioritized` that chooses the first occurrence instead of the last.
+    const fn new_choose_first() -> Self {
+        GetPrioritized(PhantomData)
+    }
+}
+
+impl<T: Shareable + Default, const LAST: bool> Copy for GetPrioritized<T, LAST> {}
+
+impl<T: Shareable + Default, const LAST: bool> PartialEq for GetPrioritized<T, LAST> {
     fn eq(&self, _: &Self) -> bool {
         true
     }
 }
 
-impl<T: Shareable + Default> Eq for Get<T> {}
+impl<T: Shareable + Default, const LAST: bool> Eq for GetPrioritized<T, LAST> {}
 
-impl<T: Shareable + Default> Stat for Get<T> {
-    type Value = Prioritized<T>;
+impl<T: Shareable + Default, const LAST: bool> Stat for GetPrioritized<T, LAST> {
+    type Value = Prioritized<T, LAST>;
 
     fn name(&self) -> &'static str {
         type_name::<T>()

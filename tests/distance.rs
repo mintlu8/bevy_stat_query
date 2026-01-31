@@ -1,9 +1,9 @@
 use bevy_ecs::{component::Component, entity::Entity, system::RunSystemOnce, world::World};
 use bevy_reflect::TypePath;
 use bevy_stat_query::{
-    types::{Prioritized, StatMultiplicative},
     ChildQuery, QualifierQuery, Querier, Stat, StatEntities, StatEntity, StatQueryMut, StatStream,
     StatValue, StatValuePair,
+    types::{Prioritized, StatMultiplicative},
 };
 use serde::{Deserialize, Serialize};
 

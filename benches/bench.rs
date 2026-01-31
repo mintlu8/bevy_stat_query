@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use bevy_stat_query::{
-    types::StatIntPercentAdditive, QualifierItem, QualifierQuery, Stat, StatMapBase, StatValue,
+    QualifierItem, QualifierQuery, Stat, StatMapBase, StatValue, types::StatIntPercentAdditive,
 };
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 #[derive(Debug, Clone, Copy, Stat)]
 #[stat(value = "StatIntPercentAdditive<i32>")]
@@ -33,10 +33,7 @@ pub fn query_many(c: &mut Criterion) {
     });
 
     c.bench_function("stat_map_aggregate_many", |b| {
-        b.iter(|| {
-            let result = m.eval_stat(&QualifierQuery::Aggregate(255), &S);
-            result
-        })
+        b.iter(|| m.eval_stat(&QualifierQuery::Aggregate(255), &S))
     });
 }
 

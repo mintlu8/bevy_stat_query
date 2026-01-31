@@ -1,8 +1,9 @@
 use proc_macro::{Span, TokenStream as TokenStream1};
 use proc_macro_error::{abort, proc_macro_error};
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::{
-    parse_macro_input, spanned::Spanned, Data, DeriveInput, Fields, LitInt, LitStr, Meta, Type,
+    Data, DeriveInput, Fields, Ident, LitInt, LitStr, Meta, Type, parse_macro_input,
+    punctuated::Punctuated, spanned::Spanned, token::Comma,
 };
 
 /// Derive macro for `Stat`.
@@ -36,7 +37,7 @@ use syn::{
 /// is encountered, this likely will not happen in normal usage,
 /// as id is not used in serialization.
 #[proc_macro_error]
-#[proc_macro_derive(Stat, attributes(stat, default))]
+#[proc_macro_derive(Stat, attributes(stat))]
 pub fn stat(tokens: TokenStream1) -> TokenStream1 {
     let input = parse_macro_input!(tokens as DeriveInput);
     let crate0 = quote! {::bevy_stat_query};
@@ -285,8 +286,22 @@ pub fn attribute(tokens: TokenStream1) -> TokenStream1 {
 }
 
 /// Implement `StatDispatch` and `StatDispatchTo` on a enum container of multiple stats.
+///
+/// # Attributes
+///
+/// * `#[stat_dispatch(serde)]`
+///
+///   Generates a `name` based serialization for this struct and implement `SerializeEntry` to enable value serialization.
+///
+/// * `#[stat_dispatch(serde_value)]`
+///
+///   Implement `SerializeEntry` to enable value serialization without creating a serde implementation for this struct.
+///
+/// * `#[on_value(serde)]`
+///
+///   Copy to the generated value type.
 #[proc_macro_error]
-#[proc_macro_derive(StatDispatch, attributes(stat_value))]
+#[proc_macro_derive(StatDispatch, attributes(stat_dispatch, on_value))]
 pub fn stat_dispatch(tokens: TokenStream1) -> TokenStream1 {
     let input = parse_macro_input!(tokens as DeriveInput);
     let data_enum = match input.data {
@@ -300,12 +315,35 @@ pub fn stat_dispatch(tokens: TokenStream1) -> TokenStream1 {
     let value_name = format_ident!("{}Value", name);
     let mut get_uid_branches = Vec::new();
     let mut from_stat_branches = Vec::new();
+    let mut serialize_stat_branches = Vec::new();
+    let mut deserialize_stat_branches = Vec::new();
+    let mut deserialize_branches = Vec::new();
     let mut variants = Vec::new();
     let mut variant_tys = Vec::new();
     let mut value_attrs = Vec::new();
+    let mut generate_serde_block = false;
+    let mut generate_serde_value_block = false;
+
     for attr in input.attrs {
         if let Meta::List(meta_list) = attr.meta {
-            if meta_list.path.is_ident("stat_value") {
+            if meta_list.path.is_ident("stat_dispatch") {
+                if let Ok(idents) =
+                    meta_list.parse_args_with(Punctuated::<Ident, Comma>::parse_terminated)
+                {
+                    for ident in idents {
+                        if ident == "serde" {
+                            generate_serde_block = true;
+                            generate_serde_value_block = true;
+                        } else if ident == "serde_value" {
+                            generate_serde_value_block = true;
+                        } else {
+                            abort!(meta_list.span(), "Expected 'serde' or 'serde_value'.")
+                        }
+                    }
+                } else {
+                    abort!(meta_list.span(), "Expected \"serde\".")
+                }
+            } else if meta_list.path.is_ident("on_value") {
                 value_attrs.push(meta_list.tokens);
             }
         }
@@ -327,26 +365,111 @@ pub fn stat_dispatch(tokens: TokenStream1) -> TokenStream1 {
                         "Expected either a single unnamed field or a unit variant matching a unit struct's name."
                     )
                 }
-                variant_tys.push(fields.unnamed[0].ty.to_token_stream());
+                let variant_ty = &fields.unnamed[0].ty;
+                variant_tys.push(variant_ty.to_token_stream());
                 get_uid_branches.push(quote! {
                     #name::#variant_ident(stat) => ::bevy_stat_query::Stat::as_uid(stat)
+                });
+                deserialize_branches.push(quote! {
+                    #name::#variant_ident(stat) => Ok(#value_name::#variant_ident(
+                        <<#variant_ty as ::bevy_stat_query::Stat>::Value as ::bevy_stat_query::Deserialize>::deserialize(deserializer)?
+                    ))
                 });
                 from_stat_branches.push(quote! {
                     #name::#variant_ident(stat)
                 });
+                serialize_stat_branches.push(quote! {
+                    #name::#variant_ident(stat) => stat.name()
+                });
+                deserialize_stat_branches.push(quote! {
+                    for entry in #variant_ident::values() {
+                        if __name == entry.name() {
+                            return Ok(#name::#variant_ident(entry));
+                        }
+                    }
+                });
             }
             Fields::Unit => {
-                let ty = &variant_ident;
-                variant_tys.push(ty.to_token_stream());
+                let variant_ty = &variant_ident;
+                variant_tys.push(variant_ty.to_token_stream());
                 get_uid_branches.push(quote! {
                     #name::#variant_ident => ::bevy_stat_query::Stat::as_uid(&#variant_ident)
+                });
+                deserialize_branches.push(quote! {
+                    #name::#variant_ident => Ok(#value_name::#variant_ident(
+                        <<#variant_ty as ::bevy_stat_query::Stat>::Value as ::bevy_stat_query::Deserialize>::deserialize(deserializer)?
+                    ))
                 });
                 from_stat_branches.push(quote! {
                     #name::#variant_ident
                 });
+                serialize_stat_branches.push(quote! {
+                    #name::#variant_ident => #variant_ident.name()
+                });
+                deserialize_stat_branches.push(quote! {
+                    for entry in #variant_ident::values() {
+                        if __name == entry.name() {
+                            return Ok(#name::#variant_ident);
+                        }
+                    }
+                });
             }
         }
     }
+
+    let serialize_block = if generate_serde_block {
+        quote! {
+            impl ::bevy_stat_query::Serialize for #name {
+                fn serialize<S: ::bevy_stat_query::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                    let name = match self {
+                        #(#serialize_stat_branches),*
+                    };
+                    ::bevy_stat_query::Serialize::serialize(name, serializer)
+                }
+            }
+
+            impl<'de> ::bevy_stat_query::Deserialize<'de> for #name {
+                fn deserialize<D: ::bevy_stat_query::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                    let __name = <String as ::bevy_stat_query::Deserialize>::deserialize(deserializer)?;
+                    #(#deserialize_stat_branches)*
+                    Err(::bevy_stat_query::DError::custom(format!("Unknown stat {__name}.")))
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    let serialize_value_block = if generate_serde_value_block {
+        quote! {
+            impl ::bevy_stat_query::SerializeEntry for #name {
+                fn serialize_item<S: ::bevy_stat_query::Serializer>(
+                    &self,
+                    value: &Self::Value,
+                    serializer: S,
+                ) -> Result<S::Ok, S::Error> {
+                    match value {
+                        #(#value_name::#variants(value) => {
+                            ::bevy_stat_query::Serialize::serialize(value, serializer)
+                        })*
+                    }
+                }
+            }
+
+            impl ::bevy_stat_query::DeserializeEntry for #name {
+                fn deserialize_item<'de, D: ::bevy_stat_query::Deserializer<'de>>(
+                    &self,
+                    deserializer: D,
+                ) -> Result<Self::Value, D::Error> {
+                    match self {
+                        #(#deserialize_branches),*
+                    }
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
 
     quote! {
         #[derive(Debug, Clone)]
@@ -354,6 +477,9 @@ pub fn stat_dispatch(tokens: TokenStream1) -> TokenStream1 {
         #vis enum #value_name {
             #(#variants(<#variant_tys as ::bevy_stat_query::Stat>::Value)),*
         }
+
+        #serialize_block
+        #serialize_value_block
 
         impl ::bevy_stat_query::StatDispatch for #name {
             type Value = #value_name;

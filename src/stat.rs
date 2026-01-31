@@ -7,14 +7,7 @@ use std::{
 
 use crate::{GlobalStatDefaults, Shareable, ShareableAny, StatValue};
 
-/// Instance of a stat.
-///
-/// # Safety Invariant
-///
-/// If two [`StatInst`]s are equal, their corresponding [`Stat`] and [`StatValue`]
-/// they are constructed from must be equal.
-/// This is achieved through the constraint placed on construction of [`StatVTable`], which makes
-/// having the same [`ErasedStatVTable`] on two different [`Stat`]s impossible in safe rust.
+/// Globally unique id of a stat.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StatUid {
     pub(crate) ty: TypeId,
@@ -27,8 +20,8 @@ pub struct StatUid {
 pub trait Stat: Shareable {
     type Value: StatValue;
 
-    /// Returns a globally unique name of the stat.
-    fn name(&self) -> &'static str;
+    /// Returns a ideally globally unique name of the stat, used for deserialization.
+    fn name(&self) -> &str;
 
     /// Returns a locally unique index of the stat, used in equality comparisons.
     fn as_index(&self) -> u64;
@@ -45,10 +38,6 @@ pub trait Stat: Shareable {
     ///
     /// This function can panic in case of a mismatch.
     fn from_index(index: u64) -> Self;
-
-    fn index_to_name(index: u64) -> &'static str {
-        Self::from_index(index).name()
-    }
 
     /// Register all fields for serialization.
     fn values() -> impl IntoIterator<Item = Self>;

@@ -32,9 +32,9 @@ pub trait StatExtension {
     fn register_stat_relation<Q: Qualifier>(
         &mut self,
         relation: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
-            + Send
-            + Sync
-            + 'static,
+        + Send
+        + Sync
+        + 'static,
     ) -> &mut Self;
 }
 
@@ -60,9 +60,9 @@ impl StatExtension for World {
     fn register_stat_relation<Q: Qualifier>(
         &mut self,
         relation: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
-            + Send
-            + Sync
-            + 'static,
+        + Send
+        + Sync
+        + 'static,
     ) -> &mut Self {
         self.get_resource_or_insert_with(GlobalStatRelations::<Q>::default)
             .push(relation);
@@ -89,9 +89,9 @@ impl StatExtension for App {
     fn register_stat_relation<Q: Qualifier>(
         &mut self,
         relation: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
-            + Send
-            + Sync
-            + 'static,
+        + Send
+        + Sync
+        + 'static,
     ) -> &mut Self {
         self.world_mut().register_stat_relation(relation);
         self
@@ -168,9 +168,9 @@ impl<Q: Qualifier> GlobalStatRelations<Q> {
     pub fn push(
         &mut self,
         stream: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
-            + Send
-            + Sync
-            + 'static,
+        + Send
+        + Sync
+        + 'static,
     ) -> &mut Self {
         self.stats.push(Box::new(stream));
         self
@@ -179,9 +179,9 @@ impl<Q: Qualifier> GlobalStatRelations<Q> {
     pub fn with(
         mut self,
         stream: impl Fn(Entity, &QualifierQuery<Q>, &mut StatValuePair, Querier<Q>)
-            + Send
-            + Sync
-            + 'static,
+        + Send
+        + Sync
+        + 'static,
     ) -> Self {
         self.stats.push(Box::new(stream));
         self

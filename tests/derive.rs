@@ -1,7 +1,7 @@
-use bevy_stat_query::types::StatRounded;
 use bevy_stat_query::Attribute;
 use bevy_stat_query::Stat;
 use bevy_stat_query::StatDispatch;
+use bevy_stat_query::types::StatRounded;
 
 #[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
 #[stat(value = "StatRounded<i32, f32>")]
@@ -27,6 +27,8 @@ pub struct X;
 
 use NumStats::*;
 use Stats::*;
+use serde::Deserialize;
+use serde::Serialize;
 
 #[derive(Debug, Attribute)]
 pub struct IsDragon;
@@ -72,19 +74,19 @@ pub fn test_derive() {
     assert_eq!(X.name(), "X");
 }
 
-#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq, Serialize, Deserialize)]
 #[stat(value = "StatRounded<i32, f32>")]
 pub struct Xa;
 
-#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq, Serialize, Deserialize)]
 #[stat(value = "StatRounded<i32, f32>")]
 pub struct Xb;
 
-#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq, Serialize, Deserialize)]
 #[stat(value = "StatRounded<i32, f32>")]
 pub struct Xc;
 
-#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Stat, PartialEq, Eq, Serialize, Deserialize)]
 #[stat(value = "StatRounded<i32, f32>")]
 pub enum XMany {
     A,
@@ -95,6 +97,26 @@ pub enum XMany {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, StatDispatch)]
 pub enum XDispatch {
     // If name is the same and Xa is a unit struct, can ignore field.
+    Xa,
+    Xb(Xb),
+    Xc(Xc),
+    XMany(XMany),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, StatDispatch)]
+#[stat_dispatch(serde)]
+pub enum XDispatch2 {
+    // If name is the same and Xa is a unit struct, can ignore field.
+    Xa,
+    Xb(Xb),
+    Xc(Xc),
+    XMany(XMany),
+}
+
+/// Manually implement serde, `XDispatch2` uses [`Stat::name`] instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, StatDispatch)]
+#[stat_dispatch(serde_value)]
+pub enum XDispatch3 {
     Xa,
     Xb(Xb),
     Xc(Xc),

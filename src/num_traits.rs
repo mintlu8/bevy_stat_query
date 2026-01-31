@@ -1,6 +1,6 @@
 use crate::{
-    fraction::{gcd, Fraction},
     Shareable,
+    fraction::{Fraction, gcd},
 };
 use std::{
     fmt::Debug,
@@ -69,6 +69,7 @@ where
     }
 }
 
+/// Trait for numbers, with support for operators, comparisons and min/max.
 pub trait Number: NumOps + PartialOrd + Default + Copy + Shareable {
     const ZERO: Self;
     const ONE: Self;
@@ -193,7 +194,9 @@ macro_rules! impl_int {
     };
 }
 
-impl_int!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize,);
+impl_int!(
+    u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize,
+);
 
 macro_rules! impl_int_newtype {
     ($($base: ident {$($ty: ty),* $(,)?}),* $(,)?) => {
@@ -390,6 +393,7 @@ impl Float for f64 {
     }
 }
 
+/// Trait for casting between numbers.
 pub trait NumCast<T> {
     fn cast(self) -> T;
 }

@@ -15,7 +15,7 @@ stats, this includes `add`, `multiply`, `min`, `max` and `or`.
 For instance if we want to evaluate a character's strength,
 taken into account buffs and debuffs this can look something like this:
 
-```rust
+```text
 clamp((42 + 4 + 7 + (-4)) * 2 * 0.75, 1, 99)
 ```
 

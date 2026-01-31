@@ -1,3 +1,4 @@
+#![allow(clippy::collapsible_if)]
 use bevy::{
     asset::AssetPlugin,
     prelude::{Single, With},
@@ -9,9 +10,9 @@ use bevy_ecs::{
     system::{Commands, RunSystemOnce},
 };
 use bevy_stat_query::{
-    match_stat, types::StatMultiplicative, ChildQuery, Qualifier, QualifierItem, QualifierQuery,
-    Querier, Stat, StatEntities, StatEntity, StatExtension, StatMap, StatQuery, StatStream,
-    StatValue, StatValuePair,
+    ChildQuery, Qualifier, QualifierItem, QualifierQuery, Querier, Stat, StatEntities, StatEntity,
+    StatExtension, StatMap, StatQuery, StatStream, StatValue, StatValuePair, match_stat,
+    types::StatMultiplicative,
 };
 
 bitflags::bitflags! {

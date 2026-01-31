@@ -1,8 +1,8 @@
-use crate::{operations::Unsupported, StatValue};
 use crate::{
-    rounding::{Rounding, Truncate},
     Int,
+    rounding::{Rounding, Truncate},
 };
+use crate::{StatValue, operations::Unsupported};
 use bevy_reflect::TypePath;
 use std::marker::PhantomData;
 
@@ -16,6 +16,7 @@ pub struct StatIntPercentAdditive<T: Int, R: Rounding = Truncate, const SCALE: i
     mult: T,
     min: T,
     max: T,
+    #[cfg_attr(feature = "serde", serde(skip))]
     rounding: PhantomData<R>,
 }
 

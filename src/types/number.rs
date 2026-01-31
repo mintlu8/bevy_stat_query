@@ -1,6 +1,5 @@
 use crate::num_traits::Number;
-use crate::Float;
-use crate::{operations::Unsupported, StatValue};
+use crate::{StatValue, operations::Unsupported};
 use bevy_reflect::TypePath;
 
 /// A stat represented by a floating point number or a fraction.
@@ -76,14 +75,14 @@ impl<T: Number> StatValue for StatMultiplicative<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TypePath)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(C, align(8))]
-pub struct StatAdditive<T: Float> {
+pub struct StatAdditive<T: Number> {
     addend: T,
     min: T,
     max: T,
     mult: T,
 }
 
-impl<T: Float> Default for StatAdditive<T> {
+impl<T: Number> Default for StatAdditive<T> {
     fn default() -> Self {
         Self {
             addend: T::ZERO,
@@ -94,7 +93,7 @@ impl<T: Float> Default for StatAdditive<T> {
     }
 }
 
-impl<T: Float> StatValue for StatAdditive<T> {
+impl<T: Number> StatValue for StatAdditive<T> {
     type Out = T;
     type Base = T;
 
