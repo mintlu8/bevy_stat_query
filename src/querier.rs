@@ -1,3 +1,4 @@
+use std::any::type_name;
 use std::fmt::Debug;
 
 use crate::attribute::Attribute;
@@ -12,6 +13,7 @@ use bevy_ecs::{
     query::With,
     system::{Query, Res, SystemParam},
 };
+use bevy_log::error;
 use bevy_reflect::Reflect;
 
 /// The core marker component. Stat querying is only allowed on entities marked as [`StatEntity`].
@@ -111,6 +113,9 @@ impl<Q: Qualifier, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
         query: &QualifierQuery<Q>,
         stat: &dyn ErasedStat,
     ) -> Option<Box<dyn ShareableAny>> {
+        if !self.base.entities.contains(entity) {
+            return None;
+        }
         let mut value = stat.create_default_value(self.base.defaults.as_deref());
         let mut pair = StatValuePair::new_dyn(stat, &mut *value);
         if let Some(relations) = &self.base.relations {
@@ -128,6 +133,9 @@ impl<Q: Qualifier, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
         query: &QualifierQuery<Q>,
         stat: &dyn ErasedStat,
     ) -> Option<Box<dyn ShareableAny>> {
+        if !self.base.entities.contains(from) || !self.base.entities.contains(to) {
+            return None;
+        }
         let mut value = stat.create_default_value(self.base.defaults.as_deref());
         let mut pair = StatValuePair::new_dyn(stat, &mut *value);
         self.stream
@@ -136,6 +144,10 @@ impl<Q: Qualifier, S: StatStream<Qualifier = Q>> ErasedQuerier<Q>
     }
 
     fn has_attribute_erased(&self, entity: Entity, attribute: Attribute) -> bool {
+        if !self.base.entities.contains(entity) {
+            error!("In has_attribute: Entity {} does not have StatEntity.", entity);
+            return false;
+        }
         self.stream.has_attribute(entity, attribute)
     }
 }
@@ -195,6 +207,93 @@ impl<Q: Qualifier> Querier<'_, Q> {
         entity: Entity,
         qualifier: &QualifierQuery<Q>,
         stat: &S,
+    ) -> S::Value {
+        if let Some(result) = self.0.query_stat_erased(entity, qualifier, stat) {
+            match result.as_any_boxed().downcast() {
+                Ok(result) => *result,
+                Err(result) => {
+                    error!(
+                        "In querying ({:?}, {}): value type should be {}, but returns {:?}, your trait implementations might be incorrect.",
+                        qualifier,
+                        stat.name(),
+                        type_name::<S::Value>(),
+                        result,
+                    );
+                    Default::default()
+                }
+            }
+        } else {
+            error!(
+                "In querying ({:?}, {}): entity {} missing.",
+                stat.name(),
+                type_name::<S::Value>(),
+                entity,
+            );
+            Default::default()
+        }
+    }
+
+    /// Query for a relation stat in its component form.
+    pub fn query_relation<S: Stat>(
+        &self,
+        from: Entity,
+        to: Entity,
+        qualifier: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> S::Value {
+        if let Some(result) = self.0.query_relation_erased(from, to, qualifier, stat) {
+            match result.as_any_boxed().downcast() {
+                Ok(result) => *result,
+                Err(result) => {
+                    error!(
+                        "In querying ({:?}, {}): value type should be {}, but returns {:?}, your trait implementations might be incorrect.",
+                        qualifier,
+                        stat.name(),
+                        type_name::<S::Value>(),
+                        result,
+                    );
+                    Default::default()
+                }
+            }
+        } else {
+            error!(
+                "In querying ({:?}, {}): entity {} or {} missing.",
+                stat.name(),
+                type_name::<S::Value>(),
+                from,
+                to,
+            );
+            Default::default()
+        }
+    }
+
+    /// Query for a stat in its evaluated form.
+    pub fn eval_stat<S: Stat>(
+        &self,
+        entity: Entity,
+        qualifier: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> <S::Value as StatValue>::Out {
+        self.query_stat(entity, qualifier, stat).eval()
+    }
+
+    /// Query for a relation stat in its evaluated form.
+    pub fn eval_relation<S: Stat>(
+        &self,
+        from: Entity,
+        to: Entity,
+        qualifier: &QualifierQuery<Q>,
+        stat: &S,
+    ) -> <S::Value as StatValue>::Out {
+        self.query_relation(from, to, qualifier, stat).eval()
+    }
+
+    /// Query for a stat in its component form.
+    pub fn try_query_stat<S: Stat>(
+        &self,
+        entity: Entity,
+        qualifier: &QualifierQuery<Q>,
+        stat: &S,
     ) -> Option<S::Value> {
         self.0
             .query_stat_erased(entity, qualifier, stat)
@@ -202,7 +301,7 @@ impl<Q: Qualifier> Querier<'_, Q> {
     }
 
     /// Query for a relation stat in its component form.
-    pub fn query_relation<S: Stat>(
+    pub fn try_query_relation<S: Stat>(
         &self,
         from: Entity,
         to: Entity,
@@ -215,25 +314,25 @@ impl<Q: Qualifier> Querier<'_, Q> {
     }
 
     /// Query for a stat in its evaluated form.
-    pub fn eval_stat<S: Stat>(
+    pub fn try_eval_stat<S: Stat>(
         &self,
         entity: Entity,
         qualifier: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<<S::Value as StatValue>::Out> {
-        self.query_stat(entity, qualifier, stat)
+        self.try_query_stat(entity, qualifier, stat)
             .map(|x| StatValue::eval(&x))
     }
 
     /// Query for a relation stat in its evaluated form.
-    pub fn eval_relation<S: Stat>(
+    pub fn try_eval_relation<S: Stat>(
         &self,
         from: Entity,
         to: Entity,
         qualifier: &QualifierQuery<Q>,
         stat: &S,
     ) -> Option<<S::Value as StatValue>::Out> {
-        self.query_relation(from, to, qualifier, stat)
+        self.try_query_relation(from, to, qualifier, stat)
             .map(|x| StatValue::eval(&x))
     }
 

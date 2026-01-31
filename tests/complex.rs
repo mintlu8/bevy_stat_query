@@ -115,11 +115,11 @@ pub fn test() {
             match_stat!(stat => {
                 (Stats::Damage, value) => {
                     value.add(
-                        querier.eval_stat(entity, qualifier, &Stats::Strength).unwrap()
+                        querier.eval_stat(entity, qualifier, &Stats::Strength)
                     );
                     value.add(
-                        querier.eval_stat(entity, qualifier, &Stats::WeaponDamage).unwrap() *
-                        querier.eval_stat(entity, qualifier, &Stats::WeaponProficiency).unwrap()
+                        querier.eval_stat(entity, qualifier, &Stats::WeaponDamage) *
+                        querier.eval_stat(entity, qualifier, &Stats::WeaponProficiency)
                     );
                 }
             })

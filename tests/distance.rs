@@ -163,7 +163,6 @@ impl StatStream for DistanceAura {
             // could panic or return default or write to ctx etc.
             let distance = querier
                 .query_relation(self.0, entity, qualifier, &StatDistance)
-                .unwrap()
                 .into_inner();
             v.add(distance);
         }
@@ -183,7 +182,6 @@ impl StatStream for AllegianceAura {
         if let Some(v) = stat_value.is_then_cast(&StatEffects::Allegiance) {
             let distance = querier
                 .query_relation(self.1, entity, qualifier, &StatAllegiance)
-                .unwrap()
                 .into_inner();
             v.add(match distance {
                 Relation::Ally => self.0,

@@ -6,9 +6,6 @@
 #[allow(unused)]
 use bevy_ecs::{component::Component, query::QueryData, system::SystemParam};
 
-pub(crate) static TYPE_ERROR: &str = "Error: a stat does not have the appropriate type. \
-This is almost certainly a bug since we do not provide a type erased api.";
-
 #[doc(hidden)]
 pub use bevy_app::{App, Plugin};
 
