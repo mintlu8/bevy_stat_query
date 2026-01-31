@@ -41,7 +41,7 @@ where
     fn join_to(&self, value: &dyn ErasedStatValue, into: &mut dyn bevy_stat_query::ShareableAny) {
         if let Some(value) = value.as_any().downcast_ref::<T::Value>() {
             if let Some(other) = into.downcast_mut::<T::Value>() {
-                other.join_by_ref(value)
+                other.join(value)
             }
         }
     }
@@ -62,7 +62,7 @@ impl Clone for Box<dyn ErasedStat> {
 }
 
 pub trait ErasedStatValue: ShareableAny + erased_serde::Serialize {
-    fn join(&mut self, other: &dyn Any);
+    fn join_dyn(&mut self, other: &dyn Any);
     fn dyn_clone(&self) -> Box<dyn ErasedStatValue>;
 }
 
@@ -70,9 +70,9 @@ impl<T> ErasedStatValue for T
 where
     T: StatValue + Serialize,
 {
-    fn join(&mut self, other: &dyn Any) {
+    fn join_dyn(&mut self, other: &dyn Any) {
         if let Some(item) = other.downcast_ref::<Self>() {
-            self.join_by_ref(item);
+            self.join(item);
         }
     }
     fn dyn_clone(&self) -> Box<dyn ErasedStatValue> {
@@ -123,7 +123,7 @@ impl<T: Stat<Value: Serialize + DeserializeOwned> + Serialize> StatDispatchTo<T>
 
     fn try_join_to(&self, value: &Self::Value, into: &mut <T as Stat>::Value) {
         if let Some(stat) = value.as_any().downcast_ref() {
-            into.join_by_ref(stat);
+            into.join(stat);
         }
     }
 }

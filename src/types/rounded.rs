@@ -59,7 +59,7 @@ where
     type Out = T;
     type Base = T;
 
-    fn join(&mut self, other: Self) {
+    fn join(&mut self, other: &Self) {
         self.addend += other.addend;
         self.mult *= other.mult;
         self.min = self.min.max(other.min);

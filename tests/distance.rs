@@ -79,7 +79,7 @@ impl StatStream for Position {
         _: Querier<Self::Qualifier>,
     ) {
         if let Some(v) = stat_value.is_then_cast(&StatDistance) {
-            v.join(Prioritized::from(
+            v.join_owned(Prioritized::from(
                 (self.0[0] - other.0[0]).abs() + (self.0[1] - other.0[1]).abs(),
             ))
         }
@@ -100,9 +100,9 @@ impl StatStream for Allegiance {
     ) {
         if let Some(v) = stat_value.is_then_cast(&StatAllegiance) {
             if self == other {
-                v.join(Relation::Ally.into())
+                v.join_owned(Relation::Ally.into())
             } else {
-                v.join(Relation::Enemy.into())
+                v.join_owned(Relation::Enemy.into())
             }
         }
     }

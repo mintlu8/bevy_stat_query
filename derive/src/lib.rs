@@ -494,7 +494,7 @@ pub fn stat_dispatch(tokens: TokenStream1) -> TokenStream1 {
                 match value {
                     #(#value_name::#variants(value) => {
                         if let Some(into) = into.downcast_mut::<<#variant_tys as ::bevy_stat_query::Stat>::Value>() {
-                            ::bevy_stat_query::StatValue::join_by_ref(into, value);
+                            ::bevy_stat_query::StatValue::join(into, value);
                         }
                     })*
                 }
@@ -537,7 +537,7 @@ pub fn stat_dispatch(tokens: TokenStream1) -> TokenStream1 {
 
                 fn try_join_to(&self, value: &Self::Value, into: &mut <#variant_tys as ::bevy_stat_query::Stat>::Value) {
                     if let #value_name::#variants(item) = value {
-                        ::bevy_stat_query::StatValue::join_by_ref(into, item)
+                        ::bevy_stat_query::StatValue::join(into, item)
                     }
                 }
             }

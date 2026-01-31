@@ -27,7 +27,7 @@ pub fn query_many(c: &mut Criterion) {
             bt_dyn
                 .iter()
                 .filter(|(q, _)| q.qualifies_as(&QualifierQuery::Aggregate(255)))
-                .for_each(|(_, v)| result.join_by_ref(v));
+                .for_each(|(_, v)| result.join(v));
             result
         })
     });

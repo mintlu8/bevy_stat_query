@@ -29,7 +29,7 @@ impl<S: Stat> StatDispatch for S {
 
     fn join_to(&self, value: &Self::Value, into: &mut dyn ShareableAny) {
         if let Some(item) = into.downcast_mut::<Self::Value>() {
-            item.join_by_ref(value);
+            item.join(value);
         }
     }
 }
@@ -66,7 +66,7 @@ impl<S: Stat> StatDispatchTo<S> for S {
     }
 
     fn try_join_to(&self, value: &Self::Value, into: &mut <S as Stat>::Value) {
-        into.join_by_ref(value);
+        into.join(value);
     }
 }
 
@@ -287,6 +287,27 @@ impl<Q: QualifierKey, T: StatDispatch> StatMapBase<Q, T> {
         }
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (&Q, &T, &T::Value)> {
+        self.inner.iter().map(
+            |StatMapEntry {
+                 stat,
+                 qualifier,
+                 value,
+             }| (qualifier, stat, value),
+        )
+    }
+
+    pub fn iter_stat<S: Stat>(&self, stat: &S) -> impl Iterator<Item = (&Q, &S::Value)>
+    where
+        T: StatDispatchTo<S>,
+    {
+        self.find_slice(stat.as_uid()).iter().filter_map(
+            |StatMapEntry {
+                 qualifier, value, ..
+             }| { Some((qualifier, T::get_value(value)?)) },
+        )
+    }
+
     pub fn query_stat<S: Stat>(
         &self,
         qualifier: &QualifierQuery<Q::Qualifier>,
@@ -331,5 +352,53 @@ impl<Q: QualifierKey, T: StatDispatch> StatStream for StatMapBase<Q, T> {
                 entry.stat.join_to(&entry.value, stat_value.value);
             }
         }
+    }
+}
+
+pub struct MappedIter<Q: QualifierKey, S: StatDispatch>(std::vec::IntoIter<StatMapEntry<Q, S>>);
+
+impl<Q: QualifierKey, S: StatDispatch> Iterator for MappedIter<Q, S> {
+    type Item = (Q, S, S::Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|x| (x.qualifier, x.stat, x.value))
+    }
+}
+
+impl<Q: QualifierKey, S: StatDispatch> IntoIterator for StatMapBase<Q, S> {
+    type Item = (Q, S, S::Value);
+
+    type IntoIter = MappedIter<Q, S>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        MappedIter(self.inner.into_iter())
+    }
+}
+
+impl<Q: QualifierKey, S: StatDispatch> FromIterator<(Q, S, S::Value)> for StatMapBase<Q, S> {
+    fn from_iter<T: IntoIterator<Item = (Q, S, S::Value)>>(iter: T) -> Self {
+        Self {
+            inner: iter
+                .into_iter()
+                .map(|(qualifier, stat, value)| StatMapEntry {
+                    stat,
+                    qualifier,
+                    value,
+                })
+                .collect(),
+        }
+    }
+}
+
+impl<Q: QualifierKey, S: StatDispatch> Extend<(Q, S, S::Value)> for StatMapBase<Q, S> {
+    fn extend<T: IntoIterator<Item = (Q, S, S::Value)>>(&mut self, iter: T) {
+        self.inner.extend(
+            iter.into_iter()
+                .map(|(qualifier, stat, value)| StatMapEntry {
+                    stat,
+                    qualifier,
+                    value,
+                }),
+        );
     }
 }

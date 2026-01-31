@@ -36,7 +36,7 @@ impl<T: Int, R: Rounding, const S: i64> StatValue for StatIntPercentAdditive<T, 
     type Out = T;
     type Base = T;
 
-    fn join(&mut self, other: Self) {
+    fn join(&mut self, other: &Self) {
         self.addend += other.addend;
         self.mult += other.mult;
         self.max = self.max.min(other.max);

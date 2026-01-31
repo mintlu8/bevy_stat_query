@@ -113,7 +113,7 @@ pub enum XDispatch2 {
     XMany(XMany),
 }
 
-/// Manually implement serde, `XDispatch2` uses [`Stat::name`] instead.
+/// Manually implement serde, `XDispatch2` utilizes [`Stat::name`] instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, StatDispatch)]
 #[stat_dispatch(serde_value)]
 pub enum XDispatch3 {

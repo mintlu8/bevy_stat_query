@@ -55,14 +55,14 @@ impl<T: Shareable + Default, const R: bool> StatValue for Prioritized<T, R> {
     type Out = T;
 
     #[allow(clippy::collapsible_else_if)]
-    fn join(&mut self, other: Self) {
+    fn join(&mut self, other: &Self) {
         if R {
             if self.priority <= other.priority {
-                self.value = other.value
+                self.value = other.value.clone()
             }
         } else {
             if self.priority < other.priority {
-                self.value = other.value
+                self.value = other.value.clone()
             }
         }
     }

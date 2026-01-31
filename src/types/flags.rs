@@ -33,7 +33,11 @@ impl<T: Flags> StatValue for StatFlags<T> {
     type Out = T;
     type Base = T;
 
-    fn join(&mut self, other: Self) {
+    fn join(&mut self, other: &Self) {
+        self.0 |= other.0.clone();
+    }
+
+    fn join_owned(&mut self, other: Self) {
         self.0 |= other.0;
     }
 

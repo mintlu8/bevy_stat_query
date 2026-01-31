@@ -45,10 +45,10 @@ pub enum Unsupported {}
 pub trait StatValue: Shareable + Default {
     type Out: Shareable + Default;
 
-    fn join(&mut self, other: Self);
+    fn join(&mut self, other: &Self);
 
-    fn join_by_ref(&mut self, other: &Self) {
-        self.join(other.clone())
+    fn join_owned(&mut self, other: Self) {
+        self.join(&other);
     }
 
     fn eval(&self) -> Self::Out;
@@ -92,12 +92,12 @@ pub trait StatValue: Shareable + Default {
     }
 
     fn with_join(mut self, other: Self) -> Self {
-        self.join(other);
+        self.join_owned(other);
         self
     }
 
     fn with_join_ref(mut self, other: &Self) -> Self {
-        self.join_by_ref(other);
+        self.join(other);
         self
     }
 
@@ -107,8 +107,8 @@ pub trait StatValue: Shareable + Default {
 impl StatValue for bool {
     type Out = bool;
 
-    fn join(&mut self, other: Self) {
-        *self |= other
+    fn join(&mut self, other: &Self) {
+        *self |= *other
     }
 
     fn eval(&self) -> Self::Out {

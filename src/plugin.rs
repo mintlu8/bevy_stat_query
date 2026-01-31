@@ -47,13 +47,13 @@ impl StatExtension for World {
 
     fn register_stat_min<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
         self.get_resource_or_insert_with::<GlobalStatDefaults>(Default::default)
-            .patch(stat, StatOperation::Min(value));
+            .modify(stat, StatOperation::Min(value));
         self
     }
 
     fn register_stat_max<S: Stat>(&mut self, stat: &S, value: Bounds<S>) -> &mut Self {
         self.get_resource_or_insert_with::<GlobalStatDefaults>(Default::default)
-            .patch(stat, StatOperation::Max(value));
+            .modify(stat, StatOperation::Max(value));
         self
     }
 
@@ -119,7 +119,7 @@ impl GlobalStatDefaults {
     }
 
     /// Modify a [`Stat`]'s default value.
-    pub fn patch<S: Stat>(&mut self, stat: &S, value: StatOperation<S::Value>) {
+    pub fn modify<S: Stat>(&mut self, stat: &S, value: StatOperation<S::Value>) {
         let uid = stat.as_uid();
         if let Some(v) = self.stats.get_mut(&uid) {
             if let Some(v) = v.as_any_mut().downcast_mut() {

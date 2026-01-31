@@ -210,6 +210,12 @@ pub enum QualifierConstraint<Q: Qualifier> {
 }
 
 /// Qualifier on a modifier of a stat.
+/// 
+/// # Implementations
+/// 
+/// Usually [`QualifierItem`],
+/// [`PhantomData<Qualifier>`](std::marker::PhantomData) can
+/// also be used for non-qualified stats.
 pub trait QualifierKey: Ord {
     type Qualifier: Qualifier;
     fn qualify(&self, query: &Self::Qualifier) -> bool;

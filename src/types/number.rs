@@ -28,7 +28,7 @@ impl<T: Number> StatValue for StatMultiplicative<T> {
     type Out = T;
     type Base = T;
 
-    fn join(&mut self, other: Self) {
+    fn join(&mut self, other: &Self) {
         self.addend += other.addend;
         self.mult *= other.mult;
         self.min = self.min._max(other.min);
@@ -97,7 +97,7 @@ impl<T: Number> StatValue for StatAdditive<T> {
     type Out = T;
     type Base = T;
 
-    fn join(&mut self, other: Self) {
+    fn join(&mut self, other: &Self) {
         self.addend += other.addend;
         self.mult += other.mult;
         self.min = self.min._max(other.min);
@@ -166,7 +166,7 @@ impl<T: Number> StatValue for StatMultiplied<T> {
     type Out = T;
     type Base = T;
 
-    fn join(&mut self, other: Self) {
+    fn join(&mut self, other: &Self) {
         self.mult *= other.mult;
         self.min = self.min._max(other.min);
         self.max = self.max._min(other.max);
