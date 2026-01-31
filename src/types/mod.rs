@@ -6,5 +6,5 @@ mod rounded;
 pub use flags::StatFlags;
 pub use int_pct::StatIntPercentAdditive;
 pub use number::{StatAdditive, StatMultiplicative, StatMultiplied};
-pub use prioritized::Prioritized;
+pub use prioritized::{Prioritized, GetPrioritized};
 pub use rounded::StatRounded;

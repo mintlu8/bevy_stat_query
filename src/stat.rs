@@ -166,8 +166,4 @@ impl<'t> StatValuePair<'t> {
             None
         }
     }
-
-    pub(crate) fn clone_value(&self) -> Box<dyn ShareableAny> {
-        self.value.clone_boxed()
-    }
 }

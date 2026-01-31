@@ -8,19 +8,27 @@ Versatile RPG stat system for the bevy engine.
 
 ## Overview
 
-In order to represent stats, stat buffs and stat queries in an ECS,
-`bevy_stat_query` exclusively uses unordered operations to represent
-stats, this includes `add`, `multiply`, `min`, `max` and `or`.
+We represent stats as unordered operations,
+this includes `add`, `multiply`, `min`, `max` and `or`.
 
 For instance if we want to evaluate a character's strength,
-taken into account buffs and debuffs this can look something like this:
+we may want to aggregate buffs and debuffs, this may look something like this:
 
-```text
-clamp((42 + 4 + 7 + (-4)) * 2 * 0.75, 1, 99)
+```rust
+let attack = clamp((42 + 4 + 7 + (-4)) * 2 * 0.75, 1, 99)
 ```
 
-Note how the order of evaluation doesn't matter, which fits perfectly into
-the "insert component and have effect" usage pattern of the ECS.
+We can also aggregate flags:
+
+```rust
+let immunities = Fire | (Fire|Ice) | None | Poison
+```
+
+Or find value with the highest priority:
+
+```rust
+let idle_animation = max((0, "idle"), (1, "injured"), (2, "stunned"));
+```
 
 ## Qualified Stats
 
@@ -122,13 +130,16 @@ relation based effects like
 Increase damage of all allies within 3 yards by 5.
 ```
 
-Checkout one of our examples on how to implement this.
+Checkout one of our tests or examples on how to implement this.
 
 ## Versions
 
 | bevy | bevy-stat-query |
 |------|-----------------|
 | 0.15 | 0.1 - latest    |
+| 0.16 | 0.2             |
+| 0.17 | 0.3 - 0.4       |
+| 0.18 | 0.5 - latest    |
 
 ## License
 
