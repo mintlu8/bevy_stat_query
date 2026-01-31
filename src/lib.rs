@@ -51,7 +51,7 @@ use std::{
     marker::PhantomData,
 };
 mod attribute;
-pub use attribute::Attribute;
+pub use attribute::{AsAttribute, Attribute};
 
 /// Alias for `Clone + Debug + Send + Sync + 'static`.
 pub trait Shareable: Clone + Debug + Send + Sync + 'static {}

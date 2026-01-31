@@ -40,7 +40,6 @@ use syn::{
 #[proc_macro_derive(Stat, attributes(stat))]
 pub fn stat(tokens: TokenStream1) -> TokenStream1 {
     let input = parse_macro_input!(tokens as DeriveInput);
-    let crate0 = quote! {::bevy_stat_query};
     let name = input.ident;
 
     let mut value = None;
@@ -74,7 +73,7 @@ pub fn stat(tokens: TokenStream1) -> TokenStream1 {
                 abort!(s.struct_token.span, "Only supports unit structs and enums.");
             };
             quote! {
-                impl #crate0::Stat for #name {
+                impl ::bevy_stat_query::Stat for #name {
                     type Value = #value;
 
                     fn name(&self) -> &'static str {
@@ -138,7 +137,7 @@ pub fn stat(tokens: TokenStream1) -> TokenStream1 {
                 .collect();
 
             quote! {
-                impl #crate0::Stat for #name {
+                impl ::bevy_stat_query::Stat for #name {
                     type Value = #value;
 
                     fn name(&self) -> &'static str {
@@ -185,7 +184,6 @@ pub fn stat(tokens: TokenStream1) -> TokenStream1 {
 #[proc_macro_derive(Attribute)]
 pub fn attribute(tokens: TokenStream1) -> TokenStream1 {
     let input = parse_macro_input!(tokens as DeriveInput);
-    let crate0 = quote! {::bevy_stat_query};
     let name = input.ident;
     let uniq = quote! {
         {
@@ -208,20 +206,11 @@ pub fn attribute(tokens: TokenStream1) -> TokenStream1 {
                     );
                 }
                 quote! {
-                    impl From<#name> for #crate0::Attribute<'static> {
-                        fn from(value: #name) -> #crate0::Attribute<'static> {
-                            #crate0::Attribute::Enum{
+                    impl ::bevy_stat_query::AsAttribute for #name {
+                        fn as_attribute(&self) -> ::bevy_stat_query::Attribute<'static> {
+                            ::bevy_stat_query::Attribute::Enum{
                                 tag: #uniq,
-                                index: value.0 as u64,
-                            }
-                        }
-                    }
-
-                    impl From<&#name> for #crate0::Attribute<'static> {
-                        fn from(value: &#name) -> #crate0::Attribute<'static> {
-                            #crate0::Attribute::Enum{
-                                tag: #uniq,
-                                index: value.0 as u64,
+                                index: self.0 as u64,
                             }
                         }
                     }
@@ -229,18 +218,9 @@ pub fn attribute(tokens: TokenStream1) -> TokenStream1 {
                 .into()
             }
             Fields::Unit => quote! {
-                impl From<#name> for #crate0::Attribute<'static> {
-                    fn from(_: #name) -> #crate0::Attribute<'static> {
-                        #crate0::Attribute::Enum{
-                            tag: #uniq,
-                            index: 0,
-                        }
-                    }
-                }
-
-                impl From<&#name> for #crate0::Attribute<'static> {
-                    fn from(_: &#name) -> #crate0::Attribute<'static> {
-                        #crate0::Attribute::Enum{
+                impl ::bevy_stat_query::AsAttribute for #name {
+                    fn as_attribute(&self) -> ::bevy_stat_query::Attribute<'static> {
+                        ::bevy_stat_query::Attribute::Enum{
                             tag: #uniq,
                             index: 0,
                         }
@@ -253,21 +233,12 @@ pub fn attribute(tokens: TokenStream1) -> TokenStream1 {
             let f1 = fields.variants.iter().map(|x| &x.ident);
             let f2 = fields.variants.iter().map(|x| &x.ident);
             quote! {
-                impl From<#name> for #crate0::Attribute<'static> {
-                    fn from(value: #name) -> #crate0::Attribute<'static> {
-                        #crate0::Attribute::Enum{
-                            tag: #uniq,
-                            index: value as u64,
-                        }
-                    }
-                }
-
-                impl From<&#name> for #crate0::Attribute<'static> {
-                    fn from(value: &#name) -> #crate0::Attribute<'static> {
-                        let variant = match value {
+                impl ::bevy_stat_query::AsAttribute for #name {
+                    fn as_attribute(&self) -> ::bevy_stat_query::Attribute<'static> {
+                        let variant = match self {
                             #(#name::#f1 => #name::#f2),*
                         };
-                        #crate0::Attribute::Enum{
+                        ::bevy_stat_query::Attribute::Enum{
                             tag: #uniq,
                             index: variant as u64,
                         }

@@ -7,30 +7,12 @@ pub enum Attribute<'t> {
 }
 
 impl Attribute<'_> {
-    pub fn is<'t, T: ?Sized>(&self, item: &'t T) -> bool
-    where
-        &'t T: Into<Attribute<'t>>,
-    {
-        *self == item.into()
+    pub fn is<T: AsAttribute + ?Sized>(&self, item: &T) -> bool {
+        *self == item.as_attribute()
     }
 }
 
-impl PartialEq<String> for Attribute<'_> {
-    fn eq(&self, other: &String) -> bool {
-        self.is(other)
-    }
-}
-
-impl PartialEq<&str> for Attribute<'_> {
-    fn eq(&self, other: &&str) -> bool {
-        self.is(other)
-    }
-}
-
-impl<T: ?Sized> PartialEq<T> for Attribute<'_>
-where
-    for<'t> &'t T: Into<Attribute<'t>>,
-{
+impl<T: AsAttribute + ?Sized> PartialEq<T> for Attribute<'_> {
     fn eq(&self, other: &T) -> bool {
         self.is(other)
     }
@@ -39,6 +21,28 @@ where
 impl<'t> From<&'t str> for Attribute<'t> {
     fn from(val: &'t str) -> Self {
         Attribute::String(val)
+    }
+}
+
+pub trait AsAttribute {
+    fn as_attribute(&self) -> Attribute<'_>;
+}
+
+impl<T: AsAttribute + ?Sized> AsAttribute for &T {
+    fn as_attribute(&self) -> Attribute<'_> {
+        (*self).as_attribute()
+    }
+}
+
+impl AsAttribute for str {
+    fn as_attribute(&self) -> Attribute<'_> {
+        Attribute::String(self)
+    }
+}
+
+impl AsAttribute for String {
+    fn as_attribute(&self) -> Attribute<'_> {
+        Attribute::String(self)
     }
 }
 
