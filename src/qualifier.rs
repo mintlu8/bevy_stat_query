@@ -298,7 +298,7 @@ impl<Q: Qualifier> QualifierQueryOwned<Q> {
     pub fn borrow(&self) -> QualifierQuery<'_, Q> {
         match self {
             QualifierQueryOwned::Aggregate(query) => QualifierQuery::Aggregate(query.clone()),
-            QualifierQueryOwned::Custom(query) => QualifierQuery::Custom(&query),
+            QualifierQueryOwned::Custom(query) => QualifierQuery::Custom(query),
         }
     }
 }

@@ -38,11 +38,13 @@ impl AsAttribute for Attribute<'_> {
     fn as_attribute(&self) -> Attribute<'_> {
         match self {
             Attribute::String(s) => Attribute::String(s),
-            Attribute::Enum { tag, index } => Attribute::Enum { tag: *tag, index: *index },
+            Attribute::Enum { tag, index } => Attribute::Enum {
+                tag: *tag,
+                index: *index,
+            },
         }
     }
 }
-
 
 impl AsAttribute for str {
     fn as_attribute(&self) -> Attribute<'_> {

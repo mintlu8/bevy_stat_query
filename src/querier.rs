@@ -4,8 +4,8 @@ use std::fmt::Debug;
 use crate::attribute::Attribute;
 use crate::plugin::GlobalStatRelations;
 use crate::stat::ErasedStat;
-use crate::{Qualifier, QualifierQuery, Stat, StatStream, plugin::GlobalStatDefaults};
 use crate::{AsAttribute, ShareableAny, StatValue, StatValuePair};
+use crate::{Qualifier, QualifierQuery, Stat, StatStream, plugin::GlobalStatDefaults};
 use bevy_ecs::reflect::ReflectComponent;
 use bevy_ecs::{
     component::Component,
@@ -99,7 +99,7 @@ impl<'w, 's, 't, Q: Qualifier, S: StatStream<Qualifier = Q>> JoinedQuerier<'w, '
             .map(|x| x.eval())
     }
 
-    pub fn has_attribute<'a>(&self, entity: Entity, attribute: impl AsAttribute) -> bool {
+    pub fn has_attribute(&self, entity: Entity, attribute: impl AsAttribute) -> bool {
         self.has_attribute_erased(entity, attribute.as_attribute())
     }
 }
