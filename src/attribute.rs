@@ -1,6 +1,6 @@
 /// Represents either a string or a typed enum.
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialOrd, Ord, Hash)]
 pub enum Attribute<'t> {
     String(&'t str),
     Enum { tag: usize, index: u64 },
@@ -33,6 +33,16 @@ impl<T: AsAttribute + ?Sized> AsAttribute for &T {
         (*self).as_attribute()
     }
 }
+
+impl AsAttribute for Attribute<'_> {
+    fn as_attribute(&self) -> Attribute<'_> {
+        match self {
+            Attribute::String(s) => Attribute::String(s),
+            Attribute::Enum { tag, index } => Attribute::Enum { tag: *tag, index: *index },
+        }
+    }
+}
+
 
 impl AsAttribute for str {
     fn as_attribute(&self) -> Attribute<'_> {

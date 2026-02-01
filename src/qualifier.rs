@@ -273,3 +273,32 @@ impl<Q: Qualifier> QualifierKey for PhantomData<Q> {
         }
     }
 }
+
+/// Query version of [`Qualifier`].
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
+pub enum QualifierQueryOwned<Q: Qualifier> {
+    /// Look for qualifier that qualifies as this.
+    ///
+    /// Queried `any_of` intersects this (or is none) and this contains Queried `all_of`.
+    Aggregate(Q),
+    /// Look for qualifiers that satisfies all conditions.
+    Custom(Vec<QualifierConstraint<Q>>),
+}
+
+impl<Q: Qualifier> QualifierQuery<'_, Q> {
+    pub fn to_owned(&self) -> QualifierQueryOwned<Q> {
+        match self {
+            QualifierQuery::Aggregate(query) => QualifierQueryOwned::Aggregate(query.clone()),
+            QualifierQuery::Custom(query) => QualifierQueryOwned::Custom(query.to_vec()),
+        }
+    }
+}
+
+impl<Q: Qualifier> QualifierQueryOwned<Q> {
+    pub fn borrow(&self) -> QualifierQuery<'_, Q> {
+        match self {
+            QualifierQueryOwned::Aggregate(query) => QualifierQuery::Aggregate(query.clone()),
+            QualifierQueryOwned::Custom(query) => QualifierQuery::Custom(&query),
+        }
+    }
+}

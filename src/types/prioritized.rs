@@ -101,14 +101,14 @@ impl<T: Shareable + Default, const LAST: bool> Default for GetPrioritized<T, LAS
 }
 
 impl<T: Shareable + Default> GetPrioritized<T, true> {
-    const fn new() -> Self {
+    pub const fn new() -> Self {
         GetPrioritized(PhantomData)
     }
 }
 
 impl<T: Shareable + Default> GetPrioritized<T, false> {
     /// Use non-standard `Prioritized` that chooses the first occurrence instead of the last.
-    const fn new_choose_first() -> Self {
+    pub const fn new_choose_first() -> Self {
         GetPrioritized(PhantomData)
     }
 }

@@ -26,7 +26,7 @@ pub use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as D
 #[cfg(feature = "serde")]
 pub use serde_map::{DeserializeEntry, SerializeEntry};
 pub mod types;
-pub use qualifier::{Qualifier, QualifierConstraint, QualifierItem, QualifierKey, QualifierQuery};
+pub use qualifier::{Qualifier, QualifierConstraint, QualifierItem, QualifierKey, QualifierQuery, QualifierQueryOwned};
 mod stat;
 #[cfg(feature = "derive")]
 pub use bevy_stat_query_derive::{Attribute, Stat, StatDispatch};
