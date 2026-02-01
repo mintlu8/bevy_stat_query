@@ -14,7 +14,14 @@ impl Attribute<'_> {
 
 impl<T: AsAttribute + ?Sized> PartialEq<T> for Attribute<'_> {
     fn eq(&self, other: &T) -> bool {
-        self.is(other)
+        let attr = other.as_attribute();
+        match (self, attr) {
+            (Attribute::String(a), Attribute::String(b)) => *a == b,
+            (Attribute::Enum { tag: a1, index: a2 }, Attribute::Enum { tag: b1, index: b2 }) => {
+                *a1 == b1 && *a2 == b2
+            }
+            _ => false,
+        }
     }
 }
 
