@@ -122,7 +122,7 @@ impl GlobalStatDefaults {
     pub fn modify<S: Stat>(&mut self, stat: &S, value: StatOperation<S::Value>) {
         let uid = stat.as_uid();
         if let Some(v) = self.stats.get_mut(&uid) {
-            if let Some(v) = v.as_any_mut().downcast_mut() {
+            if let Some(v) = (**v).as_any_mut().downcast_mut::<S::Value>() {
                 value.write_to(v);
                 return;
             }
@@ -138,7 +138,7 @@ impl GlobalStatDefaults {
     pub fn get<S: Stat>(&self, stat: &S) -> S::Value {
         self.stats
             .get(&stat.as_uid())
-            .and_then(|x| x.as_any().downcast_ref())
+            .and_then(|x| (**x).as_any().downcast_ref::<S::Value>())
             .cloned()
             .unwrap_or(Default::default())
     }
