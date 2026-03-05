@@ -188,17 +188,17 @@ fn query(
     // 4 * 1.5 + 12 * 0.5
     assert_eq!(
         querier.eval_stat(entity, &Default::default(), &Stats::Damage),
-        Some(12.0)
+        12.0
     );
     // (4 * 1.5 * 2 + 12 * 0.5) * 2 * 1.5
     assert_eq!(
         querier.eval_stat(entity, &Adjective::Fire.into(), &Stats::Damage),
-        Some(54.0)
+        54.0
     );
     // (4 * 1.5 * 0.5 + 12 * 0.5) * 2
     assert_eq!(
         querier.eval_stat(entity, &Adjective::Water.into(), &Stats::Damage),
-        Some(18.0)
+        18.0
     );
     // (4 * 1.5 * 2 * 0.5 + 12 * 0.5) * 2 * 1.5
     assert_eq!(
@@ -207,6 +207,6 @@ fn query(
             &(Adjective::Fire | Adjective::Water).into(),
             &Stats::Damage
         ),
-        Some(36.0)
+        36.0
     );
 }

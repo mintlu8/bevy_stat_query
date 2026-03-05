@@ -10,6 +10,17 @@ impl Attribute<'_> {
     pub fn is<T: AsAttribute + ?Sized>(&self, item: &T) -> bool {
         *self == item.as_attribute()
     }
+
+    #[allow(clippy::wrong_self_convention)]
+    pub(crate) fn to_owned(&self) -> AttributeOwned {
+        match self {
+            Attribute::String(s) => AttributeOwned::String(s.to_string()),
+            Attribute::Enum { tag, index } => AttributeOwned::Enum {
+                tag: *tag,
+                index: *index,
+            },
+        }
+    }
 }
 
 impl<T: AsAttribute + ?Sized> PartialEq<T> for Attribute<'_> {
@@ -62,6 +73,26 @@ impl AsAttribute for str {
 impl AsAttribute for String {
     fn as_attribute(&self) -> Attribute<'_> {
         Attribute::String(self)
+    }
+}
+
+/// Owned version of [`Attribute`].
+#[repr(C)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AttributeOwned {
+    String(String),
+    Enum { tag: usize, index: u64 },
+}
+
+impl AsAttribute for AttributeOwned {
+    fn as_attribute(&self) -> Attribute<'_> {
+        match self {
+            AttributeOwned::String(s) => Attribute::String(s),
+            AttributeOwned::Enum { tag, index } => Attribute::Enum {
+                tag: *tag,
+                index: *index,
+            },
+        }
     }
 }
 

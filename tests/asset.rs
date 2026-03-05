@@ -107,19 +107,19 @@ fn query(
     let querier = querier.join(&weapon_query);
     assert_eq!(
         querier.eval_stat(*a, &QualifierQuery::Aggregate(0u32), &Stats::Damage),
-        Some(2.0)
+        2.0
     );
     assert_eq!(
         querier.eval_stat(*a, &QualifierQuery::Aggregate(0u32), &Stats::Defense),
-        Some(0.0)
+        0.0
     );
 
     assert_eq!(
         querier.eval_stat(*b, &QualifierQuery::Aggregate(0u32), &Stats::Damage),
-        Some(20.0)
+        20.0
     );
     assert_eq!(
         querier.eval_stat(*b, &QualifierQuery::Aggregate(0u32), &Stats::Defense),
-        Some(0.0)
+        0.0
     );
 }

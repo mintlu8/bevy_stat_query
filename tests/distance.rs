@@ -223,20 +223,20 @@ pub fn main() {
             }
             assert_eq!(
                 querier!().eval_stat(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
-                Some(7)
+                7
             );
             assert_eq!(
                 querier!().eval_stat(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
-                Some(7)
+                7
             );
             position.query.get_mut(a).unwrap().0[1] = -7;
             assert_eq!(
                 querier!().eval_stat(a, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
-                Some(17)
+                17
             );
             assert_eq!(
                 querier!().eval_stat(b, &QualifierQuery::Aggregate(false), &StatEffects::Distance),
-                Some(17)
+                17
             );
             assert_eq!(
                 querier!().eval_stat(
@@ -244,7 +244,7 @@ pub fn main() {
                     &QualifierQuery::Aggregate(false),
                     &StatEffects::Allegiance
                 ),
-                Some(0)
+                0
             );
             assert_eq!(
                 querier!().eval_stat(
@@ -252,7 +252,7 @@ pub fn main() {
                     &QualifierQuery::Aggregate(false),
                     &StatEffects::Allegiance
                 ),
-                Some(0)
+                0
             );
             *allegiance.query.get_mut(b).unwrap() = Allegiance::Player;
 
@@ -262,7 +262,7 @@ pub fn main() {
                     &QualifierQuery::Aggregate(false),
                     &StatEffects::Allegiance
                 ),
-                Some(5)
+                5
             );
             assert_eq!(
                 querier!().eval_stat(
@@ -270,7 +270,7 @@ pub fn main() {
                     &QualifierQuery::Aggregate(false),
                     &StatEffects::Allegiance
                 ),
-                Some(7)
+                7
             );
         }
     });

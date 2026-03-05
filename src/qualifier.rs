@@ -168,10 +168,30 @@ pub enum QualifierQuery<'t, Q: Qualifier> {
 }
 
 impl<Q: Qualifier> QualifierQuery<'_, Q> {
+    /// If equivalent to the default value, or `QualifierQuery::Aggregate(Qualifier::none())`.
+    pub fn is_none(&self) -> bool {
+        match self {
+            QualifierQuery::Aggregate(v) => v.is_none(),
+            QualifierQuery::Custom([QualifierConstraint::Aggregate(v)]) => v.is_none(),
+            _ => false,
+        }
+    }
+
+    /// Obtain the underlying [`Qualifier`], if is equivalent to [`QualifierQuery::Aggregate`].
+    pub fn get_aggregate(&self) -> Option<Q> {
+        match self {
+            QualifierQuery::Aggregate(v) => Some(v.clone()),
+            QualifierQuery::Custom([QualifierConstraint::Aggregate(v)]) => Some(v.clone()),
+            _ => None,
+        }
+    }
+
+    /// Check if this query qualifies [`QualifierItem::none`].
     pub fn qualifies_none(&self) -> bool {
         QualifierItem::none().qualifies_as(self)
     }
 
+    /// Check if this query qualifies a generic modifier.
     pub fn qualify(&self, qualifier: &impl QualifierKey<Qualifier = Q>) -> bool {
         qualifier.qualify_query(self)
     }
@@ -274,7 +294,7 @@ impl<Q: Qualifier> QualifierKey for PhantomData<Q> {
     }
 }
 
-/// Query version of [`Qualifier`].
+/// Owned query version of [`Qualifier`].
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
 pub enum QualifierQueryOwned<Q: Qualifier> {
     /// Look for qualifier that qualifies as this.

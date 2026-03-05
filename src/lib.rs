@@ -17,6 +17,9 @@ mod stream;
 pub use stream::*;
 mod querier;
 pub use querier::*;
+mod batch;
+pub use batch::{Eval, StatQueryBatch};
+mod cache;
 mod qualifier;
 #[cfg(feature = "serde")]
 mod serde_map;
