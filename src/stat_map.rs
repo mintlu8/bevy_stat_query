@@ -245,7 +245,7 @@ impl<Q: QualifierKey, T: StatDispatch> StatMapBase<Q, T> {
 
     /// Create or modify a stat via a [`StatOperation`].
     ///
-    /// Create a [`Default`] stat if non-existent.
+    /// Create a [`Default`] stat if it does not exist.
     pub fn modify<S: Stat>(&mut self, qualifier: Q, stat: S, op: StatOperation<S::Value>)
     where
         T: StatDispatchTo<S>,
@@ -275,7 +275,7 @@ impl<Q: QualifierKey, T: StatDispatch> StatMapBase<Q, T> {
 
     /// Create or modify a stat via a closure.
     ///
-    /// Create a [`Default`] stat if non-existent.
+    /// Create a [`Default`] stat if it does not exist.
     pub fn modify_with<S: Stat>(&mut self, qualifier: Q, stat: S, f: impl FnOnce(&mut S::Value))
     where
         T: StatDispatchTo<S>,

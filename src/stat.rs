@@ -113,9 +113,6 @@ impl Debug for &dyn ErasedStat {
 }
 
 /// A pair of stat and value in a query.
-///
-/// # Safety Invariant
-/// `value` must be the correct [`Stat::Value`].
 #[derive(Debug)]
 pub struct StatValuePair<'t> {
     pub(crate) uid: StatUid,
